@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}{{ connection.name }} · Entities{% endblock %}
+{% block content %}
+  <div class="page-title">{{ connection.name }} — Entities</div>
+  <div class="page-subtitle"><a href="{% url 'connections:detail' connection.pk %}">← back to connection</a></div>
+
+  {% for entity in entities %}
+    <div class="panel mb-3">
+      <div class="d-flex justify-content-between">
+        <h6 class="schema-name">{{ entity.name }}</h6>
+        <span class="text-dim small mono">{{ entity.endpoint_path }}</span>
+      </div>
+      {% for field in entity.fields.all %}
+        <div class="d-flex justify-content-between border-bottom py-1 small">
+          <span class="mono">{{ field.name }}</span>
+          <span class="field-type">{{ field.field_type }}{% if field.required %} · required{% endif %}</span>
+        </div>
+      {% empty %}
+        <p class="text-dim small mb-0">No fields yet.</p>
+      {% endfor %}
+    </div>
+  {% empty %}
+    <p class="text-dim">No entities discovered for this connection yet.</p>
+  {% endfor %}
+{% endblock %}

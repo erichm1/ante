@@ -1,0 +1,7 @@
+Django>=5.0,<5.3
+djangorestframework>=3.15
+django-filter>=24.2
+requests>=2.31
+cryptography>=42.0
+python-dotenv>=1.0
+simpleeval>=1.0

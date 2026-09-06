@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Run #{{ run.pk }}{% endblock %}
+{% block content %}
+  <div class="page-title">Run #{{ run.pk }} — {{ run.mapping.name }}</div>
+  <div class="page-subtitle mono">
+    {{ run.mapping.source_connection.name }} →
+    {% for d in run.mapping.destination_connections.all %}{{ d.name }}{% if not forloop.last %}, {% endif %}{% endfor %}
+  </div>
+
+  <div class="panel mb-3">
+    <div class="row text-center">
+      <div class="col">
+        <div class="text-dim small">Status</div>
+        {% if run.status == "success" %}
+          <span class="status-chip ok">{{ run.status }}</span>
+        {% elif run.status == "failed" %}
+          <span class="status-chip err">{{ run.status }}</span>
+        {% else %}
+          <span class="status-chip warn">{{ run.status }}</span>
+        {% endif %}
+      </div>
+      <div class="col"><div class="text-dim small">Read</div><div class="mono">{{ run.records_read }}</div></div>
+      <div class="col"><div class="text-dim small">Written</div><div class="mono">{{ run.records_written }}</div></div>
+      <div class="col"><div class="text-dim small">Failed</div><div class="mono">{{ run.records_failed }}</div></div>
+      <div class="col"><div class="text-dim small">Requests</div><div class="mono">{{ run.requests_made }}</div></div>
+      <div class="col"><div class="text-dim small">Started</div><div class="mono small">{{ run.started_at|date:"Y-m-d H:i:s" }}</div></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h6 class="mb-3">Logs</h6>
+    {% for log in run.logs.all %}
+      <div class="d-flex gap-2 border-bottom py-1 small">
+        <span class="text-dim mono">{{ log.created_at|date:"H:i:s" }}</span>
+        {% if log.level == "error" %}
+          <span class="status-chip err">error</span>
+        {% elif log.level == "warning" %}
+          <span class="status-chip warn">warn</span>
+        {% else %}
+          <span class="status-chip ok">info</span>
+        {% endif %}
+        <span>{{ log.message }}</span>
+      </div>
+    {% empty %}
+      <p class="text-dim small mb-0">No log entries.</p>
+    {% endfor %}
+  </div>
+
+  <a href="{% url 'mappings:canvas' run.mapping.pk %}" class="btn btn-outline-secondary mt-3">← back to mapping canvas</a>
+{% endblock %}

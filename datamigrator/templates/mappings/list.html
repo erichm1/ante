@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}Mappings{% endblock %}
+{% block content %}
+  <div class="d-flex justify-content-between align-items-start">
+    <div>
+      <div class="page-title">Mappings</div>
+      <div class="page-subtitle">Pick the origin and destiny(ies) up front — the canvas only lets you map entities that belong to them.</div>
+    </div>
+    <button class="btn btn-signal" data-bs-toggle="modal" data-bs-target="#newMappingModal">New mapping</button>
+  </div>
+
+  <div class="panel">
+    {% if mappings %}
+      <table class="table align-middle mb-0">
+        <thead><tr><th>Name</th><th>Origin</th><th>Destinies</th><th></th></tr></thead>
+        <tbody>
+          {% for m in mappings %}
+            <tr>
+              <td>{{ m.name }}</td>
+              <td class="mono">{{ m.source_connection.name }}</td>
+              <td class="mono">
+                {% for d in m.destination_connections.all %}{{ d.name }}{% if not forloop.last %}, {% endif %}{% empty %}<span class="text-dim">none yet</span>{% endfor %}
+              </td>
+              <td class="text-end"><a href="{% url 'mappings:canvas' m.pk %}" class="btn btn-sm btn-outline-secondary">Open canvas</a></td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="text-dim mb-0">No mappings yet.</p>
+    {% endif %}
+  </div>
+
+  <div class="modal fade" id="newMappingModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">New mapping</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div id="createError" class="alert alert-danger d-none"></div>
+          <div class="mb-3">
+            <label class="form-label">Name</label>
+            <input class="form-control" id="mp_name" placeholder="e.g. CRM to ERP + Data warehouse sync">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Integration origin</label>
+            <select class="form-select" id="mp_source">
+              {% for c in connections %}<option value="{{ c.pk }}">{{ c.name }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="mb-1">
+            <label class="form-label">Integration destinies</label>
+            <select class="form-select" id="mp_destinations" multiple size="5">
+              {% for c in connections %}<option value="{{ c.pk }}">{{ c.name }}</option>{% endfor %}
+            </select>
+            <div class="form-text">Ctrl/Cmd-click to pick more than one. You can add more later from the admin.</div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button class="btn btn-signal" onclick="createMapping()">Create</button>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+async function createMapping() {
+  const errorBox = document.getElementById('createError');
+  errorBox.classList.add('d-none');
+  const destinations = Array.from(document.getElementById('mp_destinations').selectedOptions).map(o => parseInt(o.value, 10));
+
+  const resp = await fetch('/api/mappings/', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name: document.getElementById('mp_name').value,
+      source_connection: document.getElementById('mp_source').value,
+      destination_connections: destinations,
+    }),
+  });
+  if (resp.ok) {
+    const body = await resp.json();
+    window.location.href = `/mappings/${body.id}/canvas/`;
+  } else {
+    errorBox.textContent = JSON.stringify(await resp.json());
+    errorBox.classList.remove('d-none');
+  }
+}
+</script>
+{% endblock %}

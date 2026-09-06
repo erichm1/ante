@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}{{ mapping.name }} · Canvas{% endblock %}
+{% block content %}
+  <div class="d-flex justify-content-between align-items-start">
+    <div>
+      <div class="page-title">{{ mapping.name }}</div>
+      <div class="page-subtitle mono">
+        {{ mapping.source_connection.name }} →
+        {% for d in mapping.destination_connections.all %}{{ d.name }}{% if not forloop.last %}, {% endif %}{% empty %}no destinies yet{% endfor %}
+      </div>
+    </div>
+    <div class="d-flex gap-2 align-items-center">
+      <div id="runStats" class="d-none">
+        <span class="status-chip" id="runStatusChip">running</span>
+        <span class="mono small ms-2"><span id="statRequests">0</span> req</span>
+        <span class="mono small ms-2"><span id="statRate">0.0</span> rq/s</span>
+      </div>
+      <button class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#addEntityPairModal">Add entity pair</button>
+      <button class="btn btn-signal" id="runMigrationBtn" onclick="runMigration()">Run migration</button>
+    </div>
+  </div>
+
+  <p class="text-dim small">Drag from a field's teal dot (source) to a field's amber dot (target) to map it — a source field can fan out to several destination fields. Click a connection to remove it. Drag an entity box to reposition it.</p>
+
+  <div id="canvasSurface" class="canvas-surface"></div>
+
+  {{ canvas_data|json_script:"canvas-data" }}
+
+  <div class="modal fade" id="addEntityPairModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Add entity pair to canvas</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div id="pairError" class="alert alert-danger d-none"></div>
+          <div class="mb-3">
+            <label class="form-label">Source entity <span class="text-dim">({{ mapping.source_connection.name }})</span></label>
+            <select class="form-select" id="pair_source"></select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Destination connection</label>
+            <select class="form-select" id="pair_dest_connection">
+              <option value="">Choose a destiny…</option>
+            </select>
+          </div>
+          <div class="mb-1">
+            <label class="form-label">Destination entity</label>
+            <select class="form-select" id="pair_dest_entity" disabled>
+              <option value="">Pick a destination connection first</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button class="btn btn-signal" onclick="addEntityPair()">Add to canvas</button>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsplumb/2.15.6/js/jsplumb.min.js"></script>
+<script src="{% static 'js/canvas.js' %}"></script>
+<script>
+  window.MAPPING_ID = {{ mapping.pk }};
+  document.addEventListener('DOMContentLoaded', () => {
+    initCanvas(JSON.parse(document.getElementById('canvas-data').textContent));
+  });
+</script>
+{% endblock %}
