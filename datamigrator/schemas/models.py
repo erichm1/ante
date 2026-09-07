@@ -17,9 +17,17 @@ class Entity(models.Model):
     name = models.CharField(max_length=120)
     endpoint_path = models.CharField(
         max_length=255, blank=True,
-        help_text="Path used to read/write records, relative to the connection's base URL, e.g. /customers",
+        help_text="Path used to read/write records, relative to the connection's base URL, e.g. /customers. "
+                   "Unused when source_file is set — records come from the file instead of an HTTP call.",
     )
     source = models.CharField(max_length=20, choices=SOURCE_CHOICES, default=SOURCE_MANUAL)
+    source_file = models.FileField(
+        upload_to="schemas/source_files/%Y/%m/", null=True, blank=True,
+        help_text="A CSV or .xlsx file this entity's records come from directly — jobs/engine.py reads "
+                   "every row from here instead of making an HTTP request, so a mapping can use this "
+                   "entity as its source with no real API/connection behind it at all (see connections/"
+                   "detail.html's 'From file' discovery tab, which sets this and tags source='manual').",
+    )
     canvas_x = models.IntegerField(default=40)
     canvas_y = models.IntegerField(default=40)
     created_at = models.DateTimeField(auto_now_add=True)

@@ -1,0 +1,22 @@
+{% extends "accounts/auth_base.html" %}
+{% block title %}Log in{% endblock %}
+{% block auth_content %}
+  <h5 class="mb-3">Log in</h5>
+  <form method="post">
+    {% csrf_token %}
+    {% if form.non_field_errors %}
+      <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+    {% endif %}
+    <div class="mb-3">
+      <label class="form-label" for="{{ form.username.id_for_label }}">Username</label>
+      {{ form.username }}
+    </div>
+    <div class="mb-3">
+      <label class="form-label" for="{{ form.password.id_for_label }}">Password</label>
+      {{ form.password }}
+    </div>
+    <input type="hidden" name="next" value="{{ next }}">
+    <button class="btn btn-signal w-100" type="submit">Log in</button>
+  </form>
+  <p class="auth-footer">No account yet? <a href="{% url 'accounts:register' %}">Register</a></p>
+{% endblock %}

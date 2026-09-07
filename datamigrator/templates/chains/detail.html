@@ -1,0 +1,348 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}{{ chain.name }} · Chain{% endblock %}
+{% block content %}
+  <div class="d-flex justify-content-between align-items-start">
+    <div>
+      <div class="page-title">{{ chain.name }}</div>
+      <div class="page-subtitle mono">{{ chain.connection.name }}</div>
+      {% if chain.description %}<p class="text-dim small mb-0 mt-1">{{ chain.description }}</p>{% endif %}
+    </div>
+    <button class="btn btn-signal" id="runChainBtn" onclick="runChain()">Run chain</button>
+  </div>
+
+  <div class="panel mt-3">
+    <h6 class="mb-1">Steps <span class="text-dim small">— run in order, top to bottom</span></h6>
+    <p class="text-dim small">Reference an earlier step's parsed JSON response in this step's Path or Body with <span class="mono">{% templatetag openvariable %}step_name.field.path{% templatetag closevariable %}</span> — e.g. <span class="mono">{% templatetag openvariable %}create_customer.id{% templatetag closevariable %}</span>.</p>
+    <table class="table align-middle mb-0">
+      <thead><tr><th>#</th><th>Name</th><th>Method</th><th>Path</th><th>Body</th><th>Captures</th><th></th></tr></thead>
+      <tbody id="stepsBody">
+        {% for step in steps %}
+          <tr id="step-row-{{ step.pk }}">
+            <td class="mono">{{ step.order }}</td>
+            <td class="mono">{{ step.name }}</td>
+            <td><span class="verb-badge verb-{{ step.method|lower }}">{{ step.method }}</span></td>
+            <td class="mono small">{{ step.path }}</td>
+            <td class="mono small text-dim" style="max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ step.body|default:"—" }}</td>
+            <td class="small">
+              {% for c in step.captures %}
+                <span class="status-chip ok mono">{{ c.name }} ← {{ c.path|default:"." }}</span>
+              {% empty %}
+                <span class="text-dim">—</span>
+              {% endfor %}
+            </td>
+            <td class="text-end text-nowrap">
+              <button class="btn btn-sm btn-outline-secondary" onclick="openEditStepModal({{ step.pk }})">Edit</button>
+              <button class="btn btn-sm btn-outline-secondary" onclick="moveStep({{ step.pk }}, 'up')" {% if forloop.first %}disabled{% endif %}>↑</button>
+              <button class="btn btn-sm btn-outline-secondary" onclick="moveStep({{ step.pk }}, 'down')" {% if forloop.last %}disabled{% endif %}>↓</button>
+              <button class="btn btn-sm btn-outline-danger" onclick="removeStep({{ step.pk }})">Remove</button>
+            </td>
+          </tr>
+        {% empty %}
+          <tr id="noStepsRow"><td colspan="7" class="text-dim small">No steps yet — add one below.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <div class="mt-3 pt-3 border-top">
+      <div id="addStepError" class="alert alert-danger d-none"></div>
+      <div class="row g-2">
+        <div class="col-md-3">
+          <label class="form-label small mb-1">Name</label>
+          <input class="form-control form-control-sm mono" id="as_name" placeholder="create_customer">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small mb-1">Method</label>
+          <select class="form-select form-select-sm" id="as_method">
+            {% for value, label in method_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small mb-1">Path</label>
+          <input class="form-control form-control-sm mono" id="as_path" placeholder="/customers">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small mb-1">Body <span class="text-dim">(optional JSON)</span></label>
+          <input class="form-control form-control-sm mono" id="as_body" placeholder='{"name": "Acme"}'>
+        </div>
+        <div class="col-md-1 d-flex align-items-end">
+          <button class="btn btn-sm btn-signal w-100" onclick="addStep()">+ Add</button>
+        </div>
+      </div>
+
+      <div class="mt-2">
+        <label class="form-label small mb-1 text-dim">Captures <span class="fw-normal">— pull values out of this step's own response, for later steps to use as {% templatetag openvariable %}name{% templatetag closevariable %}</span></label>
+        <div id="as_captures_list"></div>
+        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="addCaptureRow('as')">+ Add capture</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel mt-3">
+    <div class="d-flex align-items-center justify-content-between mb-2">
+      <h6 class="mb-0">Last run</h6>
+      {% if last_run %}
+        <span class="d-flex align-items-center gap-2">
+          <span class="status-chip {% if last_run.status == 'success' %}ok{% else %}err{% endif %}">{{ last_run.status }}</span>
+          <span class="text-dim small mono">{{ last_run.started_at|date:"Y-m-d H:i:s" }}</span>
+          {% if last_run.result_file %}<a href="{{ last_run.result_file.url }}" target="_blank" class="small">Download result JSON →</a>{% endif %}
+        </span>
+      {% endif %}
+    </div>
+    <div id="lastRunBox">
+      {% if last_run %}
+        <div class="mb-3">
+          <div class="small text-dim text-uppercase mb-1">Captured variables</div>
+          <p class="text-dim small mb-1">Available to any step as {% templatetag openvariable %}name{% templatetag closevariable %}.</p>
+          <div class="d-flex flex-wrap gap-2">
+            {% for key, value, source in captured_variables %}
+              <span class="status-chip ok mono" title="from step &quot;{{ source }}&quot;">{{ key }} = {{ value }}</span>
+            {% empty %}
+              <span class="text-dim small">None captured on this run.</span>
+            {% endfor %}
+          </div>
+        </div>
+        <table class="table table-sm align-middle mb-0">
+          <thead><tr><th></th><th>Step</th><th>Method</th><th>Resolved path</th><th>Status</th><th></th></tr></thead>
+          <tbody>
+            {% for r in last_run.step_results.all %}
+              <tr style="cursor: pointer;" onclick="document.getElementById('result-detail-{{ r.pk }}').classList.toggle('d-none')">
+                <td class="text-dim">▸</td>
+                <td class="mono">{{ r.name }}</td>
+                <td><span class="verb-badge verb-{{ r.method|lower }}">{{ r.method }}</span></td>
+                <td class="mono small">{{ r.resolved_path }}</td>
+                <td>
+                  {% if r.error %}<span class="status-chip err">error</span>
+                  {% elif r.status_code and r.status_code < 400 %}<span class="status-chip ok">{{ r.status_code }}</span>
+                  {% else %}<span class="status-chip err">{{ r.status_code|default:"?" }}</span>{% endif %}
+                </td>
+                <td></td>
+              </tr>
+              <tr class="d-none" id="result-detail-{{ r.pk }}">
+                <td></td>
+                <td colspan="5">
+                  {% if r.error %}<div class="text-danger small mb-2"><strong>Error:</strong> {{ r.error }}</div>{% endif %}
+                  {% if r.resolved_body %}
+                    <div class="small text-dim text-uppercase mb-1">Resolved request body</div>
+                    <pre class="mono small p-2 border rounded">{{ r.resolved_body }}</pre>
+                  {% endif %}
+                  {% if r.response_json != None %}
+                    <div class="small text-dim text-uppercase mb-1">Response (captured as "{{ r.name }}" for later steps)</div>
+                    <pre class="mono small p-2 border rounded">{{ r.response_json|pprint }}</pre>
+                  {% endif %}
+                  {% if r.captured_variables %}
+                    <div class="small text-dim text-uppercase mb-1">Variables captured here</div>
+                    <pre class="mono small p-2 border rounded">{{ r.captured_variables|pprint }}</pre>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <p class="text-dim small mb-0">This chain hasn't run yet.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if runs %}
+    <div class="panel mt-3">
+      <h6 class="mb-3">Run history</h6>
+      <table class="table table-sm align-middle mb-0">
+        <thead><tr><th>Run</th><th>Status</th><th>Started</th><th>Finished</th><th></th></tr></thead>
+        <tbody>
+          {% for run in runs %}
+            <tr>
+              <td class="mono">#{{ run.pk }}</td>
+              <td><span class="status-chip {% if run.status == 'success' %}ok{% else %}err{% endif %}">{{ run.status }}</span></td>
+              <td class="mono small">{{ run.started_at|date:"Y-m-d H:i:s" }}</td>
+              <td class="mono small">{{ run.finished_at|date:"Y-m-d H:i:s"|default:"—" }}</td>
+              <td class="text-end">{% if run.result_file %}<a href="{{ run.result_file.url }}" target="_blank" class="small">JSON →</a>{% endif %}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% endif %}
+
+  <a href="{% url 'chains:list' %}" class="btn btn-outline-secondary mt-3">← back to chains</a>
+
+  {{ steps_json|json_script:"steps-data" }}
+
+  <div class="modal fade" id="editStepModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Edit step</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div id="editStepError" class="alert alert-danger d-none"></div>
+          <div class="row g-2">
+            <div class="col-md-3">
+              <label class="form-label small mb-1">Name</label>
+              <input class="form-control form-control-sm mono" id="es_name">
+            </div>
+            <div class="col-md-2">
+              <label class="form-label small mb-1">Method</label>
+              <select class="form-select form-select-sm" id="es_method">
+                {% for value, label in method_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="col-md-7">
+              <label class="form-label small mb-1">Path</label>
+              <input class="form-control form-control-sm mono" id="es_path">
+            </div>
+            <div class="col-12">
+              <label class="form-label small mb-1">Body <span class="text-dim">(optional JSON)</span></label>
+              <input class="form-control form-control-sm mono" id="es_body">
+            </div>
+          </div>
+          <div class="mt-3">
+            <label class="form-label small mb-1 text-dim">Captures</label>
+            <div id="es_captures_list"></div>
+            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="addCaptureRow('es')">+ Add capture</button>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button class="btn btn-signal" onclick="saveStepEdit()">Save</button>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+window.CHAIN_ID = {{ chain.pk }};
+const STEPS_BY_ID = {};
+JSON.parse(document.getElementById('steps-data').textContent).forEach(s => { STEPS_BY_ID[s.id] = s; });
+
+// ---- Captures mini-builder — shared by the Add-step row and the Edit-step
+// modal, keyed by a prefix ('as' or 'es') so both can coexist on the page.
+const captureState = { as: [], es: [] };
+
+function escapeAttr(s) {
+  return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function renderCaptureRows(prefix) {
+  const box = document.getElementById(`${prefix}_captures_list`);
+  const rows = captureState[prefix];
+  box.innerHTML = rows.length ? rows.map((c, i) => `
+    <div class="d-flex gap-2 align-items-center mb-1">
+      <input type="text" class="form-control form-control-sm mono" style="max-width: 200px;" placeholder="variable_name" value="${escapeAttr(c.name)}" oninput="updateCaptureRow('${prefix}', ${i}, 'name', this.value)">
+      <span class="text-dim">←</span>
+      <input type="text" class="form-control form-control-sm mono" placeholder="json.path (blank = whole response)" value="${escapeAttr(c.path)}" oninput="updateCaptureRow('${prefix}', ${i}, 'path', this.value)">
+      <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeCaptureRow('${prefix}', ${i})">&times;</button>
+    </div>`).join('') : '<p class="text-dim small mb-1">No captures yet.</p>';
+}
+
+function addCaptureRow(prefix) {
+  captureState[prefix].push({ name: '', path: '' });
+  renderCaptureRows(prefix);
+}
+
+function removeCaptureRow(prefix, idx) {
+  captureState[prefix].splice(idx, 1);
+  renderCaptureRows(prefix);
+}
+
+function updateCaptureRow(prefix, idx, key, value) {
+  captureState[prefix][idx][key] = value;
+}
+
+function addStep() {
+  const errorBox = document.getElementById('addStepError');
+  errorBox.classList.add('d-none');
+  const bodyRaw = document.getElementById('as_body').value.trim();
+  if (bodyRaw) {
+    try { JSON.parse(bodyRaw.replace(/\{\{[^}]*\}\}/g, 'null')); }
+    catch (e) { errorBox.textContent = 'Body must be valid JSON (placeholders aside).'; errorBox.classList.remove('d-none'); return; }
+  }
+  fetch(`/api/chains/${window.CHAIN_ID}/steps/`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name: document.getElementById('as_name').value.trim(),
+      method: document.getElementById('as_method').value,
+      path: document.getElementById('as_path').value.trim(),
+      body: bodyRaw,
+      captures: captureState.as.filter(c => c.name.trim()),
+    }),
+  }).then(async resp => {
+    if (resp.ok) { window.location.reload(); }
+    else { errorBox.textContent = (await resp.json()).error || 'Could not add step.'; errorBox.classList.remove('d-none'); }
+  });
+}
+
+function openEditStepModal(stepId) {
+  const step = STEPS_BY_ID[stepId];
+  document.getElementById('editStepError').classList.add('d-none');
+  document.getElementById('es_name').value = step.name;
+  document.getElementById('es_method').value = step.method;
+  document.getElementById('es_path').value = step.path;
+  document.getElementById('es_body').value = step.body || '';
+  captureState.es = (step.captures || []).map(c => ({ ...c }));
+  renderCaptureRows('es');
+  window.EDITING_STEP_ID = stepId;
+  new bootstrap.Modal(document.getElementById('editStepModal')).show();
+}
+
+function saveStepEdit() {
+  const errorBox = document.getElementById('editStepError');
+  errorBox.classList.add('d-none');
+  const bodyRaw = document.getElementById('es_body').value.trim();
+  if (bodyRaw) {
+    try { JSON.parse(bodyRaw.replace(/\{\{[^}]*\}\}/g, 'null')); }
+    catch (e) { errorBox.textContent = 'Body must be valid JSON (placeholders aside).'; errorBox.classList.remove('d-none'); return; }
+  }
+  fetch(`/api/chain-steps/${window.EDITING_STEP_ID}/`, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name: document.getElementById('es_name').value.trim(),
+      method: document.getElementById('es_method').value,
+      path: document.getElementById('es_path').value.trim(),
+      body: bodyRaw,
+      captures: captureState.es.filter(c => c.name.trim()),
+    }),
+  }).then(async resp => {
+    if (resp.ok) { window.location.reload(); }
+    else { errorBox.textContent = (await resp.json()).error || 'Could not save this step.'; errorBox.classList.remove('d-none'); }
+  });
+}
+
+function removeStep(stepId) {
+  if (!confirm('Remove this step?')) return;
+  fetch(`/api/chain-steps/${stepId}/`, { method: 'DELETE' }).then(resp => {
+    if (resp.ok) window.location.reload();
+  });
+}
+
+function moveStep(stepId, direction) {
+  fetch(`/api/chain-steps/${stepId}/move/`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ direction }),
+  }).then(resp => { if (resp.ok) window.location.reload(); });
+}
+
+function runChain() {
+  const btn = document.getElementById('runChainBtn');
+  btn.disabled = true;
+  btn.textContent = 'Running…';
+  fetch(`/api/chains/${window.CHAIN_ID}/execute/`, { method: 'POST' })
+    .then(async resp => {
+      const body = await resp.json();
+      if (!resp.ok) {
+        alert(body.error || 'Chain failed to run.');
+        btn.disabled = false;
+        btn.textContent = 'Run chain';
+        return;
+      }
+      window.location.reload();
+    });
+}
+
+renderCaptureRows('as');
+</script>
+{% endblock %}

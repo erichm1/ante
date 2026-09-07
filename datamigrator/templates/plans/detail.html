@@ -1,0 +1,203 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}{{ plan.name }} · Plan{% endblock %}
+{% block content %}
+  <div class="d-flex justify-content-between align-items-start">
+    <div>
+      <div class="d-flex align-items-center gap-2">
+        <div class="page-title mb-0" id="plan-name">{{ plan.name }}</div>
+        <span class="status-chip {% if plan.status == 'completed' %}ok{% elif plan.status == 'failed' %}err{% elif plan.status == 'executing' or plan.status == 'scheduled' %}warn{% endif %}" id="plan-status">{{ plan.status }}</span>
+      </div>
+      <div class="page-subtitle">
+        <span id="plan-description">{{ plan.description|default:"No description." }}</span>
+        {% if plan.scheduled_at and plan.status == "scheduled" %}
+          <div class="text-dim small mt-1" id="plan-scheduled-note">Scheduled for {{ plan.scheduled_at|date:"Y-m-d H:i" }}</div>
+        {% endif %}
+      </div>
+    </div>
+    <div class="d-flex gap-2">
+      {% if plan.is_editable %}
+        <button class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#editPlanModal">Edit</button>
+      {% endif %}
+      <div class="btn-group">
+        <button class="btn btn-signal" id="executeBtn" onclick="executePlanNow()" {% if plan.status == "executing" or plan.status == "scheduled" %}disabled{% endif %}>
+          {% if plan.status == "executing" %}Executing…{% elif plan.status == "scheduled" %}Scheduled{% else %}Execute{% endif %}
+        </button>
+        <button type="button" class="btn btn-signal dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-expanded="false" {% if plan.status == "executing" or plan.status == "scheduled" %}disabled{% endif %}>
+          <span class="visually-hidden">Toggle run options</span>
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end">
+          <li><button class="dropdown-item" type="button" data-bs-toggle="modal" data-bs-target="#executeOptionsModal">Run options…</button></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel mt-3">
+    <h6 class="mb-3">Steps <span class="text-dim small">— run sequentially, in order</span></h6>
+    <table class="table align-middle mb-0">
+      <thead><tr><th>#</th><th>Route</th><th>Rate limit</th><th>Status</th><th></th></tr></thead>
+      <tbody id="stepsBody">
+        {% for step in steps %}
+          <tr id="step-row-{{ step.pk }}">
+            <td class="mono">{{ step.order }}</td>
+            <td>{% include "jobs/_route.html" with route=step.route %}</td>
+            <td class="mono small">
+              {% if step.rate_limit_per_second %}≤ {{ step.rate_limit_per_second }}/s{% else %}plan default{% endif %}
+              {% if plan.is_editable %}
+                <button type="button" class="entity-edit-btn" title="Edit rate limit" onclick="openEditStepModal({{ step.pk }}, {{ step.rate_limit_per_second|default:'null' }})"><i class="bi-pencil"></i></button>
+              {% endif %}
+            </td>
+            <td>
+              {% if step.run %}
+                <a href="{% url 'jobs:run_detail' step.run.pk %}" class="status-chip {% if step.run.status == 'success' %}ok{% elif step.run.status == 'failed' %}err{% else %}warn{% endif %}" id="step-status-{{ step.pk }}">{{ step.run.status }}</a>
+              {% else %}
+                <span class="status-chip" id="step-status-{{ step.pk }}">not started</span>
+              {% endif %}
+            </td>
+            <td class="text-end">
+              {% if plan.is_editable %}
+                <button class="btn btn-sm btn-outline-secondary" onclick="moveStep({{ step.pk }}, 'up')" {% if forloop.first %}disabled{% endif %}>↑</button>
+                <button class="btn btn-sm btn-outline-secondary" onclick="moveStep({{ step.pk }}, 'down')" {% if forloop.last %}disabled{% endif %}>↓</button>
+                <button class="btn btn-sm btn-outline-danger" onclick="removeStep({{ step.pk }})">Remove</button>
+              {% endif %}
+            </td>
+          </tr>
+        {% empty %}
+          <tr id="noStepsRow"><td colspan="5" class="text-dim small">No steps yet — add a mapping below.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    {% if plan.is_editable %}
+      <div class="d-flex gap-2 align-items-end mt-3 pt-3 border-top">
+        <div class="flex-grow-1">
+          <label class="form-label small mb-1">Add mapping</label>
+          <select class="form-select form-select-sm" id="as_mapping">
+            {% for m in mappings %}<option value="{{ m.pk }}">{{ m.name }}</option>{% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="form-label small mb-1">Rate limit <span class="text-dim">(optional)</span></label>
+          <input type="number" step="0.1" min="0.1" class="form-control form-control-sm" id="as_rate_limit" placeholder="plan default">
+        </div>
+        <button class="btn btn-sm btn-signal" onclick="addStep()">+ Add step</button>
+      </div>
+      <div id="addStepError" class="alert alert-danger d-none mt-2 mb-0"></div>
+    {% endif %}
+  </div>
+
+  <a href="{% url 'plans:list' %}" class="btn btn-outline-secondary mt-3">← back to plans</a>
+
+  <div class="modal fade" id="editPlanModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Edit plan</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div id="editPlanError" class="alert alert-danger d-none"></div>
+          <div class="mb-3">
+            <label class="form-label">Name</label>
+            <input class="form-control" id="ep_name" value="{{ plan.name }}">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Description</label>
+            <textarea class="form-control" id="ep_description" rows="2">{{ plan.description }}</textarea>
+          </div>
+          <div class="mb-1">
+            <label class="form-label">Default rate limit <span class="text-dim">(optional)</span></label>
+            <input type="number" step="0.1" min="0.1" class="form-control" id="ep_rate_limit" value="{{ plan.rate_limit_per_second|default:'' }}" placeholder="e.g. 5">
+            <div class="form-text">Applies to any step that doesn't set its own.</div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button class="btn btn-signal" onclick="savePlanEdit()">Save</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="editStepModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Edit step rate limit</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div id="editStepError" class="alert alert-danger d-none"></div>
+          <label class="form-label">Rate limit <span class="text-dim">(optional)</span></label>
+          <input type="number" step="0.1" min="0.1" class="form-control" id="es_rate_limit" placeholder="plan default">
+          <div class="form-text">Leave blank to fall back to the plan's default rate limit.</div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button class="btn btn-signal" onclick="saveStepEdit()">Save</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="executeOptionsModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Run options</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div id="executeError" class="alert alert-danger d-none"></div>
+          <div class="mb-3">
+            <label class="form-label">Run at <span class="text-dim">(optional)</span></label>
+            <input type="datetime-local" class="form-control" id="ex_schedule_at">
+            <div class="form-text">Leave blank to execute immediately once you click below.</div>
+          </div>
+          <div class="mb-1">
+            <label class="form-label">Rate limit <span class="text-dim">(optional)</span></label>
+            <input type="number" step="0.1" min="0.1" class="form-control" id="ex_rate_limit" value="{{ plan.rate_limit_per_second|default:'' }}" placeholder="e.g. 5">
+            <div class="form-text">Default for every step (a step's own rate limit still overrides this).</div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button class="btn btn-signal" onclick="executePlanWithOptions()">Start</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade modal-explode" id="planSnapshotModal" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title d-flex align-items-center gap-2">
+            <i class="bi-lightning-charge-fill" style="color: var(--signal);"></i>
+            Plan executing — <span id="snapshot-plan-name"></span>
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div id="snapshotSteps" class="d-flex flex-column gap-2"></div>
+        </div>
+        <div class="modal-footer">
+          <span class="text-dim small me-auto">Live — updates automatically, closing this won't stop it.</span>
+          <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{% static 'js/run_polling.js' %}"></script>
+<script src="{% static 'js/plan_detail.js' %}"></script>
+<script>
+  window.PLAN_ID = {{ plan.pk }};
+  window.PLAN_STATUS = "{{ plan.status }}";
+  window.PLAN_NAME = "{{ plan.name|escapejs }}";
+  initPlanDetail();
+</script>
+{% endblock %}

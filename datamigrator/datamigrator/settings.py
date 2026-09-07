@@ -25,10 +25,15 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "rest_framework",
     "django_filters",
+    "accounts",
+    "home",
     "connections",
+    "integrations",
     "schemas",
     "mappings",
     "jobs",
+    "plans",
+    "chains",
 ]
 
 MIDDLEWARE = [
@@ -37,6 +42,7 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "accounts.middleware.LoginRequiredMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
@@ -89,6 +95,10 @@ STATIC_URL = "static/"
 STATICFILES_DIRS = [BASE_DIR / "static"]
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
+# Uploaded integration logos (Integration.icon_image) live here.
+MEDIA_URL = "media/"
+MEDIA_ROOT = BASE_DIR / "media"
+
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 REST_FRAMEWORK = {
@@ -97,6 +107,8 @@ REST_FRAMEWORK = {
     "PAGE_SIZE": 50,
 }
 
-LOGIN_REDIRECT_URL = "/connections/"
+LOGIN_URL = "accounts:login"
+LOGIN_REDIRECT_URL = "home:index"
+LOGOUT_REDIRECT_URL = "accounts:login"
 
 MESSAGE_TAGS = {}

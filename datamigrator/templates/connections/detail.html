@@ -1,8 +1,28 @@
 {% extends "base.html" %}
+{% load static %}
 {% block title %}{{ connection.name }}{% endblock %}
 {% block content %}
-  <div class="page-title">{{ connection.name }}</div>
-  <div class="page-subtitle mono">{{ connection.base_url }}</div>
+  <div class="d-flex justify-content-between align-items-start">
+    <div class="d-flex align-items-center gap-2">
+      {% if integration %}
+        <span class="app-icon">
+          {% if integration.icon_image %}
+            <img src="{{ integration.icon_image.url }}" alt="{{ integration.name }} logo">
+          {% else %}
+            <i class="{{ integration.icon }}"></i>
+          {% endif %}
+        </span>
+      {% endif %}
+      <div>
+        <div class="page-title">{{ connection.name }}</div>
+        <div class="page-subtitle mono">{% if is_file_based %}file-based — no API{% else %}{{ connection.base_url }}{% endif %}</div>
+      </div>
+    </div>
+    <div class="d-flex gap-2">
+      <button class="btn btn-outline-secondary" onclick="openEditConnectionModal({{ connection.pk }})">Edit</button>
+      <button class="btn btn-outline-danger" onclick="deleteConnection({{ connection.pk }}, '{{ connection.name|escapejs }}', '/app-store/?tab=installed')">Delete</button>
+    </div>
+  </div>
 
   <div class="row g-3">
     <div class="col-md-6">
@@ -10,19 +30,77 @@
         <h6 class="mb-3">Authentication — {{ connection.get_auth_type_display }}</h6>
 
         {% if connection.auth_type == "oauth2" %}
-          <p class="text-dim small">Authorization Code flow. Set client_id / client_secret / authorize_url / token_url / scope in the connection's auth config (via the admin) before connecting.</p>
-          <a href="{% url 'connections:oauth_authorize' connection.pk %}" class="btn btn-trace">
-            {% if connection.is_connected %}Reconnect{% else %}Connect via OAuth2{% endif %}
-          </a>
+          {% if installed_via_app_store %}
+            <p class="text-dim small">Authorization Code flow via its App Store integration — uses the same shared redirect URL as installing it (see the admin's Integration page).</p>
+            <a href="{% url 'integrations:reconnect' connection.pk %}" class="btn btn-trace">
+              {% if connection.is_connected %}Reconnect{% else %}Connect via OAuth2{% endif %}
+            </a>
+          {% else %}
+            <p class="text-dim small">Authorization Code flow. Set client_id / client_secret / authorize_url / token_url / scope in the connection's auth config (via the admin) before connecting.</p>
+            <a href="{% url 'connections:oauth_authorize' connection.pk %}" class="btn btn-trace">
+              {% if connection.is_connected %}Reconnect{% else %}Connect via OAuth2{% endif %}
+            </a>
+          {% endif %}
 
-        {% elif connection.auth_type == "api_key" %}
-          <form method="post" action="{% url 'connections:save_api_key' connection.pk %}">
+          <hr class="my-3">
+          <h6 class="small text-uppercase text-dim mb-2">Automatic token refresh</h6>
+          <div id="refreshJobError" class="alert alert-danger d-none small"></div>
+          <div class="form-check form-switch mb-2">
+            <input class="form-check-input" type="checkbox" role="switch" id="rj_enabled" {% if refresh_job.is_enabled %}checked{% endif %}>
+            <label class="form-check-label small" for="rj_enabled">Enabled — proactively refresh even if no run needs it yet</label>
+          </div>
+          <div class="mb-2">
+            <label class="form-label small mb-1">Refresh every</label>
+            <div class="input-group input-group-sm" style="max-width: 200px;">
+              <input type="number" min="1" class="form-control" id="rj_interval" value="{{ refresh_job.interval_minutes|default:180 }}">
+              <span class="input-group-text">minutes</span>
+            </div>
+          </div>
+          {% if refresh_job %}
+            <p class="text-dim small mb-2">
+              Last run: <span class="mono">{{ refresh_job.last_run_at|date:"Y-m-d H:i:s"|default:"never" }}</span>
+              {% if refresh_job.last_status %}
+                <span class="status-chip {% if refresh_job.last_status == 'success' %}ok{% else %}err{% endif %}">{{ refresh_job.last_status }}</span>
+              {% endif %}
+              <br>Next run: <span class="mono">{{ refresh_job.next_run_at|date:"Y-m-d H:i:s"|default:"—" }}</span>
+              {% if refresh_job.last_error %}<br><span class="text-danger">{{ refresh_job.last_error }}</span>{% endif %}
+            </p>
+          {% endif %}
+          <div class="d-flex gap-2">
+            <button class="btn btn-sm btn-trace" onclick="saveRefreshJob()">Save</button>
+            {% if refresh_job %}
+              <button class="btn btn-sm btn-outline-secondary" onclick="runRefreshJobNow()">Refresh now</button>
+              <button class="btn btn-sm btn-outline-danger" onclick="deleteRefreshJob()">Delete job</button>
+            {% endif %}
+          </div>
+
+        {% elif connection.auth_type == "bearer" %}
+          <form method="post" action="{% url 'connections:save_bearer_token' connection.pk %}">
             {% csrf_token %}
             <div class="mb-3">
-              <label class="form-label">API key / bearer token</label>
-              <input type="password" name="api_key" class="form-control mono" placeholder="••••••••">
+              <label class="form-label">Bearer token</label>
+              <input type="password" name="token" class="form-control mono" placeholder="••••••••">
             </div>
-            <button class="btn btn-trace" type="submit">Save key</button>
+            <button class="btn btn-trace" type="submit">Save token</button>
+          </form>
+
+        {% elif connection.auth_type == "jwt" %}
+          <form method="post" action="{% url 'connections:save_jwt_config' connection.pk %}">
+            {% csrf_token %}
+            <p class="text-dim small">Self-signed HS256 JWT — re-signed automatically (see ttl_seconds) using the claims template below, and sent as an Authorization: Bearer header.</p>
+            <div class="mb-3">
+              <label class="form-label">Signing secret</label>
+              <input type="password" name="signing_secret" class="form-control mono" placeholder="••••••••">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Claims (JSON)</label>
+              <textarea class="form-control mono" name="claims" rows="3" placeholder='{"sub": "data-migrator", "iss": "data-migrator"}'>{{ claims_json }}</textarea>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">TTL (seconds)</label>
+              <input type="number" name="ttl_seconds" class="form-control" value="{{ connection.auth_config.ttl_seconds|default:3600 }}">
+            </div>
+            <button class="btn btn-trace" type="submit">Save JWT config</button>
           </form>
 
         {% elif connection.auth_type == "basic" %}
@@ -38,6 +116,9 @@
             </div>
             <button class="btn btn-trace" type="submit">Save credentials</button>
           </form>
+
+        {% elif is_file_based %}
+          <p class="text-dim small mb-0">No API or authentication at all — records come straight from the CSV/XLSX file uploaded per entity below.</p>
 
         {% else %}
           <p class="text-dim small mb-0">No authentication required for this connection.</p>
@@ -57,24 +138,38 @@
       <div class="panel h-100">
         <h6 class="mb-3">Discover entities</h6>
         <ul class="nav nav-tabs nav-tabs-sm mb-3" role="tablist">
-          <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-sample">From live sample</button></li>
-          <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-openapi">From OpenAPI</button></li>
+          {% if not is_file_based %}
+            <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-sample">From live sample</button></li>
+            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-openapi">From OpenAPI</button></li>
+          {% endif %}
+          <li class="nav-item"><button class="nav-link {% if is_file_based %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-file">From file</button></li>
           <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-manual">Manual</button></li>
         </ul>
         <div class="tab-content">
-          <div class="tab-pane fade show active" id="tab-sample">
-            <p class="text-dim small">Calls a live GET endpoint with this connection's auth and infers fields from the response.</p>
-            <input class="form-control mb-2" id="s_entity_name" placeholder="Entity name, e.g. Customer">
-            <input class="form-control mb-2 mono" id="s_endpoint_path" placeholder="/customers">
-            <button class="btn btn-signal btn-sm" onclick="discoverSample()">Discover</button>
-          </div>
-          <div class="tab-pane fade" id="tab-openapi">
-            <p class="text-dim small">Parses <code>components.schemas</code> from a Swagger/OpenAPI document.</p>
-            <input class="form-control mb-2 mono" id="o_spec_url" placeholder="https://api.example.com/openapi.json">
-            <button class="btn btn-signal btn-sm" onclick="discoverOpenapi()">Import schemas</button>
+          {% if not is_file_based %}
+            <div class="tab-pane fade show active" id="tab-sample">
+              <p class="text-dim small">Calls a live GET endpoint with this connection's auth and infers fields from the response.</p>
+              <input class="form-control mb-2" id="s_entity_name" placeholder="Entity name, e.g. Customer">
+              <input class="form-control mb-2 mono" id="s_endpoint_path" placeholder="/customers">
+              <button class="btn btn-signal btn-sm" onclick="discoverSample()">Discover</button>
+            </div>
+            <div class="tab-pane fade" id="tab-openapi">
+              <p class="text-dim small">Parses <code>components.schemas</code> from a Swagger/OpenAPI document, and catalogues every path in it for reuse later — even ones without a matching schema.</p>
+              <input class="form-control mb-2 mono" id="o_spec_url" placeholder="https://api.example.com/openapi.json">
+              <div class="text-dim small mb-2">— or —</div>
+              <input class="form-control mb-2" type="file" id="o_spec_file" accept=".json,application/json">
+              <button class="btn btn-signal btn-sm" onclick="discoverOpenapi()">Import schemas</button>
+            </div>
+          {% endif %}
+          <div class="tab-pane fade {% if is_file_based %}show active{% endif %}" id="tab-file">
+            <p class="text-dim small">Upload a CSV or .xlsx file — the header row becomes fields, typed from the first data row. The file itself is kept as this entity's data source: use it directly in a mapping and every row is read from the file when the migration runs, no API/connection needed. Tagged <span class="mono">manual</span>.</p>
+            <input class="form-control mb-2" id="f_entity_name" placeholder="Entity name, e.g. Customer">
+            <input class="form-control mb-2 mono" id="f_endpoint_path" placeholder="/customers (optional, unused when reading from the file)">
+            <input class="form-control mb-2" type="file" id="f_file" accept=".csv,.xlsx">
+            <button class="btn btn-signal btn-sm" onclick="discoverFile()">Import file</button>
           </div>
           <div class="tab-pane fade" id="tab-manual">
-            <p class="text-dim small">Add an entity by hand, then add fields to it from the Django admin.</p>
+            <p class="text-dim small">Add an entity by hand, then add fields to it from <a href="{% url 'schemas:entity_list' connection.pk %}">Manage entities & fields</a> below.</p>
             <input class="form-control mb-2" id="m_entity_name" placeholder="Entity name">
             <input class="form-control mb-2 mono" id="m_endpoint_path" placeholder="/endpoint-path">
             <button class="btn btn-signal btn-sm" onclick="createManual()">Create entity</button>
@@ -88,15 +183,121 @@
   <div class="panel mt-3">
     <div class="d-flex justify-content-between align-items-center mb-2">
       <h6 class="mb-0">Entities</h6>
-      <a class="small" href="/admin/schemas/entity/?connection__id__exact={{ connection.pk }}">Manage fields in admin →</a>
+      <a class="small" href="{% url 'schemas:entity_list' connection.pk %}">Manage entities & fields →</a>
     </div>
     <div id="entityAccordion" class="accordion"></div>
+  </div>
+
+  <div class="panel mt-3">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <h6 class="mb-0">Recent runs</h6>
+      <a class="small" href="{% url 'jobs:run_list' %}">All runs →</a>
+    </div>
+    {% if recent_runs %}
+      <table class="table align-middle mb-0">
+        <thead><tr><th>Run</th><th>Route</th><th>Status</th><th>Read</th><th>Written</th><th>Failed</th><th>Started</th><th></th></tr></thead>
+        <tbody>
+          {% for run in recent_runs %}
+            <tr>
+              <td class="mono">#{{ run.pk }}</td>
+              <td>{% include "jobs/_route.html" with route=run.route %}</td>
+              <td>
+                {% if run.status == "success" %}<span class="status-chip ok">success</span>
+                {% elif run.status == "failed" %}<span class="status-chip err">failed</span>
+                {% else %}<span class="status-chip warn">{{ run.status }}</span>{% endif %}
+              </td>
+              <td class="mono">{{ run.records_read }}</td>
+              <td class="mono">{{ run.records_written }}</td>
+              <td class="mono">{{ run.records_failed }}</td>
+              <td class="mono small">{{ run.started_at|date:"Y-m-d H:i:s"|default:"—" }}</td>
+              <td class="text-end"><a href="{% url 'jobs:run_detail' run.pk %}" class="btn btn-sm btn-outline-secondary">Open</a></td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="text-dim small mb-0">No runs have used this connection yet.</p>
+    {% endif %}
+  </div>
+
+  <div class="modal fade" id="editConnectionModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Edit connection</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div id="editConnectionError" class="alert alert-danger d-none"></div>
+          <div class="mb-3">
+            <label class="form-label">Name</label>
+            <input class="form-control" id="ec_name">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Base URL</label>
+            <input class="form-control mono" id="ec_base_url">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Auth type</label>
+            <select class="form-select" id="ec_auth_type">
+              {% for value, label in auth_types %}
+                <option value="{{ value }}">{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-1">
+            <label class="form-label">Auth config (JSON)</label>
+            <textarea class="form-control mono" id="ec_auth_config" rows="5"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button class="btn btn-signal" onclick="saveConnectionEdit()">Save</button>
+        </div>
+      </div>
+    </div>
   </div>
 {% endblock %}
 
 {% block extra_scripts %}
+<script src="{% static 'js/connections.js' %}"></script>
 <script>
 const connectionId = {{ connection.pk }};
+const refreshJobId = {{ refresh_job.pk|default:"null" }};
+
+async function saveRefreshJob() {
+  const errorBox = document.getElementById('refreshJobError');
+  errorBox.classList.add('d-none');
+
+  const payload = {
+    connection: connectionId,
+    is_enabled: document.getElementById('rj_enabled').checked,
+    interval_minutes: document.getElementById('rj_interval').value,
+  };
+  const url = refreshJobId ? `/api/token-refresh-jobs/${refreshJobId}/` : '/api/token-refresh-jobs/';
+  const method = refreshJobId ? 'PATCH' : 'POST';
+
+  const resp = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+  if (resp.ok) {
+    window.location.reload();
+  } else {
+    errorBox.textContent = JSON.stringify(await resp.json());
+    errorBox.classList.remove('d-none');
+  }
+}
+
+async function runRefreshJobNow() {
+  // Always returns 200 (success or failure is recorded on the job itself,
+  // not the HTTP response) — reload to show the real outcome.
+  await fetch(`/api/token-refresh-jobs/${refreshJobId}/run/`, { method: 'POST' });
+  window.location.reload();
+}
+
+async function deleteRefreshJob() {
+  if (!confirm('Stop automatic token refresh for this connection? It will still refresh lazily whenever a run actually needs it.')) return;
+  const resp = await fetch(`/api/token-refresh-jobs/${refreshJobId}/`, { method: 'DELETE' });
+  if (resp.ok) window.location.reload();
+}
 
 async function loadEntities() {
   const resp = await fetch(`/api/entities/?connection=${connectionId}`);
@@ -139,12 +340,42 @@ async function discoverSample() {
 
 async function discoverOpenapi() {
   const resultBox = document.getElementById('discoverResult');
-  const resp = await fetch('/api/entities/discover/openapi/', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ connection_id: connectionId, spec_url: document.getElementById('o_spec_url').value }),
-  });
+  const specUrl = document.getElementById('o_spec_url').value;
+  const specFile = document.getElementById('o_spec_file').files[0];
+
+  let resp;
+  if (specFile) {
+    const formData = new FormData();
+    formData.append('connection_id', connectionId);
+    formData.append('spec_file', specFile);
+    resp = await fetch('/api/entities/discover/openapi/', { method: 'POST', body: formData });
+  } else {
+    resp = await fetch('/api/entities/discover/openapi/', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ connection_id: connectionId, spec_url: specUrl }),
+    });
+  }
   const body = await resp.json();
   resultBox.textContent = resp.ok ? `Imported ${body.length} entities.` : (body.error || JSON.stringify(body));
+  if (resp.ok) loadEntities();
+}
+
+async function discoverFile() {
+  const resultBox = document.getElementById('discoverResult');
+  const file = document.getElementById('f_file').files[0];
+  if (!file) {
+    resultBox.textContent = 'Choose a .csv or .xlsx file first.';
+    return;
+  }
+  const formData = new FormData();
+  formData.append('connection_id', connectionId);
+  formData.append('entity_name', document.getElementById('f_entity_name').value);
+  formData.append('endpoint_path', document.getElementById('f_endpoint_path').value);
+  formData.append('file', file);
+
+  const resp = await fetch('/api/entities/discover/file/', { method: 'POST', body: formData });
+  const body = await resp.json();
+  resultBox.textContent = resp.ok ? `Discovered ${body.name} with ${body.fields.length} fields.` : (body.error || JSON.stringify(body));
   if (resp.ok) loadEntities();
 }
 

@@ -35,6 +35,8 @@ code, .mono, .field-type, .endpoint-path, .schema-name {
   background: var(--ink);
   color: #e7ecea;
   padding: 24px 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .app-sidebar .brand {
@@ -66,7 +68,28 @@ code, .mono, .field-type, .endpoint-path, .schema-name {
   background: var(--ink-soft);
 }
 
-.app-main { flex: 1; padding: 32px 40px; max-width: 1180px; }
+.sidebar-footer {
+  margin-top: auto;
+  padding: 16px 20px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.sidebar-user { color: #e7ecea; font-size: 0.82rem; margin-bottom: 8px; }
+
+.sidebar-logout {
+  background: none;
+  border: none;
+  color: #b9c4c1;
+  font-size: 0.85rem;
+  padding: 0;
+  cursor: pointer;
+}
+.sidebar-logout:hover { color: #fff; text-decoration: underline; }
+
+/* No max-width here — flex:1 should fill whatever space is left next to the
+   sidebar on every page; a fixed cap left a growing dead gutter on wider
+   viewports and made pages feel inconsistent with each other. */
+.app-main { flex: 1; padding: 32px 40px; min-width: 0; }
 
 .page-title { font-size: 1.4rem; font-weight: 600; margin-bottom: 4px; }
 .page-subtitle { color: var(--text-dim); margin-bottom: 24px; }
@@ -108,6 +131,184 @@ code, .mono, .field-type, .endpoint-path, .schema-name {
 }
 .btn-trace:hover { background: #278a83; border-color: #278a83; color: #fff; }
 
+/* -- App store -- */
+.app-card { transition: box-shadow 0.15s ease; }
+.app-card:hover { box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08); }
+
+.app-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 6px;
+  background: var(--trace-soft);
+  color: var(--trace);
+  font-size: 1.1rem;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.app-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 6px;
+}
+
+.app-card-name { font-weight: 600; }
+
+/* -- Connection status dot (green = connected, red = not) -- */
+.conn-status-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--trace);
+  flex-shrink: 0;
+}
+
+.conn-status-dot.ok { background: var(--trace); box-shadow: 0 0 0 2px var(--trace-soft); }
+.conn-status-dot.err { background: var(--danger); box-shadow: 0 0 0 2px #f8e6e4; }
+
+/* -- Run route summary (icon-first source -> destination, jobs/_route.html) -- */
+.route-icons { display: flex; align-items: center; gap: 6px; }
+
+.route-icon {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: var(--trace-soft);
+  color: var(--trace);
+  font-size: 0.9rem;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.route-icon img { width: 100%; height: 100%; object-fit: contain; }
+
+.route-icon .conn-status-dot {
+  position: absolute;
+  bottom: -1px;
+  right: -1px;
+  width: 8px;
+  height: 8px;
+  border: 1.5px solid var(--panel);
+  box-shadow: none;
+}
+
+.route-arrow { color: var(--text-dim); font-size: 0.8rem; }
+.route-arrow-sm { color: var(--text-dim); font-size: 0.6rem; }
+
+.route-entities {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+
+.entity-badge {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  background: var(--paper);
+  border: 1px solid var(--paper-line);
+  color: var(--text-dim);
+  padding: 1px 6px;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+
+/* -- Auth pages (login/register: no sidebar shell) -- */
+.auth-body { background: var(--paper); }
+
+.auth-shell {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.auth-card { width: 100%; max-width: 380px; padding: 32px; }
+
+.auth-brand {
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  letter-spacing: 0.02em;
+  color: var(--ink);
+}
+
+.auth-brand .dot { color: var(--trace); }
+
+.auth-footer { margin-top: 16px; text-align: center; font-size: 0.85rem; color: var(--text-dim); }
+
+/* -- Home dashboard -- */
+.stat-tile { padding: 18px 12px; }
+.stat-value { font-size: 1.8rem; font-weight: 600; margin-top: 4px; }
+
+/* Top-endpoints leaderboard: each row's bar width is proportional to its
+   call count relative to the #1 entry (set inline via style="width: n%"). */
+.rank-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
+.rank-row + .rank-row { border-top: 1px solid var(--paper-line); }
+.rank-num {
+  flex: 0 0 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--paper);
+  border: 1px solid var(--paper-line);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+.rank-row:first-child .rank-num { background: var(--signal); border-color: var(--signal); color: #fff; }
+.rank-bar-track {
+  flex: 1;
+  position: relative;
+  background: var(--paper);
+  border-radius: 4px;
+  overflow: hidden;
+  min-width: 0;
+}
+.rank-bar-fill { position: absolute; inset: 0 auto 0 0; background: var(--trace-soft); border-radius: 4px; }
+.rank-label {
+  position: relative;
+  display: block;
+  padding: 5px 8px;
+  font-size: 0.8rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rank-count { flex: 0 0 auto; font-weight: 600; font-family: var(--font-mono); min-width: 2.5em; text-align: right; }
+
+/* Swagger-style HTTP verb badges — same idea as swagger-ui's color-coded
+   method chips, reused on the run detail page's API-call log too. */
+.verb-badge {
+  display: inline-block;
+  min-width: 52px;
+  padding: 2px 7px;
+  border-radius: 3px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-align: center;
+  color: #fff;
+  text-transform: uppercase;
+}
+.verb-get { background: #4a90d9; }
+.verb-post { background: #3fb950; }
+.verb-put { background: var(--signal); }
+.verb-patch { background: #8250df; }
+.verb-delete { background: var(--danger); }
+
 /* -- Mapping canvas: graph-paper backdrop, entities as wired boxes -- */
 .canvas-surface {
   position: relative;
@@ -147,6 +348,17 @@ code, .mono, .field-type, .endpoint-path, .schema-name {
 
 .entity-box .entity-header small { color: var(--text-dim); font-weight: 400; }
 
+.entity-edit-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.entity-edit-btn:hover { color: var(--trace); }
+
 .field-row {
   display: flex;
   align-items: center;
@@ -173,4 +385,49 @@ code, .mono, .field-type, .endpoint-path, .schema-name {
 
 .field-endpoint.target { background: var(--signal); box-shadow: 0 0 0 1px var(--signal); }
 
-.jtk-connector path { stroke: var(--trace) !important; }
+/* Scoped to the editable canvas only — the run snapshot page (#snapshotSurface)
+   sets its own per-status stroke color inline via jsPlumb's setPaintStyle and
+   must not be overridden here. */
+#canvasSurface .jtk-connector path { stroke: var(--trace) !important; }
+
+/* "ƒ" badge on a field-mapping connector that has an active transform_rules/
+   transform — a Label overlay (a plain div, not a .jtk-connector path) so it's
+   unaffected by the stroke !important above. */
+.jtk-overlay.transform-badge {
+  background: var(--signal);
+  color: #fff;
+  border-radius: 50%;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  box-shadow: 0 0 0 2px var(--panel);
+  cursor: help;
+}
+
+/* -- Run snapshot (pipeline view) -- */
+.step-label {
+  background: #fff;
+  border: 1px solid var(--paper-line);
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+/* -- "Explode onto the screen" plan-execution snapshot modal -- */
+@keyframes modal-explode-pop {
+  0% { transform: scale(0.35); opacity: 0; }
+  60% { transform: scale(1.04); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.modal-explode .modal-dialog {
+  transition: none; /* override Bootstrap's default slide-down fade so our pop isn't fighting it */
+  animation: modal-explode-pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+}

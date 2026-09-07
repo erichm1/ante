@@ -21,7 +21,9 @@
               <td class="mono">
                 {% for d in m.destination_connections.all %}{{ d.name }}{% if not forloop.last %}, {% endif %}{% empty %}<span class="text-dim">none yet</span>{% endfor %}
               </td>
-              <td class="text-end"><a href="{% url 'mappings:canvas' m.pk %}" class="btn btn-sm btn-outline-secondary">Open canvas</a></td>
+              <td class="text-end">
+                <a href="{% url 'mappings:canvas' m.pk %}" class="btn btn-sm btn-outline-secondary">Open</a>
+              </td>
             </tr>
           {% endfor %}
         </tbody>

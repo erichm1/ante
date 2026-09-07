@@ -1,50 +1,149 @@
 {% extends "base.html" %}
+{% load static %}
 {% block title %}Run #{{ run.pk }}{% endblock %}
 {% block content %}
-  <div class="page-title">Run #{{ run.pk }} — {{ run.mapping.name }}</div>
-  <div class="page-subtitle mono">
-    {{ run.mapping.source_connection.name }} →
-    {% for d in run.mapping.destination_connections.all %}{{ d.name }}{% if not forloop.last %}, {% endif %}{% endfor %}
+  <div class="d-flex align-items-center gap-2">
+    <div class="page-title mb-0">Run #{{ run.pk }}</div>
+    {% if run.status == "pending" or run.status == "running" %}
+      <span class="text-dim small" id="liveIndicator">● live</span>
+    {% endif %}
+  </div>
+  <div class="page-subtitle">
+    {% include "jobs/_route.html" with route=run.route %}
   </div>
 
   <div class="panel mb-3">
     <div class="row text-center">
       <div class="col">
         <div class="text-dim small">Status</div>
-        {% if run.status == "success" %}
-          <span class="status-chip ok">{{ run.status }}</span>
-        {% elif run.status == "failed" %}
-          <span class="status-chip err">{{ run.status }}</span>
-        {% else %}
-          <span class="status-chip warn">{{ run.status }}</span>
+        <span class="status-chip {% if run.status == 'success' %}ok{% elif run.status == 'failed' %}err{% else %}warn{% endif %}" id="run-status">{{ run.status }}</span>
+        {% if run.scheduled_at and run.status == "pending" %}
+          <div class="text-dim small mt-1">scheduled for {{ run.scheduled_at|date:"Y-m-d H:i" }}</div>
         {% endif %}
       </div>
-      <div class="col"><div class="text-dim small">Read</div><div class="mono">{{ run.records_read }}</div></div>
-      <div class="col"><div class="text-dim small">Written</div><div class="mono">{{ run.records_written }}</div></div>
-      <div class="col"><div class="text-dim small">Failed</div><div class="mono">{{ run.records_failed }}</div></div>
-      <div class="col"><div class="text-dim small">Requests</div><div class="mono">{{ run.requests_made }}</div></div>
+      <div class="col"><div class="text-dim small">Read</div><div class="mono" id="run-read">{{ run.records_read }}</div></div>
+      <div class="col"><div class="text-dim small">Written</div><div class="mono" id="run-written">{{ run.records_written }}</div></div>
+      <div class="col"><div class="text-dim small">Failed</div><div class="mono" id="run-failed">{{ run.records_failed }}</div></div>
+      <div class="col"><div class="text-dim small">Requests</div><div class="mono" id="run-requests">{{ run.requests_made }}</div></div>
+      <div class="col"><div class="text-dim small">Rate limit</div><div class="mono">{% if run.rate_limit_per_second %}≤ {{ run.rate_limit_per_second }} rq/s{% else %}none{% endif %}</div></div>
       <div class="col"><div class="text-dim small">Started</div><div class="mono small">{{ run.started_at|date:"Y-m-d H:i:s" }}</div></div>
     </div>
   </div>
 
   <div class="panel">
     <h6 class="mb-3">Logs</h6>
-    {% for log in run.logs.all %}
-      <div class="d-flex gap-2 border-bottom py-1 small">
-        <span class="text-dim mono">{{ log.created_at|date:"H:i:s" }}</span>
-        {% if log.level == "error" %}
-          <span class="status-chip err">error</span>
-        {% elif log.level == "warning" %}
-          <span class="status-chip warn">warn</span>
-        {% else %}
-          <span class="status-chip ok">info</span>
-        {% endif %}
-        <span>{{ log.message }}</span>
-      </div>
-    {% empty %}
-      <p class="text-dim small mb-0">No log entries.</p>
-    {% endfor %}
+    <div id="run-logs">
+      {% for log in run.logs.all %}
+        <div class="d-flex gap-2 border-bottom py-1 small">
+          <span class="text-dim mono">{{ log.created_at|date:"H:i:s" }}</span>
+          {% if log.level == "error" %}
+            <span class="status-chip err">error</span>
+          {% elif log.level == "warning" %}
+            <span class="status-chip warn">warn</span>
+          {% else %}
+            <span class="status-chip ok">info</span>
+          {% endif %}
+          <span>{{ log.message }}</span>
+        </div>
+      {% empty %}
+        <p class="text-dim small mb-0" id="noLogs">No log entries.</p>
+      {% endfor %}
+    </div>
   </div>
 
-  <a href="{% url 'mappings:canvas' run.mapping.pk %}" class="btn btn-outline-secondary mt-3">← back to mapping canvas</a>
+  <div class="panel mt-3">
+    <h6 class="mb-3">API calls <span class="text-dim small">({{ api_calls|length }})</span></h6>
+    {% if api_calls %}
+      <table class="table table-sm align-middle mb-0">
+        <thead><tr><th></th><th>Method</th><th>URL</th><th>Status</th><th>Duration</th></tr></thead>
+        <tbody>
+          {% for call in api_calls %}
+            <tr style="cursor: pointer;" onclick="document.getElementById('call-detail-{{ call.pk }}').classList.toggle('d-none')">
+              <td class="text-dim">▸</td>
+              <td><span class="verb-badge verb-{{ call.method|lower }}">{{ call.method }}</span></td>
+              <td class="mono small">{{ call.url }}</td>
+              <td>
+                {% if call.error %}
+                  <span class="status-chip err">error</span>
+                {% elif call.status_code and call.status_code < 400 %}
+                  <span class="status-chip ok">{{ call.status_code }}</span>
+                {% else %}
+                  <span class="status-chip err">{{ call.status_code|default:"?" }}</span>
+                {% endif %}
+              </td>
+              <td class="mono small text-dim">{{ call.duration_ms|floatformat:0 }} ms</td>
+            </tr>
+            <tr class="d-none" id="call-detail-{{ call.pk }}">
+              <td></td>
+              <td colspan="4">
+                {% if call.error %}
+                  <div class="text-danger small mb-2"><strong>Error:</strong> {{ call.error }}</div>
+                {% endif %}
+                <div class="small text-dim text-uppercase mb-1">Request headers</div>
+                <pre class="mono small p-2 border rounded">{{ call.request_headers }}</pre>
+                {% if call.request_body %}
+                  <div class="small text-dim text-uppercase mb-1">Request body</div>
+                  <pre class="mono small p-2 border rounded">{{ call.request_body }}</pre>
+                {% endif %}
+                {% if call.status_code %}
+                  <div class="small text-dim text-uppercase mb-1">Response headers</div>
+                  <pre class="mono small p-2 border rounded">{{ call.response_headers }}</pre>
+                  <div class="small text-dim text-uppercase mb-1">Response body</div>
+                  <pre class="mono small p-2 border rounded">{{ call.response_body }}</pre>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="text-dim small mb-0">No API calls recorded for this run.</p>
+    {% endif %}
+  </div>
+
+  <a href="{% url 'jobs:run_list' %}" class="btn btn-outline-secondary mt-3">← back to runs</a>
+  <a href="{% url 'jobs:run_snapshot' run.pk %}" class="btn btn-outline-secondary mt-3">View pipeline</a>
+  <a href="{% url 'mappings:canvas' run.mapping.pk %}" class="btn btn-outline-secondary mt-3">back to mapping canvas</a>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{% static 'js/run_polling.js' %}"></script>
+<script>
+const RUN_ID = {{ run.pk }};
+const RUN_STATUS = "{{ run.status }}";
+
+function logLevelClass(level) {
+  if (level === "error") return "err";
+  if (level === "warning") return "warn";
+  return "ok";
+}
+
+function renderLogs(logs) {
+  const box = document.getElementById('run-logs');
+  if (!logs.length) return;
+  box.innerHTML = logs.map(log => `
+    <div class="d-flex gap-2 border-bottom py-1 small">
+      <span class="text-dim mono">${log.created_at.slice(11, 19)}</span>
+      <span class="status-chip ${logLevelClass(log.level)}">${log.level}</span>
+      <span>${log.message}</span>
+    </div>`).join('');
+}
+
+function updateDetail(run) {
+  document.getElementById('run-status').textContent = run.status;
+  document.getElementById('run-status').className = 'status-chip ' + statusChipClass(run.status);
+  document.getElementById('run-read').textContent = run.records_read;
+  document.getElementById('run-written').textContent = run.records_written;
+  document.getElementById('run-failed').textContent = run.records_failed;
+  document.getElementById('run-requests').textContent = run.requests_made;
+  renderLogs(run.logs);
+}
+
+if (RUN_STATUS === "pending" || RUN_STATUS === "running") {
+  pollRuns([RUN_ID], {
+    onUpdate: updateDetail,
+    onSettle: () => document.getElementById('liveIndicator')?.remove(),
+  });
+}
+</script>
 {% endblock %}

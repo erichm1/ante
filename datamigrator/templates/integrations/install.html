@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Install {{ integration.name }}{% endblock %}
+{% block content %}
+  <div class="page-title">Install {{ integration.name }}</div>
+  <div class="page-subtitle">{{ integration.description }}</div>
+
+  <div class="panel" style="max-width: 520px;">
+    <form method="post">
+      {% csrf_token %}
+      <div class="mb-3">
+        <label class="form-label">Connection name</label>
+        <input class="form-control" name="connection_name" value="{{ integration.name }}">
+      </div>
+
+      {% if integration.uses_oauth_redirect %}
+        <p class="text-dim small">You'll be redirected to {{ integration.name }} to authorize access, then brought back here automatically.</p>
+        <div class="mb-3">
+          <label class="form-label small mb-1">OAuth2 redirect URL <span class="text-dim">(already registered with {{ integration.name }}?)</span></label>
+          <input class="form-control form-control-sm mono" value="{{ oauth_redirect_uri }}" readonly onclick="this.select()">
+          <div class="form-text">This must match the redirect/callback URI registered in {{ integration.name }}'s OAuth app settings — if authorization fails, check here first.</div>
+        </div>
+
+      {% elif integration.is_file_based %}
+        <p class="text-dim small">No API or credentials needed — after installing, upload a CSV/XLSX file per entity from this connection's page, and use it directly as a migration source.</p>
+
+      {% else %}
+        <div class="mb-3">
+          <label class="form-label">Base URL</label>
+          <input class="form-control mono" name="base_url" value="{{ integration.default_base_url }}" placeholder="https://api.example.com">
+        </div>
+
+        {% if integration.auth_type == "basic" %}
+          <div class="mb-3">
+            <label class="form-label">Username</label>
+            <input class="form-control" name="username">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Password</label>
+            <input type="password" class="form-control" name="password">
+          </div>
+
+        {% elif integration.auth_type == "bearer" %}
+          <div class="mb-3">
+            <label class="form-label">Bearer token</label>
+            <input type="password" class="form-control mono" name="token" placeholder="••••••••">
+          </div>
+
+        {% elif integration.auth_type == "jwt" %}
+          <div class="mb-3">
+            <label class="form-label">Signing secret</label>
+            <input type="password" class="form-control mono" name="signing_secret" placeholder="••••••••">
+          </div>
+          <p class="text-dim small">Claims and TTL can be tuned afterwards from the connection page.</p>
+        {% endif %}
+      {% endif %}
+
+      <div class="d-flex gap-2 mt-3">
+        <button class="btn btn-signal" type="submit">{% if integration.uses_oauth_redirect %}Connect via OAuth2{% else %}Install{% endif %}</button>
+        <a href="{% url 'integrations:list' %}" class="btn btn-outline-secondary">Cancel</a>
+      </div>
+    </form>
+    {% if integration.setup_url %}
+      <p class="small mt-3 mb-0"><a href="{{ integration.setup_url }}" target="_blank" rel="noopener">Setup docs →</a></p>
+    {% endif %}
+  </div>
+{% endblock %}

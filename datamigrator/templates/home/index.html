@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Home{% endblock %}
+{% block content %}
+  <div class="page-title">Home</div>
+  <div class="page-subtitle">Live overview of every migration run.</div>
+
+  <div class="row row-cols-2 row-cols-md-4 g-3 mb-3">
+    <div class="col">
+      <div class="panel text-center stat-tile">
+        <div class="text-dim small">Total runs</div>
+        <div class="mono stat-value" id="stat-total">—</div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="panel text-center stat-tile">
+        <div class="text-dim small">Active</div>
+        <div class="mono stat-value" id="stat-active">—</div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="panel text-center stat-tile">
+        <div class="text-dim small">Success</div>
+        <div class="mono stat-value" style="color: var(--trace);" id="stat-success">—</div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="panel text-center stat-tile">
+        <div class="text-dim small">Failed</div>
+        <div class="mono stat-value" style="color: var(--danger);" id="stat-failed">—</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-md-7">
+      <div class="panel h-100">
+        <h6 class="mb-3">By connection</h6>
+        <table class="table align-middle mb-0">
+          <thead><tr><th>Connection</th><th>Status</th><th class="text-end">Success</th><th class="text-end">Failed</th></tr></thead>
+          <tbody id="connectionStatsBody">
+            <tr><td colspan="4" class="text-dim small">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="col-md-5">
+      <div class="panel h-100">
+        <h6 class="mb-3">Active now</h6>
+        <div id="activeRunsBox">
+          <p class="text-dim small mb-0">Loading…</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3 mt-0">
+    <div class="col-12">
+      <div class="panel">
+        <div class="d-flex align-items-center justify-content-between mb-3">
+          <h6 class="mb-0">Top API endpoints</h6>
+          <span class="text-dim small"><span class="mono" id="stat-total-calls">—</span> total API calls</span>
+        </div>
+        <div id="topEndpointsBox">
+          <p class="text-dim small mb-0">Loading…</p>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{% static 'js/run_polling.js' %}"></script>
+<script>
+function renderConnections(connections) {
+  const body = document.getElementById('connectionStatsBody');
+  if (!connections.length) {
+    body.innerHTML = '<tr><td colspan="4" class="text-dim small">No connections yet.</td></tr>';
+    return;
+  }
+  body.innerHTML = connections.map(c => `
+    <tr>
+      <td>${c.name}</td>
+      <td>${c.is_connected ? '<span class="status-chip ok">connected</span>' : '<span class="status-chip warn">needs setup</span>'}</td>
+      <td class="mono text-end">${c.success_count}</td>
+      <td class="mono text-end">${c.failed_count}</td>
+    </tr>`).join('');
+}
+
+function renderActiveRuns(runs) {
+  const box = document.getElementById('activeRunsBox');
+  if (!runs.length) {
+    box.innerHTML = '<p class="text-dim small mb-0">No active runs right now.</p>';
+    return;
+  }
+  box.innerHTML = runs.map(r => `
+    <div class="d-flex justify-content-between align-items-center border-bottom py-2 small">
+      <div>
+        <a href="/jobs/runs/${r.id}/">#${r.id} — ${r.mapping_name}</a>
+        <div class="text-dim">${r.records_read} read · ${r.records_written} written · ${r.records_failed} failed</div>
+      </div>
+      <span class="status-chip warn">${r.status}</span>
+    </div>`).join('');
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function renderTopEndpoints(endpoints, totalCalls) {
+  document.getElementById('stat-total-calls').textContent = totalCalls;
+  const box = document.getElementById('topEndpointsBox');
+  if (!endpoints.length) {
+    box.innerHTML = '<p class="text-dim small mb-0">No API calls recorded yet.</p>';
+    return;
+  }
+  const maxCount = endpoints[0].count;
+  box.innerHTML = endpoints.map((e, i) => `
+    <div class="rank-row">
+      <span class="rank-num">${i + 1}</span>
+      <div class="rank-bar-track">
+        <div class="rank-bar-fill" style="width: ${Math.max(4, (e.count / maxCount) * 100)}%"></div>
+        <span class="rank-label mono"><span class="verb-badge verb-${escapeHtml(e.method.toLowerCase())}">${escapeHtml(e.method)}</span> ${escapeHtml(e.endpoint)}</span>
+      </div>
+      <span class="rank-count">${e.count}</span>
+    </div>`).join('');
+}
+
+async function refreshStats() {
+  try {
+    const resp = await fetch('/home/stats/');
+    if (!resp.ok) return;
+    const data = await resp.json();
+    document.getElementById('stat-total').textContent = data.total;
+    document.getElementById('stat-active').textContent = data.active;
+    document.getElementById('stat-success').textContent = data.success;
+    document.getElementById('stat-failed').textContent = data.failed;
+    renderConnections(data.connections);
+    renderActiveRuns(data.active_runs);
+    renderTopEndpoints(data.top_endpoints, data.total_api_calls);
+  } catch (e) {
+    // transient network hiccup — next tick retries
+  }
+}
+
+refreshStats();
+setInterval(refreshStats, 3000);
+</script>
+{% endblock %}

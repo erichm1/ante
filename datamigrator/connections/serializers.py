@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import Connection
+from .models import Connection, TokenRefreshJob
 
 
 class ConnectionSerializer(serializers.ModelSerializer):
@@ -15,8 +15,31 @@ class ConnectionSerializer(serializers.ModelSerializer):
 
 
 class ConnectionSecretsSerializer(serializers.Serializer):
-    """Accepts API key / basic-auth secrets. Write-only — never returned."""
+    """Accepts bearer / basic / JWT secrets. Write-only — never returned."""
 
-    api_key = serializers.CharField(required=False, allow_blank=True)
+    token = serializers.CharField(required=False, allow_blank=True)
     username = serializers.CharField(required=False, allow_blank=True)
     password = serializers.CharField(required=False, allow_blank=True)
+    signing_secret = serializers.CharField(required=False, allow_blank=True)
+
+
+class TokenRefreshJobSerializer(serializers.ModelSerializer):
+    connection_name = serializers.CharField(source="connection.name", read_only=True)
+
+    class Meta:
+        model = TokenRefreshJob
+        fields = [
+            "id", "connection", "connection_name", "is_enabled", "interval_minutes",
+            "last_run_at", "last_status", "last_error", "next_run_at", "created_at",
+        ]
+        read_only_fields = ["last_run_at", "last_status", "last_error", "next_run_at", "created_at"]
+
+    def validate_connection(self, connection):
+        if connection.auth_type != Connection.AUTH_OAUTH2:
+            raise serializers.ValidationError("Only OAuth2 connections can have a refresh job.")
+        return connection
+
+    def validate_interval_minutes(self, value):
+        if value <= 0:
+            raise serializers.ValidationError("Must be greater than zero.")
+        return value

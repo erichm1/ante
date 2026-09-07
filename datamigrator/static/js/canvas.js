@@ -16,12 +16,45 @@ function fieldLabel(field) {
   return el('span', '', `<span class="mono">${field.name}</span> <span class="field-type">${field.field_type}</span>`);
 }
 
+function hasTransform(fm) {
+  return !!((fm.transform_rules && fm.transform_rules.length) || fm.transform);
+}
+
+// Same rule vocabulary as mappings/raw.html's rule builder (uppercase/
+// lowercase/trim/map/default_if_empty) — describes each one in plain
+// language for the canvas connector's hover tooltip.
+function describeRule(rule) {
+  const op = rule.op;
+  if (op === 'uppercase') return 'Uppercase';
+  if (op === 'lowercase') return 'Lowercase';
+  if (op === 'trim') return 'Trim whitespace';
+  if (op === 'map') {
+    const cases = (rule.cases || []).map(c => `"${c.from}" → "${c.to}"`).join(', ');
+    const fallback = rule.default_mode === 'value' ? `, else → "${rule.default_value}"` : ', else keep original';
+    return `Map values: ${cases || '(none set)'}${fallback}`;
+  }
+  if (op === 'default_if_empty') return `Default to "${rule.value}" if empty`;
+  return op || 'Unknown rule';
+}
+
+function transformSummary(fm) {
+  const parts = (fm.transform_rules || []).map(describeRule);
+  if (fm.transform) parts.push(`Custom: ${fm.transform}`);
+  return parts.length ? parts.join('\nthen ') : 'No transformation';
+}
+
 function renderEntityBox(entity, side, x, y) {
   const box = el('div', 'entity-box');
   box.id = `entity-${side}-${entity.id}`;
   box.style.left = x + 'px';
   box.style.top = y + 'px';
-  box.appendChild(el('div', 'entity-header', `<span class="schema-name">${entity.name}</span><small>${entity.connection_name}</small>`));
+  box.appendChild(el('div', 'entity-header', `
+    <span class="schema-name">${entity.name}</span>
+    <span class="d-flex align-items-center gap-1">
+      <small>${entity.connection_name}</small>
+      <button type="button" class="entity-edit-btn" title="Edit entity" onclick="openEditEntityModal(${entity.id})"><i class="bi-pencil"></i></button>
+    </span>
+  `));
 
   entity.fields.forEach(field => {
     const row = el('div', 'field-row');
@@ -98,6 +131,7 @@ function createFieldMapping(sourceFieldId, targetFieldId, jsConnection) {
 
 function initCanvas(data) {
   window.CANVAS_DATA = data;
+  window.FIELD_TYPES = data.field_types;
 
   // "Add entity pair" modal: source entity comes from the single origin connection.
   const sourceSel = document.getElementById('pair_source');
@@ -150,7 +184,15 @@ function initCanvas(data) {
 
     data.entity_mappings.forEach(em => {
       em.field_mappings.forEach(fm => {
-        jsp.connect({ uuids: [`src-field-${fm.source_field}`, `tgt-field-${fm.target_field}`] });
+        const conn = jsp.connect({
+          uuids: [`src-field-${fm.source_field}`, `tgt-field-${fm.target_field}`],
+          overlays: hasTransform(fm) ? [['Label', { label: 'ƒ', location: 0.5, id: 'transform', cssClass: 'transform-badge' }]] : [],
+        });
+        if (hasTransform(fm)) {
+          const overlay = conn.getOverlay('transform');
+          const el = overlay && overlay.canvas;
+          if (el) el.title = transformSummary(fm);
+        }
       });
     });
   });
@@ -217,6 +259,7 @@ function addEntityPair() {
       mapping: window.MAPPING_ID,
       source_entity: document.getElementById('pair_source').value,
       target_entity: targetEntity,
+      write_method: document.getElementById('pair_write_method').value,
     }),
   }).then(async resp => {
     if (resp.ok) {
@@ -227,6 +270,11 @@ function addEntityPair() {
     }
   });
 }
+
+// Entity/field editing (openEditEntityModal, saveEntityEdit, add/remove field
+// rows) now lives in static/js/entity_edit.js, shared with
+// templates/schemas/entities.html's own Entities CRUD page — canvas.html
+// loads that file and sets window.FIELD_TYPES before this script runs.
 
 let pollTimer = null;
 
@@ -249,6 +297,55 @@ function runMigration() {
     }
     btn.textContent = 'Running…';
     startRunPolling(body.id);
+
+    const statsBox = document.getElementById('runStats');
+    if (!document.getElementById('viewPipelineLink')) {
+      const pipelineLink = document.createElement('a');
+      pipelineLink.id = 'viewPipelineLink';
+      pipelineLink.href = `/jobs/runs/${body.id}/snapshot/`;
+      pipelineLink.className = 'small ms-2';
+      pipelineLink.textContent = 'View live pipeline →';
+      statsBox.appendChild(pipelineLink);
+    }
+  });
+}
+
+function scheduleMigration() {
+  const errorBox = document.getElementById('scheduleError');
+  errorBox.classList.add('d-none');
+
+  const payload = { mapping_id: window.MAPPING_ID };
+
+  const scheduleRaw = document.getElementById('schedule_at').value;
+  if (scheduleRaw) {
+    // datetime-local has no timezone of its own — the browser treats it as
+    // local wall-clock time, so Date() + toISOString() gives the server an
+    // unambiguous UTC instant matching what the user actually picked.
+    payload.scheduled_at = new Date(scheduleRaw).toISOString();
+  }
+
+  const rateLimitRaw = document.getElementById('rate_limit').value;
+  if (rateLimitRaw) payload.rate_limit_per_second = rateLimitRaw;
+
+  fetch('/api/runs/trigger/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  }).then(async resp => {
+    const body = await resp.json();
+    if (!resp.ok) {
+      errorBox.textContent = body.error || JSON.stringify(body);
+      errorBox.classList.remove('d-none');
+      return;
+    }
+    bootstrap.Modal.getInstance(document.getElementById('scheduleRunModal'))?.hide();
+    if (body.status === 'pending' && body.scheduled_at) {
+      alert(`Run #${body.id} scheduled for ${new Date(body.scheduled_at).toLocaleString()}${body.rate_limit_per_second ? ` at up to ${body.rate_limit_per_second} req/s` : ''}.`);
+    } else {
+      // No schedule (or the chosen time had already passed) — it's running now.
+      document.getElementById('runMigrationBtn').textContent = 'Running…';
+      startRunPolling(body.id);
+    }
   });
 }
 

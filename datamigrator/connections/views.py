@@ -1,9 +1,11 @@
+import json
 import secrets as pysecrets
 import time
 from urllib.parse import urlencode
 
 import requests
 from django.contrib import messages
+from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_POST
@@ -11,9 +13,10 @@ from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
+from . import scheduler
 from .client import ConnectionClient
-from .models import Connection
-from .serializers import ConnectionSecretsSerializer, ConnectionSerializer
+from .models import Connection, TokenRefreshJob
+from .serializers import ConnectionSecretsSerializer, ConnectionSerializer, TokenRefreshJobSerializer
 
 
 class ConnectionViewSet(viewsets.ModelViewSet):
@@ -40,19 +43,83 @@ class ConnectionViewSet(viewsets.ModelViewSet):
             return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
 
+class TokenRefreshJobViewSet(viewsets.ModelViewSet):
+    """Full CRUD for the on/off, scheduled OAuth2 refresh job: create one for
+    a connection, read its last-run status, update its interval or flip
+    is_enabled, or delete it outright to stop proactive refreshing (the
+    connection still refreshes lazily on-demand via ConnectionClient either
+    way — this only controls the *proactive*, off-a-real-request background
+    refresh)."""
+
+    queryset = TokenRefreshJob.objects.select_related("connection")
+    serializer_class = TokenRefreshJobSerializer
+    filterset_fields = ["connection"]
+
+    def perform_create(self, serializer):
+        job = serializer.save()
+        job.schedule_next_run()
+        job.save(update_fields=["next_run_at"])
+
+    def perform_update(self, serializer):
+        was_enabled = serializer.instance.is_enabled
+        job = serializer.save()
+        # Re-enabling (or just creating) shouldn't wait out a stale interval
+        # before the first refresh actually happens.
+        if job.is_enabled and (not was_enabled or "interval_minutes" in serializer.validated_data):
+            job.schedule_next_run()
+            job.save(update_fields=["next_run_at"])
+
+    @action(detail=True, methods=["post"], url_path="run")
+    def run_now(self, request, pk=None):
+        job = self.get_object()
+        scheduler.run_job_now(job)
+        return Response(TokenRefreshJobSerializer(job).data)
+
+
 # ---- Page views -----------------------------------------------------------
 
 def connection_list(request):
-    connections = Connection.objects.all()
-    return render(request, "connections/list.html", {
-        "connections": connections,
-        "auth_types": Connection.AUTH_TYPE_CHOICES,
-    })
+    # Moved to the App Store's "Installed" tab (integrations:list?tab=installed) —
+    # kept as a redirect so old bookmarks/links still land somewhere useful.
+    return redirect("/app-store/?tab=installed")
 
 
 def connection_detail(request, pk):
     connection = get_object_or_404(Connection, pk=pk)
-    return render(request, "connections/detail.html", {"connection": connection})
+    claims_json = json.dumps((connection.auth_config or {}).get("claims", {}))
+    install = getattr(connection, "integration_install", None)
+
+    # Local import — jobs/views.py doesn't import connections, so this stays
+    # one-directional and avoids a module-load cycle.
+    from jobs.models import MigrationRun
+    from jobs.views import _route_info
+
+    recent_runs = list(
+        MigrationRun.objects.filter(
+            Q(mapping__source_connection=connection) | Q(mapping__destination_connections=connection)
+        ).distinct().select_related(
+            "mapping", "mapping__source_connection", "mapping__source_connection__integration_install__integration",
+        ).prefetch_related(
+            "mapping__destination_connections__integration_install__integration",
+            "mapping__entity_mappings__source_entity", "mapping__entity_mappings__target_entity",
+        ).order_by("-started_at")[:15]
+    )
+    for run in recent_runs:
+        run.route = _route_info(run.mapping)
+
+    return render(request, "connections/detail.html", {
+        "connection": connection, "claims_json": claims_json, "auth_types": Connection.AUTH_TYPE_CHOICES,
+        # OAuth2 connections installed from the App Store reconnect through its
+        # single shared callback URL (integrations:reconnect) instead of this
+        # app's own per-connection one — see integrations.views.reconnect_connection.
+        "installed_via_app_store": install is not None,
+        "refresh_job": getattr(connection, "token_refresh_job", None),
+        # No real API behind this connection at all (the built-in CSV/XLSX apps) —
+        # hides the API-oriented discovery tabs, which would just error out.
+        "is_file_based": bool(install and install.integration.is_file_based),
+        "integration": install.integration if install else None,
+        "recent_runs": recent_runs,
+    })
 
 
 @require_POST
@@ -68,11 +135,37 @@ def save_basic_secrets(request, pk):
 
 
 @require_POST
-def save_api_key(request, pk):
+def save_bearer_token(request, pk):
     connection = get_object_or_404(Connection, pk=pk)
-    connection.merge_secrets({"api_key": request.POST.get("api_key", "")})
+    connection.merge_secrets({"token": request.POST.get("token", "")})
     connection.save(update_fields=["secrets_encrypted"])
-    messages.success(request, f"API key saved for {connection.name}.")
+    messages.success(request, f"Bearer token saved for {connection.name}.")
+    return redirect("connections:detail", pk=pk)
+
+
+@require_POST
+def save_jwt_config(request, pk):
+    connection = get_object_or_404(Connection, pk=pk)
+    claims_raw = request.POST.get("claims", "").strip()
+    try:
+        claims = json.loads(claims_raw) if claims_raw else {}
+    except ValueError:
+        messages.error(request, "Claims must be valid JSON.")
+        return redirect("connections:detail", pk=pk)
+
+    ttl_raw = request.POST.get("ttl_seconds", "").strip()
+    config = dict(connection.auth_config or {})
+    config["claims"] = claims
+    config["ttl_seconds"] = int(ttl_raw) if ttl_raw.isdigit() else 3600
+    connection.auth_config = config
+    connection.merge_secrets({"signing_secret": request.POST.get("signing_secret", "")})
+    # Force the next call to re-sign rather than reuse a token minted under the old claims/secret.
+    remaining_secrets = connection.secrets
+    remaining_secrets.pop("jwt", None)
+    remaining_secrets.pop("expires_at", None)
+    connection.secrets = remaining_secrets
+    connection.save(update_fields=["auth_config", "secrets_encrypted"])
+    messages.success(request, f"JWT signing config saved for {connection.name}.")
     return redirect("connections:detail", pk=pk)
 
 

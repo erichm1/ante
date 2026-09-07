@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Run #{{ run.pk }} · Pipeline{% endblock %}
+{% block content %}
+  <div class="d-flex align-items-center gap-2">
+    <div class="page-title mb-0">Run #{{ run.pk }} — {{ run.mapping.name }}</div>
+    <span class="status-chip {% if run.status == 'success' %}ok{% elif run.status == 'failed' %}err{% else %}warn{% endif %}" id="run-status">{{ run.status }}</span>
+  </div>
+  <div class="page-subtitle mono">Live pipeline — each edge is one entity pair, colored by that step's status.</div>
+
+  <div id="snapshotSurface" class="canvas-surface"></div>
+
+  {{ canvas_data|json_script:"snapshot-data" }}
+  {{ initial_steps|json_script:"initial-steps" }}
+
+  <div class="d-flex gap-2 mt-3">
+    <a href="{% url 'jobs:run_detail' run.pk %}" class="btn btn-outline-secondary">View full log</a>
+    <a href="{% url 'jobs:run_list' %}" class="btn btn-outline-secondary">← back to runs</a>
+  </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="https://cdn.jsdelivr.net/npm/jsplumb@2.15.6/dist/js/jsplumb.min.js"></script>
+<script src="{% static 'js/run_polling.js' %}"></script>
+<script src="{% static 'js/run_snapshot.js' %}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  initSnapshot(JSON.parse(document.getElementById('snapshot-data').textContent));
+  JSON.parse(document.getElementById('initial-steps').textContent).forEach(updateStepStatus);
+
+  const runStatus = "{{ run.status }}";
+  if (runStatus === "pending" || runStatus === "running") {
+    pollRuns([{{ run.pk }}], {
+      onUpdate: run => {
+        document.getElementById('run-status').textContent = run.status;
+        document.getElementById('run-status').className = 'status-chip ' + statusChipClass(run.status);
+        run.step_statuses.forEach(updateStepStatus);
+      },
+    });
+  }
+});
+</script>
+{% endblock %}

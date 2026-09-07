@@ -30,7 +30,7 @@ class FieldMappingSerializer(serializers.ModelSerializer):
         model = FieldMapping
         fields = [
             "id", "entity_mapping", "source_field", "target_field",
-            "source_field_name", "target_field_name", "transform",
+            "source_field_name", "target_field_name", "transform_rules", "transform",
         ]
 
 
@@ -42,7 +42,7 @@ class EntityMappingSerializer(serializers.ModelSerializer):
     class Meta:
         model = EntityMapping
         fields = [
-            "id", "mapping", "source_entity", "target_entity",
+            "id", "mapping", "source_entity", "target_entity", "write_method",
             "source_entity_detail", "target_entity_detail", "field_mappings",
         ]
 

@@ -10,6 +10,6 @@ class FieldInline(admin.TabularInline):
 
 @admin.register(Entity)
 class EntityAdmin(admin.ModelAdmin):
-    list_display = ("name", "connection", "source", "endpoint_path")
+    list_display = ("name", "connection", "source", "endpoint_path", "source_file")
     list_filter = ("connection", "source")
     inlines = [FieldInline]

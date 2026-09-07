@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}Chains{% endblock %}
+{% block content %}
+  <div class="d-flex justify-content-between align-items-start">
+    <div>
+      <div class="page-title">Call Chains</div>
+      <div class="page-subtitle">Run a sequence of API calls where each step can use values from a previous step's response.</div>
+    </div>
+    <button class="btn btn-signal" data-bs-toggle="modal" data-bs-target="#newChainModal">New chain</button>
+  </div>
+
+  <div class="panel">
+    {% if chains %}
+      <table class="table align-middle mb-0">
+        <thead><tr><th>Name</th><th>Connection</th><th>Steps</th><th>Created</th><th></th></tr></thead>
+        <tbody>
+          {% for chain in chains %}
+            <tr>
+              <td>{{ chain.name }}</td>
+              <td class="mono text-dim">{{ chain.connection.name }}</td>
+              <td class="mono">{{ chain.steps.count }}</td>
+              <td class="mono small">{{ chain.created_at|date:"Y-m-d H:i" }}</td>
+              <td class="text-end"><a href="{% url 'chains:detail' chain.pk %}" class="btn btn-sm btn-outline-secondary">Open</a></td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="text-dim mb-0">No chains yet — bundle a few dependent API calls into one to get started.</p>
+    {% endif %}
+  </div>
+
+  <div class="modal fade" id="newChainModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">New chain</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div id="createChainError" class="alert alert-danger d-none"></div>
+          <div class="mb-3">
+            <label class="form-label">Name</label>
+            <input class="form-control" id="nc_name" placeholder="e.g. Create customer then order">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Connection</label>
+            <select class="form-select" id="nc_connection">
+              {% for c in connections %}<option value="{{ c.pk }}">{{ c.name }}</option>{% endfor %}
+            </select>
+            <div class="form-text">Every step in this chain calls this connection's API.</div>
+          </div>
+          <div class="mb-1">
+            <label class="form-label">Description <span class="text-dim">(optional)</span></label>
+            <textarea class="form-control" id="nc_description" rows="2"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button class="btn btn-signal" onclick="createChain()">Create — add steps next</button>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+async function createChain() {
+  const errorBox = document.getElementById('createChainError');
+  errorBox.classList.add('d-none');
+  const name = document.getElementById('nc_name').value.trim();
+  const connection = document.getElementById('nc_connection').value;
+  if (!name) {
+    errorBox.textContent = 'Name is required.';
+    errorBox.classList.remove('d-none');
+    return;
+  }
+  if (!connection) {
+    errorBox.textContent = 'Pick a connection first.';
+    errorBox.classList.remove('d-none');
+    return;
+  }
+  const resp = await fetch('/api/chains/', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, connection, description: document.getElementById('nc_description').value }),
+  });
+  if (resp.ok) {
+    const body = await resp.json();
+    window.location.href = `/chains/${body.id}/`;
+  } else {
+    errorBox.textContent = JSON.stringify(await resp.json());
+    errorBox.classList.remove('d-none');
+  }
+}
+</script>
+{% endblock %}

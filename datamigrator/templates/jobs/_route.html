@@ -1,0 +1,44 @@
+{% comment %}
+Icon-first source -> destination(s) summary for a run, replacing the raw
+mapping name. Expects `route` (see jobs/views.py::_route_info): {source:
+{connection, integration}, destinations: [...], entity_pairs: [{source,
+target}, ...]}.
+{% endcomment %}
+<div class="route">
+  <div class="route-icons">
+    <span class="route-icon" title="{{ route.source.connection.name }}{% if not route.source.connection.is_connected %} (not connected){% endif %}">
+      {% if route.source.integration.icon_image %}
+        <img src="{{ route.source.integration.icon_image.url }}" alt="">
+      {% elif route.source.integration %}
+        <i class="{{ route.source.integration.icon }}"></i>
+      {% else %}
+        <i class="bi-hdd-network"></i>
+      {% endif %}
+      <span class="conn-status-dot {% if route.source.connection.is_connected %}ok{% else %}err{% endif %}"></span>
+    </span>
+    <i class="bi-arrow-right route-arrow"></i>
+    {% for dest in route.destinations %}
+      <span class="route-icon" title="{{ dest.connection.name }}{% if not dest.connection.is_connected %} (not connected){% endif %}">
+        {% if dest.integration.icon_image %}
+          <img src="{{ dest.integration.icon_image.url }}" alt="">
+        {% elif dest.integration %}
+          <i class="{{ dest.integration.icon }}"></i>
+        {% else %}
+          <i class="bi-hdd-network"></i>
+        {% endif %}
+        <span class="conn-status-dot {% if dest.connection.is_connected %}ok{% else %}err{% endif %}"></span>
+      </span>
+    {% empty %}
+      <span class="text-dim small">no destinies yet</span>
+    {% endfor %}
+  </div>
+  {% if route.entity_pairs %}
+    <div class="route-entities">
+      {% for pair in route.entity_pairs %}
+        <span class="entity-badge">{{ pair.source }}</span>
+        <i class="bi-arrow-right route-arrow-sm"></i>
+        <span class="entity-badge">{{ pair.target }}</span>
+      {% endfor %}
+    </div>
+  {% endif %}
+</div>

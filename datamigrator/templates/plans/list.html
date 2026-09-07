@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Plans{% endblock %}
+{% block content %}
+  <div class="d-flex justify-content-between align-items-start">
+    <div>
+      <div class="page-title">Migration Plans</div>
+      <div class="page-subtitle">Bundle several mappings into one ordered, sequential migration — plan it now, execute now or later.</div>
+    </div>
+    <button class="btn btn-signal" data-bs-toggle="modal" data-bs-target="#newPlanModal">New plan</button>
+  </div>
+
+  <form method="get" class="row g-2 align-items-end mb-3">
+    <div class="col-md-6">
+      <label class="form-label small mb-1">Search</label>
+      <input type="text" name="q" class="form-control form-control-sm" placeholder="Plan name" value="{{ filters.q }}">
+    </div>
+    <div class="col-md-3">
+      <label class="form-label small mb-1">Status</label>
+      <select name="status" class="form-select form-select-sm">
+        <option value="">Any</option>
+        {% for value, label in status_choices %}
+          <option value="{{ value }}" {% if filters.status == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-12 d-flex align-items-center gap-2">
+      <button type="submit" class="btn btn-sm btn-signal">Filter</button>
+      {% if filters.q or filters.status %}
+        <a href="{% url 'plans:list' %}" class="small">Clear filters ×</a>
+      {% endif %}
+      <div class="d-flex align-items-center gap-2 ms-auto">
+        <label class="text-dim small mb-0" for="pageSizeSelect">Per page</label>
+        <select name="page_size" class="form-select form-select-sm" id="pageSizeSelect" style="width: auto;" onchange="gotoWithParam('page_size', this.value)">
+          {% for size in page_size_choices %}
+            <option value="{{ size }}" {% if size == page_size %}selected{% endif %}>{{ size }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+  </form>
+
+  <div class="panel">
+    {% if page_obj %}
+      <table class="table align-middle mb-0">
+        <thead><tr><th>Name</th><th>Steps</th><th>Status</th><th>Scheduled</th><th>Created</th><th></th></tr></thead>
+        <tbody>
+          {% for plan in page_obj %}
+            <tr>
+              <td>{{ plan.name }}</td>
+              <td class="mono">{{ plan.steps.count }}</td>
+              <td>
+                {% if plan.status == "completed" %}
+                  <span class="status-chip ok">completed</span>
+                {% elif plan.status == "failed" %}
+                  <span class="status-chip err">failed</span>
+                {% elif plan.status == "executing" %}
+                  <span class="status-chip warn">executing</span>
+                {% elif plan.status == "scheduled" %}
+                  <span class="status-chip warn">scheduled</span>
+                {% else %}
+                  <span class="status-chip">draft</span>
+                {% endif %}
+              </td>
+              <td class="mono small">{{ plan.scheduled_at|date:"Y-m-d H:i"|default:"—" }}</td>
+              <td class="mono small">{{ plan.created_at|date:"Y-m-d H:i" }}</td>
+              <td class="text-end"><a href="{% url 'plans:detail' plan.pk %}" class="btn btn-sm btn-outline-secondary">Open</a></td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% include "jobs/_pagination.html" with item_label="plans" %}
+    {% else %}
+      <p class="text-dim mb-0">
+        {% if filters.q or filters.status %}
+          No plans match these filters.
+        {% else %}
+          No plans yet — bundle a few mappings into one to get started.
+        {% endif %}
+      </p>
+    {% endif %}
+  </div>
+
+  <div class="modal fade" id="newPlanModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">New plan</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div id="createPlanError" class="alert alert-danger d-none"></div>
+          <div class="mb-3">
+            <label class="form-label">Name</label>
+            <input class="form-control" id="np_name" placeholder="e.g. Q1 ERP cutover">
+          </div>
+          <div class="mb-1">
+            <label class="form-label">Description <span class="text-dim">(optional)</span></label>
+            <textarea class="form-control" id="np_description" rows="2"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button class="btn btn-signal" onclick="createPlan()">Create — add steps next</button>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{% static 'js/pagination.js' %}"></script>
+<script>
+async function createPlan() {
+  const errorBox = document.getElementById('createPlanError');
+  errorBox.classList.add('d-none');
+  const name = document.getElementById('np_name').value.trim();
+  if (!name) {
+    errorBox.textContent = 'Name is required.';
+    errorBox.classList.remove('d-none');
+    return;
+  }
+  const resp = await fetch('/api/plans/', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, description: document.getElementById('np_description').value }),
+  });
+  if (resp.ok) {
+    const body = await resp.json();
+    window.location.href = `/plans/${body.id}/`;
+  } else {
+    errorBox.textContent = JSON.stringify(await resp.json());
+    errorBox.classList.remove('d-none');
+  }
+}
+</script>
+{% endblock %}

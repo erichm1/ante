@@ -1,0 +1,261 @@
+{% extends "base.html" %}
+{% block title %}{{ mapping.name }} · Raw{% endblock %}
+{% block content %}
+  <div class="d-flex justify-content-between align-items-start">
+    <div>
+      <div class="page-title">{{ mapping.name }}</div>
+      <div class="page-subtitle mono">
+        {{ mapping.source_connection.name }} →
+        {% for d in mapping.destination_connections.all %}{{ d.name }}{% if not forloop.last %}, {% endif %}{% empty %}no destinies yet{% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <ul class="nav nav-tabs mb-3">
+    <li class="nav-item"><a class="nav-link active" href="{% url 'mappings:raw' mapping.pk %}">Raw</a></li>
+    <li class="nav-item"><a class="nav-link" href="{% url 'mappings:canvas' mapping.pk %}">Canvas</a></li>
+  </ul>
+
+  <div class="panel">
+    {% if entity_mappings %}
+      <table class="table align-middle mb-0">
+        <thead>
+          <tr><th>Entity mapping</th><th>Operation</th><th>Source field</th><th>Target field</th><th>Transform</th><th></th></tr>
+        </thead>
+        <tbody>
+          {% for em in entity_mappings %}
+            {% for fm in em.field_mappings.all %}
+              <tr>
+                {% if forloop.first %}
+                  <td rowspan="{{ em.field_mappings.all|length }}" class="align-middle border-end">
+                    <span class="mono">{{ em.source_entity.name }}</span>
+                    <span class="text-dim">→</span>
+                    <span class="mono">{{ em.target_entity.name }}</span>
+                    <div class="text-dim small">{{ em.source_entity.connection.name }} → {{ em.target_entity.connection.name }}</div>
+                  </td>
+                  <td rowspan="{{ em.field_mappings.all|length }}" class="align-middle border-end">
+                    <select class="form-select form-select-sm" style="width: auto;" onchange="saveWriteMethod({{ em.pk }}, this.value)">
+                      {% for value, label in write_methods %}
+                        <option value="{{ value }}" {% if value == em.write_method %}selected{% endif %}>{{ label }}</option>
+                      {% endfor %}
+                    </select>
+                  </td>
+                {% endif %}
+                <td class="mono">{{ fm.source_field.name }} <span class="field-type">{{ fm.source_field.field_type }}</span></td>
+                <td class="mono">{{ fm.target_field.name }} <span class="field-type">{{ fm.target_field.field_type }}</span></td>
+                <td class="small">
+                  {% if fm.transform_rules %}
+                    <span class="status-chip ok">{{ fm.transform_rules|length }} rule{{ fm.transform_rules|length|pluralize }}</span>
+                  {% endif %}
+                  {% if fm.transform %}
+                    <div class="mono text-dim">{{ fm.transform }}</div>
+                  {% endif %}
+                  {% if not fm.transform_rules and not fm.transform %}
+                    <span class="text-dim">—</span>
+                  {% endif %}
+                </td>
+                <td class="text-end">
+                  <button type="button" class="btn btn-sm btn-outline-secondary" onclick="openRulesModal({{ fm.pk }})">Edit</button>
+                </td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td class="border-end">
+                  <span class="mono">{{ em.source_entity.name }}</span>
+                  <span class="text-dim">→</span>
+                  <span class="mono">{{ em.target_entity.name }}</span>
+                </td>
+                <td class="border-end">
+                  <select class="form-select form-select-sm" style="width: auto;" onchange="saveWriteMethod({{ em.pk }}, this.value)">
+                    {% for value, label in write_methods %}
+                      <option value="{{ value }}" {% if value == em.write_method %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                  </select>
+                </td>
+                <td colspan="4" class="text-dim small">No field mappings yet.</td>
+              </tr>
+            {% endfor %}
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="text-dim mb-0">No entity pairs yet — <a href="{% url 'mappings:canvas' mapping.pk %}">add one on the canvas</a>.</p>
+    {% endif %}
+  </div>
+
+  <a href="{% url 'mappings:list' %}" class="btn btn-outline-secondary mt-3">← back to mappings</a>
+
+  <div class="modal fade" id="rulesModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">
+            Transform <span class="mono small text-dim" id="rm_field_names"></span>
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p class="text-dim small">Rules run in order, top to bottom, on the value read from the source field.</p>
+          <div id="rm_rules_list"></div>
+          <button type="button" class="btn btn-sm btn-outline-secondary" onclick="addRule()">+ Add rule</button>
+
+          <div class="mt-4">
+            <button class="btn btn-sm btn-link text-dim px-0" type="button" data-bs-toggle="collapse" data-bs-target="#rm_advanced_box">Advanced: custom expression ▾</button>
+            <div class="collapse" id="rm_advanced_box">
+              <textarea class="form-control mono small" id="rm_advanced_transform" rows="2" placeholder="e.g. value.upper() or value[:10]"></textarea>
+              <div class="form-text">Optional Python expression applied to <span class="mono">value</span> after the rules above — for anything they can't express.</div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button class="btn btn-signal" onclick="saveRules()">Save</button>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function saveWriteMethod(entityMappingId, method) {
+  fetch(`/api/entity-mappings/${entityMappingId}/`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ write_method: method }),
+  }).then(resp => {
+    if (!resp.ok) alert('Could not save the operation for this entity mapping.');
+  });
+}
+
+// ---- Transform rules modal: a no-code alternative to writing a raw Python
+// expression by hand — each rule is a plain object ({op, ...params}) that
+// jobs/engine.py::_apply_rules interprets directly, applied in array order.
+let currentFieldMappingId = null;
+let currentRules = [];
+
+function escapeAttr(s) {
+  return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+async function openRulesModal(fieldMappingId) {
+  const resp = await fetch(`/api/field-mappings/${fieldMappingId}/`);
+  if (!resp.ok) { alert('Could not load this field mapping.'); return; }
+  const fm = await resp.json();
+  currentFieldMappingId = fieldMappingId;
+  currentRules = fm.transform_rules || [];
+  document.getElementById('rm_advanced_transform').value = fm.transform || '';
+  document.getElementById('rm_field_names').textContent = `${fm.source_field_name} → ${fm.target_field_name}`;
+  renderRulesList();
+  new bootstrap.Modal(document.getElementById('rulesModal')).show();
+}
+
+function ruleRowHtml(rule, idx) {
+  const op = rule.op || 'uppercase';
+  let paramsHtml = '';
+
+  if (op === 'map') {
+    const cases = rule.cases || [];
+    paramsHtml = `
+      <div class="mt-2">
+        ${cases.map((c, ci) => `
+          <div class="d-flex gap-2 align-items-center mb-1">
+            <input type="text" class="form-control form-control-sm" placeholder="From (e.g. simples)" value="${escapeAttr(c.from)}" oninput="updateRuleCase(${idx}, ${ci}, 'from', this.value)">
+            <span class="text-dim">→</span>
+            <input type="text" class="form-control form-control-sm" placeholder="To (e.g. S)" value="${escapeAttr(c.to)}" oninput="updateRuleCase(${idx}, ${ci}, 'to', this.value)">
+            <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeRuleCase(${idx}, ${ci})">&times;</button>
+          </div>`).join('')}
+        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="addRuleCase(${idx})">+ Add value</button>
+        <div class="mt-2 d-flex align-items-center gap-2 flex-wrap">
+          <label class="small text-dim mb-0">If no match:</label>
+          <select class="form-select form-select-sm" style="width: auto;" onchange="updateRuleDefaultMode(${idx}, this.value)">
+            <option value="keep" ${rule.default_mode !== 'value' ? 'selected' : ''}>Keep original value</option>
+            <option value="value" ${rule.default_mode === 'value' ? 'selected' : ''}>Use a fallback value</option>
+          </select>
+          ${rule.default_mode === 'value' ? `<input type="text" class="form-control form-control-sm" style="width: auto;" placeholder="Fallback value" value="${escapeAttr(rule.default_value)}" oninput="updateRule(${idx}, 'default_value', this.value)">` : ''}
+        </div>
+      </div>`;
+  } else if (op === 'default_if_empty') {
+    paramsHtml = `<div class="mt-2"><input type="text" class="form-control form-control-sm" placeholder="Value to use when empty" value="${escapeAttr(rule.value)}" oninput="updateRule(${idx}, 'value', this.value)"></div>`;
+  }
+
+  return `
+    <div class="border rounded p-2 mb-2">
+      <div class="d-flex align-items-center gap-2">
+        <select class="form-select form-select-sm" style="width: auto;" onchange="updateRuleOp(${idx}, this.value)">
+          <option value="uppercase" ${op === 'uppercase' ? 'selected' : ''}>Uppercase</option>
+          <option value="lowercase" ${op === 'lowercase' ? 'selected' : ''}>Lowercase</option>
+          <option value="trim" ${op === 'trim' ? 'selected' : ''}>Trim whitespace</option>
+          <option value="map" ${op === 'map' ? 'selected' : ''}>Map specific values</option>
+          <option value="default_if_empty" ${op === 'default_if_empty' ? 'selected' : ''}>Default if empty</option>
+        </select>
+        <button type="button" class="btn btn-sm btn-outline-danger ms-auto" onclick="removeRule(${idx})">Remove</button>
+      </div>
+      ${paramsHtml}
+    </div>`;
+}
+
+function renderRulesList() {
+  const box = document.getElementById('rm_rules_list');
+  box.innerHTML = currentRules.length
+    ? currentRules.map((r, i) => ruleRowHtml(r, i)).join('')
+    : '<p class="text-dim small">No rules yet — add one below.</p>';
+}
+
+function addRule() {
+  currentRules.push({ op: 'uppercase' });
+  renderRulesList();
+}
+
+function removeRule(idx) {
+  currentRules.splice(idx, 1);
+  renderRulesList();
+}
+
+function updateRuleOp(idx, op) {
+  currentRules[idx] = { op };
+  renderRulesList();
+}
+
+function updateRule(idx, key, value) {
+  currentRules[idx][key] = value;
+}
+
+function updateRuleDefaultMode(idx, mode) {
+  currentRules[idx].default_mode = mode;
+  renderRulesList();
+}
+
+function addRuleCase(idx) {
+  currentRules[idx].cases = currentRules[idx].cases || [];
+  currentRules[idx].cases.push({ from: '', to: '' });
+  renderRulesList();
+}
+
+function removeRuleCase(idx, caseIdx) {
+  currentRules[idx].cases.splice(caseIdx, 1);
+  renderRulesList();
+}
+
+function updateRuleCase(idx, caseIdx, key, value) {
+  currentRules[idx].cases[caseIdx][key] = value;
+}
+
+function saveRules() {
+  fetch(`/api/field-mappings/${currentFieldMappingId}/`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      transform_rules: currentRules,
+      transform: document.getElementById('rm_advanced_transform').value,
+    }),
+  }).then(resp => {
+    if (resp.ok) {
+      window.location.reload();
+    } else {
+      alert('Could not save these transform rules.');
+    }
+  });
+}
+</script>
+{% endblock %}

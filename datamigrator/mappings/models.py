@@ -29,9 +29,23 @@ class Mapping(models.Model):
 class EntityMapping(models.Model):
     """One entity-to-entity link inside a Mapping, e.g. Source.Customer -> Target.Contact."""
 
+    METHOD_GET = "GET"
+    METHOD_POST = "POST"
+    METHOD_PUT = "PUT"
+    METHOD_PATCH = "PATCH"
+    METHOD_DELETE = "DELETE"
+    METHOD_CHOICES = [
+        (METHOD_GET, "GET"), (METHOD_POST, "POST"), (METHOD_PUT, "PUT"),
+        (METHOD_PATCH, "PATCH"), (METHOD_DELETE, "DELETE"),
+    ]
+
     mapping = models.ForeignKey(Mapping, on_delete=models.CASCADE, related_name="entity_mappings")
     source_entity = models.ForeignKey("schemas.Entity", on_delete=models.CASCADE, related_name="+")
     target_entity = models.ForeignKey("schemas.Entity", on_delete=models.CASCADE, related_name="+")
+    write_method = models.CharField(
+        max_length=10, choices=METHOD_CHOICES, default=METHOD_POST,
+        help_text="HTTP verb used to write each mapped record to the target entity's endpoint_path (jobs/engine.py).",
+    )
 
     class Meta:
         unique_together = ("mapping", "source_entity", "target_entity")
@@ -46,9 +60,17 @@ class FieldMapping(models.Model):
     entity_mapping = models.ForeignKey(EntityMapping, on_delete=models.CASCADE, related_name="field_mappings")
     source_field = models.ForeignKey("schemas.Field", on_delete=models.CASCADE, related_name="+")
     target_field = models.ForeignKey("schemas.Field", on_delete=models.CASCADE, related_name="+")
+    transform_rules = models.JSONField(
+        default=list, blank=True,
+        help_text="No-code transform steps applied in order before writing (uppercase/lowercase/trim, "
+                   "map specific values, default-if-empty) — see jobs/engine.py::_apply_rules for the "
+                   "exact rule shapes. The friendly alternative to writing a raw `transform` expression; "
+                   "applied first, then `transform` runs on the result if also set.",
+    )
     transform = models.CharField(
         max_length=255, blank=True,
-        help_text="Optional Python expression applied to `value` before writing, e.g. value.upper() or value[:10]",
+        help_text="Advanced/optional: a Python expression applied to `value` after transform_rules, "
+                   "e.g. value.upper() or value[:10] — for anything the no-code rules above can't express.",
     )
 
     class Meta:

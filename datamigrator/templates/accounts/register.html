@@ -1,0 +1,18 @@
+{% extends "accounts/auth_base.html" %}
+{% block title %}Register{% endblock %}
+{% block auth_content %}
+  <h5 class="mb-3">Create an account</h5>
+  <form method="post">
+    {% csrf_token %}
+    {% for field in form %}
+      <div class="mb-3">
+        <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+        {{ field }}
+        {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+        {% for error in field.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+      </div>
+    {% endfor %}
+    <button class="btn btn-signal w-100" type="submit">Create account</button>
+  </form>
+  <p class="auth-footer">Already have an account? <a href="{% url 'accounts:login' %}">Log in</a></p>
+{% endblock %}

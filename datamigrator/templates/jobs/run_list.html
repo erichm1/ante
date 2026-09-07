@@ -1,0 +1,324 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Runs{% endblock %}
+{% block content %}
+  <div class="d-flex justify-content-between align-items-start">
+    <div>
+      <div class="page-title">Runs</div>
+      <div class="page-subtitle">Every migration run and plan, live and historical.</div>
+    </div>
+    <button class="btn btn-signal" data-bs-toggle="modal" data-bs-target="#createRunModal">Create run</button>
+  </div>
+
+  {% if tab != 'plans' %}
+    <form method="get" class="row g-2 align-items-end mb-3">
+      <input type="hidden" name="tab" value="{{ tab }}">
+      <div class="col-md-5">
+        <label class="form-label small mb-1">Search</label>
+        <input type="text" name="q" class="form-control form-control-sm" placeholder="Run #, mapping, connection, or entity name" value="{{ filters.q }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label small mb-1">Integration</label>
+        <select name="integration" class="form-select form-select-sm">
+          <option value="">Any</option>
+          {% for integ in integrations %}
+            <option value="{{ integ.pk }}" {% if filters.integration == integ.pk|stringformat:"s" %}selected{% endif %}>{{ integ.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small mb-1">From</label>
+        <input type="date" name="date_from" class="form-control form-control-sm" value="{{ filters.date_from }}">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small mb-1">To</label>
+        <input type="date" name="date_to" class="form-control form-control-sm" value="{{ filters.date_to }}">
+      </div>
+      <div class="col-12 d-flex align-items-center gap-2">
+        <button type="submit" class="btn btn-sm btn-signal">Filter</button>
+        {% if filters.q or filters.integration or filters.date_from or filters.date_to %}
+          <a href="?tab={{ tab }}" class="small">Clear filters ×</a>
+        {% endif %}
+        <div class="d-flex align-items-center gap-2 ms-auto">
+          <label class="text-dim small mb-0" for="pageSizeSelect">Per page</label>
+          <select name="page_size" class="form-select form-select-sm" id="pageSizeSelect" style="width: auto;" onchange="gotoWithParam('page_size', this.value)">
+            {% for size in page_size_choices %}
+              <option value="{{ size }}" {% if size == page_size %}selected{% endif %}>{{ size }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+    </form>
+  {% endif %}
+
+  <ul class="nav nav-tabs mb-3">
+    <li class="nav-item"><a class="nav-link {% if tab == 'active' %}active{% endif %}" href="?tab=active">Active</a></li>
+    <li class="nav-item"><a class="nav-link {% if tab == 'pending' %}active{% endif %}" href="?tab=pending">Pending</a></li>
+    <li class="nav-item"><a class="nav-link {% if tab == 'scheduled' %}active{% endif %}" href="?tab=scheduled">Scheduled</a></li>
+    <li class="nav-item"><a class="nav-link {% if tab == 'failed' %}active{% endif %}" href="?tab=failed">Failed</a></li>
+    <li class="nav-item"><a class="nav-link {% if tab == 'finished' %}active{% endif %}" href="?tab=finished">Finished</a></li>
+    <li class="nav-item"><a class="nav-link {% if tab == 'plans' %}active{% endif %}" href="?tab=plans">Plans</a></li>
+  </ul>
+
+  {% if tab == 'active' or tab == 'pending' or tab == 'scheduled' %}
+    <div class="panel">
+      <div class="d-flex align-items-center justify-content-between mb-2">
+        <h6 class="mb-0">
+          {% if tab == 'active' %}Active runs{% elif tab == 'pending' %}Pending runs{% else %}Scheduled runs{% endif %}
+        </h6>
+        <span class="text-dim small">live — polling every 2s</span>
+      </div>
+      {% if page_obj %}
+        <table class="table align-middle mb-0" id="liveRunsTable">
+          <thead>
+            <tr>
+              <th>Run</th><th>Route</th><th>Status</th><th>Read</th><th>Written</th><th>Failed</th><th>Requests</th>
+              <th>{% if tab == 'scheduled' %}Scheduled for{% else %}Started{% endif %}</th><th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for run in page_obj %}
+              <tr id="run-row-{{ run.pk }}">
+                <td class="mono">#{{ run.pk }}</td>
+                <td>{% include "jobs/_route.html" with route=run.route %}</td>
+                <td><span class="status-chip warn" id="run-status-{{ run.pk }}">{{ run.status }}</span></td>
+                <td class="mono" id="run-read-{{ run.pk }}">{{ run.records_read }}</td>
+                <td class="mono" id="run-written-{{ run.pk }}">{{ run.records_written }}</td>
+                <td class="mono" id="run-failed-{{ run.pk }}">{{ run.records_failed }}</td>
+                <td class="mono">
+                  <span id="run-requests-{{ run.pk }}">{{ run.requests_made }}</span>
+                  {% if run.rate_limit_per_second %}<div class="text-dim small">≤ {{ run.rate_limit_per_second }}/s</div>{% endif %}
+                </td>
+                <td class="mono small">
+                  {% if tab == 'scheduled' %}{{ run.scheduled_at|date:"Y-m-d H:i" }}{% else %}{{ run.started_at|date:"Y-m-d H:i:s" }}{% endif %}
+                </td>
+                <td class="text-end">
+                  <a href="{% url 'jobs:run_snapshot' run.pk %}" class="btn btn-sm btn-outline-secondary">Pipeline</a>
+                  <a href="{% url 'jobs:run_detail' run.pk %}" class="btn btn-sm btn-outline-secondary">Open</a>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% include "jobs/_pagination.html" %}
+      {% else %}
+        <p class="text-dim small mb-0" id="noLiveRuns">
+          {% if tab == 'active' %}No active runs right now.{% elif tab == 'pending' %}Nothing pending right now.{% else %}No scheduled runs.{% endif %}
+        </p>
+      {% endif %}
+    </div>
+
+  {% elif tab == 'failed' or tab == 'finished' %}
+    <div class="panel">
+      <h6 class="mb-3">{% if tab == 'failed' %}Failed runs{% else %}Finished runs{% endif %}</h6>
+
+      {% if page_obj %}
+        <table class="table align-middle mb-0">
+          <thead>
+            <tr><th>Run</th><th>Route</th><th>Status</th><th>Read</th><th>Written</th><th>Failed</th><th>Started</th><th>Finished</th><th></th></tr>
+          </thead>
+          <tbody>
+            {% for run in page_obj %}
+              <tr>
+                <td class="mono">#{{ run.pk }}</td>
+                <td>{% include "jobs/_route.html" with route=run.route %}</td>
+                <td>
+                  {% if run.status == "success" %}<span class="status-chip ok">success</span>
+                  {% else %}<span class="status-chip err">failed</span>{% endif %}
+                </td>
+                <td class="mono">{{ run.records_read }}</td>
+                <td class="mono">{{ run.records_written }}</td>
+                <td class="mono">{{ run.records_failed }}</td>
+                <td class="mono small">{{ run.started_at|date:"Y-m-d H:i:s" }}</td>
+                <td class="mono small">{{ run.finished_at|date:"Y-m-d H:i:s"|default:"—" }}</td>
+                <td class="text-end">
+                  <a href="{% url 'jobs:run_snapshot' run.pk %}" class="btn btn-sm btn-outline-secondary">Pipeline</a>
+                  <a href="{% url 'jobs:run_detail' run.pk %}" class="btn btn-sm btn-outline-secondary">Open</a>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% include "jobs/_pagination.html" %}
+      {% else %}
+        <p class="text-dim small mb-0">
+          {% if filters.q or filters.integration or filters.date_from or filters.date_to %}
+            No runs match these filters.
+          {% else %}
+            No {{ tab }} runs yet.
+          {% endif %}
+        </p>
+      {% endif %}
+    </div>
+
+  {% elif tab == 'plans' %}
+    <div class="panel">
+      <div class="d-flex align-items-center justify-content-between mb-3">
+        <h6 class="mb-0">Migration plans</h6>
+        <a href="{% url 'plans:list' %}" class="btn btn-sm btn-signal">New plan</a>
+      </div>
+      {% if plans %}
+        <table class="table align-middle mb-0">
+          <thead><tr><th>Name</th><th>Steps</th><th>Status</th><th>Scheduled</th><th>Created</th><th></th></tr></thead>
+          <tbody>
+            {% for plan in plans %}
+              <tr>
+                <td>{{ plan.name }}</td>
+                <td class="mono">{{ plan.steps.count }}</td>
+                <td>
+                  {% if plan.status == "completed" %}
+                    <span class="status-chip ok">completed</span>
+                  {% elif plan.status == "failed" %}
+                    <span class="status-chip err">failed</span>
+                  {% elif plan.status == "executing" or plan.status == "scheduled" %}
+                    <span class="status-chip warn">{{ plan.status }}</span>
+                  {% else %}
+                    <span class="status-chip">draft</span>
+                  {% endif %}
+                </td>
+                <td class="mono small">{{ plan.scheduled_at|date:"Y-m-d H:i"|default:"—" }}</td>
+                <td class="mono small">{{ plan.created_at|date:"Y-m-d H:i" }}</td>
+                <td class="text-end"><a href="{% url 'plans:detail' plan.pk %}" class="btn btn-sm btn-outline-secondary">Open</a></td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <p class="text-dim mb-0">No plans yet — <a href="{% url 'plans:list' %}">create one</a> to bundle several mappings into a sequential migration.</p>
+      {% endif %}
+    </div>
+  {% endif %}
+
+  <div class="modal fade" id="createRunModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Create run</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div id="createRunError" class="alert alert-danger d-none"></div>
+          <div class="mb-3">
+            <label class="form-label">Mapping</label>
+            <select class="form-select" id="cr_mapping">
+              {% for m in mappings %}
+                <option value="{{ m.pk }}">{{ m.name }}</option>
+              {% empty %}
+                <option value="">No mappings yet — create one first</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Schedule for <span class="text-dim">(optional)</span></label>
+            <input type="datetime-local" class="form-control" id="cr_schedule_at">
+            <div class="form-text">Leave blank to run immediately.</div>
+          </div>
+          <div class="mb-1">
+            <label class="form-label">Rate limit <span class="text-dim">(optional)</span></label>
+            <input type="number" step="0.1" min="0.1" class="form-control" id="cr_rate_limit" placeholder="e.g. 5">
+            <div class="form-text">Max requests/second (source reads + destination writes combined). Leave blank for unthrottled.</div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button class="btn btn-signal" id="createRunBtn" onclick="createRun()" {% if not mappings %}disabled{% endif %}>Create run</button>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{% static 'js/pagination.js' %}"></script>
+<script src="{% static 'js/run_polling.js' %}"></script>
+<script>
+const CURRENT_TAB = "{{ tab }}";
+const liveIds = [{% for run in page_obj %}{{ run.pk }}{% if not forloop.last %},{% endif %}{% endfor %}];
+
+function createRun() {
+  const errorBox = document.getElementById('createRunError');
+  errorBox.classList.add('d-none');
+
+  const mappingId = document.getElementById('cr_mapping').value;
+  if (!mappingId) {
+    errorBox.textContent = 'Pick a mapping first.';
+    errorBox.classList.remove('d-none');
+    return;
+  }
+
+  const payload = { mapping_id: mappingId };
+  const scheduleRaw = document.getElementById('cr_schedule_at').value;
+  if (scheduleRaw) {
+    // datetime-local has no timezone of its own — the browser treats it as
+    // local wall-clock time, so Date() + toISOString() gives the server an
+    // unambiguous UTC instant matching what was actually picked.
+    payload.scheduled_at = new Date(scheduleRaw).toISOString();
+  }
+  const rateLimitRaw = document.getElementById('cr_rate_limit').value;
+  if (rateLimitRaw) payload.rate_limit_per_second = rateLimitRaw;
+
+  const btn = document.getElementById('createRunBtn');
+  btn.disabled = true;
+
+  fetch('/api/runs/trigger/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  }).then(async resp => {
+    const body = await resp.json();
+    btn.disabled = false;
+    if (!resp.ok) {
+      errorBox.textContent = body.error || JSON.stringify(body);
+      errorBox.classList.remove('d-none');
+      return;
+    }
+    window.location.reload();
+  });
+}
+
+function removeLiveRow(id) {
+  const row = document.getElementById(`run-row-${id}`);
+  if (row) row.remove();
+
+  const table = document.getElementById('liveRunsTable');
+  if (table && !table.querySelector('tbody tr')) {
+    const panel = table.closest('.panel');
+    table.remove();
+    if (panel && !document.getElementById('noLiveRuns')) {
+      panel.insertAdjacentHTML('beforeend', '<p class="text-dim small mb-0" id="noLiveRuns">Nothing left in this tab — it moved to another one.</p>');
+    }
+  }
+}
+
+function updateLiveRow(run) {
+  const chip = document.getElementById(`run-status-${run.id}`);
+  if (!chip) return;
+  chip.textContent = run.status;
+  chip.className = 'status-chip ' + statusChipClass(run.status);
+  document.getElementById(`run-read-${run.id}`).textContent = run.records_read;
+  document.getElementById(`run-written-${run.id}`).textContent = run.records_written;
+  document.getElementById(`run-failed-${run.id}`).textContent = run.records_failed;
+  document.getElementById(`run-requests-${run.id}`).textContent = run.requests_made;
+}
+
+// Active/Pending/Scheduled are exclusive buckets on this page (unlike the
+// underlying MigrationRun.status, which only has 4 values) — a row that's
+// still "pending" but got promoted off the Scheduled tab, or "running" but
+// no longer "pending", has left this tab's bucket even though pollRuns()
+// itself wouldn't call onSettle for it yet.
+function hasLeftThisTab(run) {
+  if (CURRENT_TAB === 'pending') return run.status !== 'pending';
+  if (CURRENT_TAB === 'scheduled') {
+    return run.status !== 'pending' || (run.scheduled_at && new Date(run.scheduled_at) <= new Date());
+  }
+  return false;
+}
+
+if (liveIds.length && (CURRENT_TAB === 'active' || CURRENT_TAB === 'pending' || CURRENT_TAB === 'scheduled')) {
+  pollRuns(liveIds, {
+    onUpdate: run => hasLeftThisTab(run) ? removeLiveRow(run.id) : updateLiveRow(run),
+    onSettle: run => removeLiveRow(run.id),
+  });
+}
+</script>
+{% endblock %}

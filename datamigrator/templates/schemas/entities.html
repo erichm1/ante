@@ -1,25 +1,113 @@
 {% extends "base.html" %}
+{% load static %}
 {% block title %}{{ connection.name }} · Entities{% endblock %}
 {% block content %}
-  <div class="page-title">{{ connection.name }} — Entities</div>
-  <div class="page-subtitle"><a href="{% url 'connections:detail' connection.pk %}">← back to connection</a></div>
+  <div class="d-flex justify-content-between align-items-start">
+    <div>
+      <div class="page-title">{{ connection.name }} — Entities</div>
+      <div class="page-subtitle"><a href="{% url 'connections:detail' connection.pk %}">← back to connection</a></div>
+    </div>
+    <button class="btn btn-signal" data-bs-toggle="modal" data-bs-target="#addEntityModal">+ Add entity</button>
+  </div>
 
   {% for entity in entities %}
     <div class="panel mb-3">
-      <div class="d-flex justify-content-between">
-        <h6 class="schema-name">{{ entity.name }}</h6>
-        <span class="text-dim small mono">{{ entity.endpoint_path }}</span>
-      </div>
-      {% for field in entity.fields.all %}
-        <div class="d-flex justify-content-between border-bottom py-1 small">
-          <span class="mono">{{ field.name }}</span>
-          <span class="field-type">{{ field.field_type }}{% if field.required %} · required{% endif %}</span>
+      <div class="d-flex justify-content-between align-items-start">
+        <div>
+          <h6 class="schema-name mb-0">{{ entity.name }}</h6>
+          <span class="text-dim small mono">{{ entity.endpoint_path|default:"—" }}</span>
+          <span class="text-dim small">· {{ entity.get_source_display }}</span>
         </div>
-      {% empty %}
-        <p class="text-dim small mb-0">No fields yet.</p>
-      {% endfor %}
+        <div class="d-flex gap-2">
+          <button class="btn btn-sm btn-outline-secondary" onclick="openEditEntityModal({{ entity.pk }})">Edit</button>
+          <button class="btn btn-sm btn-outline-danger" onclick="deleteEntity({{ entity.pk }}, '{{ entity.name|escapejs }}')">Delete</button>
+        </div>
+      </div>
+      <table class="table table-sm align-middle mb-0 mt-2">
+        <thead>
+          <tr><th>Field</th><th>Type</th><th></th></tr>
+        </thead>
+        <tbody>
+          {% for field in entity.fields.all %}
+            <tr>
+              <td class="mono">{{ field.name }}</td>
+              <td><span class="field-type">{{ field.field_type }}</span></td>
+              <td class="text-dim small">{% if field.required %}required{% endif %}</td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="3" class="text-dim small">No fields yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
     </div>
   {% empty %}
-    <p class="text-dim">No entities discovered for this connection yet.</p>
+    <p class="text-dim">No entities discovered for this connection yet — add one above, or use the discovery tools on the connection page.</p>
   {% endfor %}
+
+  <div class="modal fade" id="addEntityModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Add entity</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div id="addEntityError" class="alert alert-danger d-none"></div>
+          <div class="mb-3">
+            <label class="form-label">Name</label>
+            <input class="form-control" id="ae_name" placeholder="e.g. Customer">
+          </div>
+          <div class="mb-1">
+            <label class="form-label">Endpoint path <span class="text-dim">(optional)</span></label>
+            <input class="form-control mono" id="ae_endpoint_path" placeholder="/customers">
+          </div>
+          <p class="text-dim small mt-2 mb-0">Add fields afterwards from this entity's Edit button.</p>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button class="btn btn-signal" onclick="createEntity({{ connection.pk }})">Create</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="editEntityModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Edit entity</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div id="editEntityError" class="alert alert-danger d-none"></div>
+          <div class="mb-3">
+            <label class="form-label">Name</label>
+            <input class="form-control" id="ee_name">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Endpoint path</label>
+            <input class="form-control mono" id="ee_endpoint_path">
+          </div>
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <label class="form-label mb-0">Fields</label>
+            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="addFieldEditRow()">+ Add field</button>
+          </div>
+          <div id="ee_fields"></div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button class="btn btn-signal" onclick="saveEntityEdit()">Save</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {{ field_types|json_script:"field-types" }}
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{% static 'js/entity_edit.js' %}"></script>
+<script>
+  window.FIELD_TYPES = JSON.parse(document.getElementById('field-types').textContent);
+</script>
 {% endblock %}
