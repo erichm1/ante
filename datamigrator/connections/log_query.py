@@ -9,6 +9,7 @@ Recognized fields:
   run:91               (exact run id)
   error:true / error:false   (has / doesn't have an error)
   duration:>500         (duration_ms, milliseconds)
+  since:1h              (only calls from the last 1h — also 30m, 2d, 45s)
   json.<dotted.path>:value    e.g. json.id:42, json.data.email:"a@b.com"
       — extracted from the stored response body. This one runs in Python
       (response_body is stored as raw text, not a queryable JSON column),
@@ -21,13 +22,25 @@ request_body, response_body, and error (OR'd together).
 import json
 import re
 import shlex
+from datetime import timedelta
 
 from django.db.models import Q
+from django.utils import timezone
 
 FIELD_LOOKUPS = {
     ":": "exact", "!=": "exact", ">": "gt", ">=": "gte", "<": "lt", "<=": "lte",
 }
 TERM_RE = re.compile(r'^([A-Za-z_][\w.]*)\s*(:|>=|<=|!=|>|<)\s*(.+)$')
+DURATION_RE = re.compile(r"^(\d+(?:\.\d+)?)(s|m|h|d)$")
+DURATION_MULTIPLIERS = {"s": 1, "m": 60, "h": 3600, "d": 86400}
+
+
+def _parse_duration_seconds(raw_value: str):
+    match = DURATION_RE.match(raw_value.strip().lower())
+    if not match:
+        return None
+    amount, unit = match.groups()
+    return float(amount) * DURATION_MULTIPLIERS[unit]
 JSON_TERM_SCAN_LIMIT = 2000  # rows pulled before a json.* filter is applied in Python
 
 
@@ -161,6 +174,11 @@ def filter_logs(queryset, query_string: str):
         elif key == "error":
             wants_error = raw_value.lower() in ("true", "1", "yes")
             db_filters &= (~Q(error="") if wants_error else Q(error=""))
+        elif key == "since":
+            seconds = _parse_duration_seconds(raw_value)
+            if seconds is None:
+                return qs.none(), f"since must look like 1h, 30m, or 2d — got '{raw_value}'"
+            db_filters &= Q(created_at__gte=timezone.now() - timedelta(seconds=seconds))
         else:
             # Unrecognized field — don't hard-fail the whole query over a typo,
             # just fall back to treating it as free text.

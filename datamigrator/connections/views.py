@@ -240,6 +240,10 @@ def api_log_list(request):
     API call the app has made (see ApiCallLog, populated by every
     ConnectionClient request — reads, writes, OAuth2 refreshes, chain steps,
     all of it). See connections/log_query.py for the query syntax."""
+    # Local import: connections -> home would be a cycle at module load time
+    # (home.views imports connections.models), fine as a call-time import.
+    from home.views import _compute_status_data
+
     query = request.GET.get("q", "").strip()
     base_qs = ApiCallLog.objects.select_related("connection", "run")
     results, error = filter_logs(base_qs, query)
@@ -253,10 +257,16 @@ def api_log_list(request):
 
     page_obj = Paginator(results, page_size).get_page(request.GET.get("page")) if error is None else None
 
+    status_data = _compute_status_data()
+    api_error_reason = next((r for r in status_data["reasons"] if r["kind"] == "api_errors"), None)
+
     return render(request, "connections/logs.html", {
         "query": query,
         "error": error,
         "page_obj": page_obj,
         "page_size": page_size,
         "page_size_choices": LOG_PAGE_SIZE_CHOICES,
+        "overall_status": status_data["overall"],
+        "api_error_reason": api_error_reason,
+        "viewing_errors": "error:true" in query,
     })

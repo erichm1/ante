@@ -15,6 +15,16 @@
     <span class="text-dim small ms-auto" id="statusGeneratedAt">as of {{ generated_at|date:"H:i:s" }}</span>
   </div>
 
+  {% if reasons %}
+    <ul class="mb-0 mt-2" id="statusReasons">
+      {% for r in reasons %}
+        <li class="small {% if r.severity == 'down' %}text-danger{% else %}text-dim{% endif %}">{{ r.message }}</li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <ul class="mb-0 mt-2" id="statusReasons"></ul>
+  {% endif %}
+
   <div class="row g-3 mt-1">
     <div class="col-md-6">
       <div class="panel h-100">
@@ -76,7 +86,7 @@
           <span>Total calls</span>
           <span class="mono" id="apiTotal">{{ api_errors.total_calls }}</span>
         </div>
-        <a href="{% url 'connections:logs' %}?q=error:true" class="small">View errored calls →</a>
+        <a href="{% url 'connections:logs' %}?q=error%3Atrue+since%3A1h" class="small">View errored calls →</a>
       </div>
     </div>
   </div>
@@ -129,6 +139,13 @@ async function refreshStatus() {
     document.getElementById('runActive').textContent = data.runs.active;
     document.getElementById('apiErrored').textContent = data.api_errors.errored_calls;
     document.getElementById('apiTotal').textContent = data.api_errors.total_calls;
+
+    document.getElementById('statusReasons').innerHTML = data.reasons.map(r =>
+      `<li class="small ${r.severity === 'down' ? 'text-danger' : 'text-dim'}"></li>`
+    ).join('');
+    // set via textContent (not the template string above) to avoid re-introducing
+    // an HTML-injection risk from a message string built from live data
+    document.querySelectorAll('#statusReasons li').forEach((li, i) => { li.textContent = data.reasons[i].message; });
   } catch (e) {
     // transient network hiccup — next tick retries
   }

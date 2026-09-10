@@ -120,17 +120,36 @@ def _compute_status_data():
     recent_calls = ApiCallLog.objects.filter(created_at__gte=error_window_start)
     recent_calls_total = recent_calls.count()
     recent_calls_errored = recent_calls.filter(Q(error__gt="") | Q(status_code__gte=400)).count()
+    api_error_rate = (recent_calls_errored / recent_calls_total) if recent_calls_total else 0.0
 
+    # Every distinct thing that can push "overall" off "operational" — same
+    # thresholds used below, kept alongside the reason so any page (the
+    # Logs page in particular) can say *why*, not just flash a color.
+    reasons = []
     worker_states = [w["status"] for w in workers]
-    if worker_states.count("stalled") == len(workers) or failure_rate >= 0.5:
+    if "stalled" in worker_states:
+        reasons.append({"kind": "workers", "severity": "down" if worker_states.count("stalled") == len(workers) else "degraded",
+                         "message": "One or more background workers have stopped polling."})
+    if failure_rate >= 0.2:
+        reasons.append({"kind": "runs", "severity": "down" if failure_rate >= 0.5 else "degraded",
+                         "message": f"{recent_failed} of {len(finished)} recent migration runs failed ({round(failure_rate * 100)}%)."})
+    if api_error_rate >= 0.2:
+        reasons.append({"kind": "api_errors", "severity": "down" if api_error_rate >= 0.5 else "degraded",
+                         "message": f"{recent_calls_errored} of {recent_calls_total} API calls failed in the last {RECENT_ERRORS_HOURS}h ({round(api_error_rate * 100)}%)."})
+    if connections_total and connections_connected < connections_total:
+        reasons.append({"kind": "connections", "severity": "degraded",
+                         "message": f"{connections_total - connections_connected} of {connections_total} connections need setup."})
+
+    if any(r["severity"] == "down" for r in reasons):
         overall = "down"
-    elif "stalled" in worker_states or failure_rate >= 0.2 or (connections_total and connections_connected < connections_total):
+    elif reasons:
         overall = "degraded"
     else:
         overall = "operational"
 
     return {
         "overall": overall,
+        "reasons": reasons,
         "generated_at": timezone.now().isoformat(),
         "workers": workers,
         "connections": {
@@ -144,7 +163,7 @@ def _compute_status_data():
         },
         "api_errors": {
             "window_hours": RECENT_ERRORS_HOURS, "total_calls": recent_calls_total,
-            "errored_calls": recent_calls_errored,
+            "errored_calls": recent_calls_errored, "error_rate_pct": round(api_error_rate * 100, 1),
         },
     }
 

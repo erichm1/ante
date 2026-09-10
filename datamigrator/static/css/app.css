@@ -40,6 +40,9 @@ code, .mono, .field-type, .endpoint-path, .schema-name {
 }
 
 .app-sidebar .brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-family: var(--font-mono);
   font-size: 0.95rem;
   letter-spacing: 0.02em;
@@ -50,6 +53,7 @@ code, .mono, .field-type, .endpoint-path, .schema-name {
 }
 
 .app-sidebar .brand .dot { color: var(--trace); }
+.app-sidebar .brand img { width: 20px; height: 20px; }
 
 .app-sidebar a {
   display: block;
@@ -234,16 +238,25 @@ code, .mono, .field-type, .endpoint-path, .schema-name {
   padding: 24px;
 }
 
-.auth-card { width: 100%; max-width: 380px; padding: 32px; }
+.auth-card { width: 100%; max-width: 380px; padding: 32px; text-align: center; }
 
 .auth-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
   font-family: var(--font-mono);
-  font-size: 1rem;
+  font-size: 1.05rem;
+  font-weight: 600;
   letter-spacing: 0.02em;
   color: var(--ink);
 }
 
-.auth-brand .dot { color: var(--trace); }
+.auth-logo { width: 44px; height: 44px; }
+
+.auth-card h5 { text-align: center; }
+.auth-card .form-label { display: block; text-align: center; }
+.auth-card .form-text, .auth-card .text-danger.small { text-align: center; }
 
 .auth-footer { margin-top: 16px; text-align: center; font-size: 0.85rem; color: var(--text-dim); }
 

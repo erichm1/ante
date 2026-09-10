@@ -1,23 +1,166 @@
 sku,descricao,descricaoComplementar,unidade,ncm,gtin,origem,tipo,marca_id,categoria_id,preco,precoCusto,estoque_controlar,estoque_inicial
-PRD-011,Parafuso Sextavado M8x40,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
-PRD-012,Cabo de Rede Cat6 5m,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
-PRD-013,Fita Isolante 19mm x 10m,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
-PRD-014,Lâmpada LED 9W Bivolt,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
-PRD-015,Multímetro Digital Portátil,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
-PRD-016,Parafuso Sextavado M8x40,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
-PRD-017,Cabo de Rede Cat6 5m,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
-PRD-018,Fita Isolante 19mm x 10m,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
-PRD-019,Lâmpada LED 9W Bivolt,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
-PRD-020,Multímetro Digital Portátil,Aço inox,UN,73181500,7891234567890,s,simples,1,10,2.50,1.10,true,500
-PRD-021,Parafuso Sextavado M8x40,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
-PRD-022,Cabo de Rede Cat6 5m,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
-PRD-023,Fita Isolante 19mm x 10m,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
-PRD-024,Lâmpada LED 9W Bivolt,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
-PRD-025,Multímetro Digital Portátil,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
-PRD-026,Parafuso Sextavado M8x40,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
-PRD-027,Cabo de Rede Cat6 5m,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
-PRD-028,Fita Isolante 19mm x 10m,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
 PRD-029,Lâmpada LED 9W Bivolt,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
 PRD-030,Multímetro Digital Portátil,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
 PRD-031,Parafuso Sextavado M8x40,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
 PRD-032,Cabo de Rede Cat6 5m,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-033,Lâmpada LED 9W Bivolt,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-034,Multímetro Digital Portátil,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-035,Parafuso Sextavado M8x41,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-036,Cabo de Rede Cat6 5m,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-037,Lâmpada LED 9W Bivolt,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-038,Multímetro Digital Portátil,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-039,Parafuso Sextavado M8x42,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-040,Cabo de Rede Cat6 5m,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-041,Lâmpada LED 9W Bivolt,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-042,Multímetro Digital Portátil,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-043,Parafuso Sextavado M8x43,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-044,Cabo de Rede Cat6 5m,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-045,Lâmpada LED 9W Bivolt,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-046,Multímetro Digital Portátil,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-047,Parafuso Sextavado M8x44,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-048,Cabo de Rede Cat6 5m,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-049,Lâmpada LED 9W Bivolt,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-050,Multímetro Digital Portátil,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-051,Parafuso Sextavado M8x45,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-052,Cabo de Rede Cat6 5m,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-053,Lâmpada LED 9W Bivolt,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-054,Multímetro Digital Portátil,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-055,Parafuso Sextavado M8x46,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-056,Cabo de Rede Cat6 5m,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-057,Lâmpada LED 9W Bivolt,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-058,Multímetro Digital Portátil,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-059,Parafuso Sextavado M8x47,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-060,Cabo de Rede Cat6 5m,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-061,Lâmpada LED 9W Bivolt,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-062,Multímetro Digital Portátil,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-063,Parafuso Sextavado M8x48,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-064,Cabo de Rede Cat6 5m,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-065,Lâmpada LED 9W Bivolt,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-066,Multímetro Digital Portátil,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-067,Parafuso Sextavado M8x49,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-068,Cabo de Rede Cat6 5m,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-069,Lâmpada LED 9W Bivolt,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-070,Multímetro Digital Portátil,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-071,Parafuso Sextavado M8x50,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-072,Cabo de Rede Cat6 5m,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-073,Lâmpada LED 9W Bivolt,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-074,Multímetro Digital Portátil,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-075,Parafuso Sextavado M8x51,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-076,Cabo de Rede Cat6 5m,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-077,Lâmpada LED 9W Bivolt,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-078,Multímetro Digital Portátil,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-079,Parafuso Sextavado M8x52,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-080,Cabo de Rede Cat6 5m,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-081,Lâmpada LED 9W Bivolt,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-082,Multímetro Digital Portátil,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-083,Parafuso Sextavado M8x53,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-084,Cabo de Rede Cat6 5m,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-085,Lâmpada LED 9W Bivolt,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-086,Multímetro Digital Portátil,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-087,Parafuso Sextavado M8x54,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-088,Cabo de Rede Cat6 5m,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-089,Lâmpada LED 9W Bivolt,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-090,Multímetro Digital Portátil,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-091,Parafuso Sextavado M8x55,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-092,Cabo de Rede Cat6 5m,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-093,Lâmpada LED 9W Bivolt,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-094,Multímetro Digital Portátil,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-095,Parafuso Sextavado M8x56,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-096,Cabo de Rede Cat6 5m,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-097,Lâmpada LED 9W Bivolt,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-098,Multímetro Digital Portátil,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-099,Parafuso Sextavado M8x57,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-100,Cabo de Rede Cat6 5m,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-101,Lâmpada LED 9W Bivolt,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-102,Multímetro Digital Portátil,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-103,Parafuso Sextavado M8x58,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-104,Cabo de Rede Cat6 5m,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-105,Lâmpada LED 9W Bivolt,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-106,Multímetro Digital Portátil,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-107,Parafuso Sextavado M8x59,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-108,Cabo de Rede Cat6 5m,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-109,Lâmpada LED 9W Bivolt,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-110,Multímetro Digital Portátil,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-111,Parafuso Sextavado M8x60,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-112,Cabo de Rede Cat6 5m,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-113,Lâmpada LED 9W Bivolt,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-114,Multímetro Digital Portátil,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-115,Parafuso Sextavado M8x61,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-116,Cabo de Rede Cat6 5m,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-117,Lâmpada LED 9W Bivolt,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-118,Multímetro Digital Portátil,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-119,Parafuso Sextavado M8x62,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-120,Cabo de Rede Cat6 5m,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-121,Lâmpada LED 9W Bivolt,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-122,Multímetro Digital Portátil,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-123,Parafuso Sextavado M8x63,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-124,Cabo de Rede Cat6 5m,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-125,Lâmpada LED 9W Bivolt,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-126,Multímetro Digital Portátil,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-127,Parafuso Sextavado M8x64,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-128,Cabo de Rede Cat6 5m,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-129,Lâmpada LED 9W Bivolt,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-130,Multímetro Digital Portátil,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-131,Parafuso Sextavado M8x65,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-132,Cabo de Rede Cat6 5m,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-133,Lâmpada LED 9W Bivolt,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-134,Multímetro Digital Portátil,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-135,Parafuso Sextavado M8x66,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-136,Cabo de Rede Cat6 5m,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-137,Lâmpada LED 9W Bivolt,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-138,Multímetro Digital Portátil,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-139,Parafuso Sextavado M8x67,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-140,Cabo de Rede Cat6 5m,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-141,Lâmpada LED 9W Bivolt,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-142,Multímetro Digital Portátil,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-143,Parafuso Sextavado M8x68,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-144,Cabo de Rede Cat6 5m,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-145,Lâmpada LED 9W Bivolt,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-146,Multímetro Digital Portátil,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-147,Parafuso Sextavado M8x69,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-148,Cabo de Rede Cat6 5m,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-149,Lâmpada LED 9W Bivolt,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-150,Multímetro Digital Portátil,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-151,Parafuso Sextavado M8x70,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-152,Cabo de Rede Cat6 5m,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-153,Lâmpada LED 9W Bivolt,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-154,Multímetro Digital Portátil,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-155,Parafuso Sextavado M8x71,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-156,Cabo de Rede Cat6 5m,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-157,Lâmpada LED 9W Bivolt,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-158,Multímetro Digital Portátil,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-159,Parafuso Sextavado M8x72,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-160,Cabo de Rede Cat6 5m,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-161,Lâmpada LED 9W Bivolt,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-162,Multímetro Digital Portátil,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-163,Parafuso Sextavado M8x73,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-164,Cabo de Rede Cat6 5m,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-165,Lâmpada LED 9W Bivolt,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-166,Multímetro Digital Portátil,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-167,Parafuso Sextavado M8x74,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-168,Cabo de Rede Cat6 5m,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-169,Lâmpada LED 9W Bivolt,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-170,Multímetro Digital Portátil,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-171,Parafuso Sextavado M8x75,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-172,Cabo de Rede Cat6 5m,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-173,Lâmpada LED 9W Bivolt,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-174,Multímetro Digital Portátil,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-175,Parafuso Sextavado M8x76,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-176,Cabo de Rede Cat6 5m,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-177,Lâmpada LED 9W Bivolt,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-178,Multímetro Digital Portátil,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-179,Parafuso Sextavado M8x77,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-180,Cabo de Rede Cat6 5m,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-181,Lâmpada LED 9W Bivolt,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-182,Multímetro Digital Portátil,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-183,Parafuso Sextavado M8x78,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-184,Cabo de Rede Cat6 5m,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-185,Lâmpada LED 9W Bivolt,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-186,Multímetro Digital Portátil,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-187,Parafuso Sextavado M8x79,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-188,Cabo de Rede Cat6 5m,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-189,Lâmpada LED 9W Bivolt,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-190,Multímetro Digital Portátil,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-191,Parafuso Sextavado M8x80,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-192,Cabo de Rede Cat6 5m,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500
+PRD-193,Lâmpada LED 9W Bivolt,Aço inox,UN,73181500,7891234567890,0,simples,1,10,2.50,1.10,true,500

@@ -5,6 +5,25 @@
   <div class="page-title">Logs</div>
   <div class="page-subtitle">Every outbound API call the app has made — reads, writes, OAuth2 refreshes, chain steps. Query it like a Grafana/Loki log stream.</div>
 
+  {% if overall_status != "operational" %}
+    {% if api_error_reason %}
+      <div class="alert {% if api_error_reason.severity == 'down' %}alert-danger{% else %}alert-warning{% endif %} d-flex justify-content-between align-items-center">
+        <span>⚠ {{ api_error_reason.message }} This is contributing to the current <strong>{% if overall_status == "down" %}major issues{% else %}degraded{% endif %}</strong> status.</span>
+        <a href="?q=error%3Atrue+since%3A1h" class="btn btn-sm btn-outline-dark ms-3 text-nowrap">Show me these →</a>
+      </div>
+    {% else %}
+      <div class="alert alert-secondary">
+        System status is currently <strong>{% if overall_status == "down" %}major issues{% else %}degraded{% endif %}</strong>, but it doesn't look related to API call errors — see the <a href="{% url 'home:status' %}">Status page</a> for what is.
+      </div>
+    {% endif %}
+  {% elif viewing_errors %}
+    <div class="alert alert-secondary small">No elevated error rate right now — these errors aren't currently contributing to any system-wide issue.</div>
+  {% endif %}
+
+  {% if viewing_errors and api_error_reason %}
+    <p class="text-dim small">Showing calls related to the current elevated error rate.</p>
+  {% endif %}
+
   <form method="get" class="row g-2 align-items-end mb-2">
     <div class="col-md-9">
       <label class="form-label small mb-1">Query</label>
@@ -43,6 +62,7 @@
           <tr><td class="mono">run:91</td><td class="text-dim">exact migration run id</td></tr>
           <tr><td class="mono">error:true</td><td class="text-dim">only calls that errored (or <span class="mono">error:false</span>)</td></tr>
           <tr><td class="mono">duration:>500</td><td class="text-dim">duration_ms comparison</td></tr>
+          <tr><td class="mono">since:1h</td><td class="text-dim">only calls from the last hour — also 30m, 2d, 45s</td></tr>
           <tr><td class="mono">json.id:42</td><td class="text-dim">a field extracted from the response body's JSON — dotted paths work, e.g. <span class="mono">json.data.email:"a@b.com"</span></td></tr>
         </tbody>
       </table>
