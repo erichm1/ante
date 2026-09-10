@@ -41,6 +41,65 @@ def _parse_captures(raw):
     return cleaned
 
 
+def _parse_async_fields(data, current_step=None):
+    """Reads is_async + the async_* fields from a request body, defaulting
+    to `current_step`'s existing values for anything not present (so a
+    partial PATCH that only changes e.g. async_timeout_seconds doesn't need
+    to resend everything else) or to sensible new-step defaults otherwise.
+    Returns (fields_dict, error_message) — exactly one is None."""
+    def _get(key, default):
+        if key in data:
+            return data[key]
+        if current_step is not None:
+            return getattr(current_step, key)
+        return default
+
+    is_async = bool(_get("is_async", False))
+    fields = {
+        "is_async": is_async,
+        "async_poll_path": (_get("async_poll_path", "") or "").strip(),
+        "async_poll_method": _get("async_poll_method", CallChainStep.METHOD_GET) or CallChainStep.METHOD_GET,
+        "async_condition_path": (_get("async_condition_path", "") or "").strip(),
+        "async_condition_value": _get("async_condition_value", "") or "",
+        "async_result_path": (_get("async_result_path", "") or "").strip(),
+    }
+
+    if not is_async:
+        # Off just leaves whatever's already configured unused — same
+        # pattern as connections' use_custom_headers/params — so it doesn't
+        # need to be valid while switched off.
+        fields["async_interval_seconds"] = _get("async_interval_seconds", 2.0)
+        fields["async_timeout_seconds"] = _get("async_timeout_seconds", 60.0)
+        return fields, None
+
+    if not fields["async_poll_path"]:
+        return None, "Async steps need a poll path."
+    if not fields["async_condition_path"]:
+        return None, "Async steps need a condition path (e.g. status)."
+    if fields["async_condition_value"] == "":
+        return None, "Async steps need a condition value to wait for (e.g. completed)."
+
+    try:
+        interval = float(_get("async_interval_seconds", 2.0))
+    except (TypeError, ValueError):
+        return None, "async_interval_seconds must be a number."
+    if interval < 0.5:
+        return None, "async_interval_seconds must be at least 0.5 seconds."
+
+    try:
+        timeout = float(_get("async_timeout_seconds", 60.0))
+    except (TypeError, ValueError):
+        return None, "async_timeout_seconds must be a number."
+    if timeout <= 0:
+        return None, "async_timeout_seconds must be greater than zero."
+    if timeout < interval:
+        return None, "async_timeout_seconds must be at least as long as async_interval_seconds."
+
+    fields["async_interval_seconds"] = interval
+    fields["async_timeout_seconds"] = timeout
+    return fields, None
+
+
 def _validate_names(chain, step_name, captures, exclude_step_id=None):
     """A step's own name and every capture's name share one flat `context`
     namespace at execution time (chains/executor.py) — a collision would
@@ -93,12 +152,17 @@ class CallChainViewSet(viewsets.ModelViewSet):
         if name_error:
             return Response({"error": name_error}, status=status.HTTP_400_BAD_REQUEST)
 
+        async_fields, async_error = _parse_async_fields(request.data)
+        if async_error:
+            return Response({"error": async_error}, status=status.HTTP_400_BAD_REQUEST)
+
         next_order = (chain.steps.count() or 0) + 1
         try:
             step = CallChainStep.objects.create(
                 chain=chain, order=next_order, name=name, path=path, captures=captures,
                 method=request.data.get("method") or CallChainStep.METHOD_GET,
                 body=request.data.get("body") or "",
+                **async_fields,
             )
         except IntegrityError:
             return Response({"error": f"A step named '{name}' already exists in this chain."}, status=status.HTTP_400_BAD_REQUEST)
@@ -143,6 +207,11 @@ class CallChainStepViewSet(viewsets.ModelViewSet):
         name_error = _validate_names(step.chain, name, captures, exclude_step_id=step.pk)
         if name_error:
             return Response({"error": name_error}, status=status.HTTP_400_BAD_REQUEST)
+
+        async_fields, async_error = _parse_async_fields(request.data, current_step=step)
+        if async_error:
+            return Response({"error": async_error}, status=status.HTTP_400_BAD_REQUEST)
+        request.data.update(async_fields)
 
         try:
             return super().update(request, *args, **kwargs)
@@ -198,6 +267,7 @@ def chain_detail(request, pk):
     steps = list(chain.steps.all())
     return render(request, "chains/detail.html", {
         "chain": chain,
+        "connections": Connection.objects.order_by("name"),
         "steps": steps,
         "steps_json": CallChainStepSerializer(steps, many=True).data,
         "last_run": last_run,

@@ -1,0 +1,30 @@
+{% comment %}
+Custom headers/params checkbox + kv-editor pair, shared by every connection
+create/edit modal — keyed by `prefix` (e.g. "c" for create, "ec" for edit)
+so static/js/kv_editor.js's per-instance state doesn't collide across two
+of these on the same page. Requires kv_editor.js loaded on the page, and
+JS to call setKvRows/getKvObject/toggleKvSection with "{{ prefix }}_headers"
+/ "{{ prefix }}_params" (see static/js/connections.js).
+{% endcomment %}
+<div class="mb-3">
+  <div class="form-check">
+    <input class="form-check-input" type="checkbox" name="{{ prefix }}_use_custom_headers" id="{{ prefix }}_use_custom_headers" onchange="toggleKvSection(this, '{{ prefix }}_headers_section')">
+    <label class="form-check-label" for="{{ prefix }}_use_custom_headers">Use custom headers</label>
+  </div>
+  <div id="{{ prefix }}_headers_section" class="d-none mt-2">
+    <div id="{{ prefix }}_headers_list"></div>
+    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="addKvRow('{{ prefix }}_headers')">+ Add header</button>
+    <div class="form-text">Sent with every request on this connection, alongside its normal auth.</div>
+  </div>
+</div>
+<div class="mb-1">
+  <div class="form-check">
+    <input class="form-check-input" type="checkbox" name="{{ prefix }}_use_custom_params" id="{{ prefix }}_use_custom_params" onchange="toggleKvSection(this, '{{ prefix }}_params_section')">
+    <label class="form-check-label" for="{{ prefix }}_use_custom_params">Use custom query params</label>
+  </div>
+  <div id="{{ prefix }}_params_section" class="d-none mt-2">
+    <div id="{{ prefix }}_params_list"></div>
+    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="addKvRow('{{ prefix }}_params')">+ Add param</button>
+    <div class="form-text">Appended to every request's query string on this connection.</div>
+  </div>
+</div>

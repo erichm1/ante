@@ -8,14 +8,18 @@
       <div class="page-subtitle mono">{{ chain.connection.name }}</div>
       {% if chain.description %}<p class="text-dim small mb-0 mt-1">{{ chain.description }}</p>{% endif %}
     </div>
-    <button class="btn btn-signal" id="runChainBtn" onclick="runChain()">Run chain</button>
+    <div class="d-flex gap-2">
+      <button class="btn btn-outline-secondary" onclick="openEditChainModal()">Edit</button>
+      <button class="btn btn-outline-danger" onclick="deleteChain()">Delete</button>
+      <button class="btn btn-signal" id="runChainBtn" onclick="runChain()">Run chain</button>
+    </div>
   </div>
 
   <div class="panel mt-3">
     <h6 class="mb-1">Steps <span class="text-dim small">— run in order, top to bottom</span></h6>
     <p class="text-dim small">Reference an earlier step's parsed JSON response in this step's Path or Body with <span class="mono">{% templatetag openvariable %}step_name.field.path{% templatetag closevariable %}</span> — e.g. <span class="mono">{% templatetag openvariable %}create_customer.id{% templatetag closevariable %}</span>.</p>
     <table class="table align-middle mb-0">
-      <thead><tr><th>#</th><th>Name</th><th>Method</th><th>Path</th><th>Body</th><th>Captures</th><th></th></tr></thead>
+      <thead><tr><th>#</th><th>Name</th><th>Method</th><th>Path</th><th>Body</th><th>Async</th><th>Captures</th><th></th></tr></thead>
       <tbody id="stepsBody">
         {% for step in steps %}
           <tr id="step-row-{{ step.pk }}">
@@ -24,6 +28,13 @@
             <td><span class="verb-badge verb-{{ step.method|lower }}">{{ step.method }}</span></td>
             <td class="mono small">{{ step.path }}</td>
             <td class="mono small text-dim" style="max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ step.body|default:"—" }}</td>
+            <td class="small">
+              {% if step.is_async %}
+                <span class="status-chip warn mono" title="Poll {{ step.async_poll_path }} until {{ step.async_condition_path }} == {{ step.async_condition_value }} (every {{ step.async_interval_seconds }}s, timeout {{ step.async_timeout_seconds }}s)">⏳ async</span>
+              {% else %}
+                <span class="text-dim">—</span>
+              {% endif %}
+            </td>
             <td class="small">
               {% for c in step.captures %}
                 <span class="status-chip ok mono">{{ c.name }} ← {{ c.path|default:"." }}</span>
@@ -39,7 +50,7 @@
             </td>
           </tr>
         {% empty %}
-          <tr id="noStepsRow"><td colspan="7" class="text-dim small">No steps yet — add one below.</td></tr>
+          <tr id="noStepsRow"><td colspan="8" class="text-dim small">No steps yet — add one below.</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -75,6 +86,8 @@
         <div id="as_captures_list"></div>
         <button type="button" class="btn btn-sm btn-outline-secondary" onclick="addCaptureRow('as')">+ Add capture</button>
       </div>
+
+      {% include "chains/_async_step_fields.html" with prefix="as" %}
     </div>
   </div>
 
@@ -122,6 +135,7 @@
                 <td></td>
                 <td colspan="5">
                   {% if r.error %}<div class="text-danger small mb-2"><strong>Error:</strong> {{ r.error }}</div>{% endif %}
+                  {% if r.poll_attempts %}<div class="small text-dim mb-2">Polled {{ r.poll_attempts }} time{{ r.poll_attempts|pluralize }} before completing.</div>{% endif %}
                   {% if r.resolved_body %}
                     <div class="small text-dim text-uppercase mb-1">Resolved request body</div>
                     <pre class="mono small p-2 border rounded">{{ r.resolved_body }}</pre>
@@ -203,10 +217,44 @@
             <div id="es_captures_list"></div>
             <button type="button" class="btn btn-sm btn-outline-secondary" onclick="addCaptureRow('es')">+ Add capture</button>
           </div>
+
+          {% include "chains/_async_step_fields.html" with prefix="es" %}
         </div>
         <div class="modal-footer">
           <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
           <button class="btn btn-signal" onclick="saveStepEdit()">Save</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="editChainModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Edit chain</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div id="editChainError" class="alert alert-danger d-none"></div>
+          <div class="mb-3">
+            <label class="form-label">Name</label>
+            <input class="form-control" id="ec_name" value="{{ chain.name }}">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Connection</label>
+            <select class="form-select" id="ec_connection">
+              {% for c in connections %}<option value="{{ c.pk }}" {% if c.pk == chain.connection_id %}selected{% endif %}>{{ c.name }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="mb-1">
+            <label class="form-label">Description <span class="text-dim">(optional)</span></label>
+            <textarea class="form-control" id="ec_description" rows="2">{{ chain.description }}</textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button class="btn btn-signal" onclick="saveChainEdit()">Save</button>
         </div>
       </div>
     </div>
@@ -216,8 +264,50 @@
 {% block extra_scripts %}
 <script>
 window.CHAIN_ID = {{ chain.pk }};
+window.CHAIN_NAME = "{{ chain.name|escapejs }}";
 const STEPS_BY_ID = {};
 JSON.parse(document.getElementById('steps-data').textContent).forEach(s => { STEPS_BY_ID[s.id] = s; });
+
+function openEditChainModal() {
+  document.getElementById('editChainError').classList.add('d-none');
+  new bootstrap.Modal(document.getElementById('editChainModal')).show();
+}
+
+function saveChainEdit() {
+  const errorBox = document.getElementById('editChainError');
+  errorBox.classList.add('d-none');
+  const name = document.getElementById('ec_name').value.trim();
+  if (!name) {
+    errorBox.textContent = 'Name is required.';
+    errorBox.classList.remove('d-none');
+    return;
+  }
+  fetch(`/api/chains/${window.CHAIN_ID}/`, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name, description: document.getElementById('ec_description').value,
+      connection: document.getElementById('ec_connection').value,
+    }),
+  }).then(async resp => {
+    if (resp.ok) {
+      window.location.reload();
+    } else {
+      errorBox.textContent = (await resp.json()).error || 'Could not save this chain.';
+      errorBox.classList.remove('d-none');
+    }
+  });
+}
+
+function deleteChain() {
+  if (!confirm(`Delete chain "${window.CHAIN_NAME}"? This can't be undone.`)) return;
+  fetch(`/api/chains/${window.CHAIN_ID}/`, { method: 'DELETE' }).then(resp => {
+    if (resp.ok) {
+      window.location.href = '/chains/';
+    } else {
+      alert('Could not delete this chain.');
+    }
+  });
+}
 
 // ---- Captures mini-builder — shared by the Add-step row and the Edit-step
 // modal, keyed by a prefix ('as' or 'es') so both can coexist on the page.
@@ -253,6 +343,38 @@ function updateCaptureRow(prefix, idx, key, value) {
   captureState[prefix][idx][key] = value;
 }
 
+function toggleAsyncSection(checkbox, sectionId) {
+  document.getElementById(sectionId).classList.toggle('d-none', !checkbox.checked);
+}
+
+// Reads the async_* fields for a given prefix ('as' or 'es') into a payload
+// object — only meaningful when the "is_async" checkbox is checked, but
+// harmless to include either way (the backend ignores them while off).
+function readAsyncFields(prefix) {
+  return {
+    is_async: document.getElementById(`${prefix}_is_async`).checked,
+    async_poll_path: document.getElementById(`${prefix}_async_poll_path`).value.trim(),
+    async_poll_method: document.getElementById(`${prefix}_async_poll_method`).value,
+    async_condition_path: document.getElementById(`${prefix}_async_condition_path`).value.trim(),
+    async_condition_value: document.getElementById(`${prefix}_async_condition_value`).value.trim(),
+    async_interval_seconds: document.getElementById(`${prefix}_async_interval_seconds`).value,
+    async_timeout_seconds: document.getElementById(`${prefix}_async_timeout_seconds`).value,
+    async_result_path: document.getElementById(`${prefix}_async_result_path`).value.trim(),
+  };
+}
+
+function writeAsyncFields(prefix, step) {
+  document.getElementById(`${prefix}_is_async`).checked = !!step.is_async;
+  document.getElementById(`${prefix}_async_poll_path`).value = step.async_poll_path || '';
+  document.getElementById(`${prefix}_async_poll_method`).value = step.async_poll_method || 'GET';
+  document.getElementById(`${prefix}_async_condition_path`).value = step.async_condition_path || '';
+  document.getElementById(`${prefix}_async_condition_value`).value = step.async_condition_value || '';
+  document.getElementById(`${prefix}_async_interval_seconds`).value = step.async_interval_seconds ?? 2;
+  document.getElementById(`${prefix}_async_timeout_seconds`).value = step.async_timeout_seconds ?? 60;
+  document.getElementById(`${prefix}_async_result_path`).value = step.async_result_path || '';
+  toggleAsyncSection(document.getElementById(`${prefix}_is_async`), `${prefix}_async_section`);
+}
+
 function addStep() {
   const errorBox = document.getElementById('addStepError');
   errorBox.classList.add('d-none');
@@ -269,6 +391,7 @@ function addStep() {
       path: document.getElementById('as_path').value.trim(),
       body: bodyRaw,
       captures: captureState.as.filter(c => c.name.trim()),
+      ...readAsyncFields('as'),
     }),
   }).then(async resp => {
     if (resp.ok) { window.location.reload(); }
@@ -285,6 +408,7 @@ function openEditStepModal(stepId) {
   document.getElementById('es_body').value = step.body || '';
   captureState.es = (step.captures || []).map(c => ({ ...c }));
   renderCaptureRows('es');
+  writeAsyncFields('es', step);
   window.EDITING_STEP_ID = stepId;
   new bootstrap.Modal(document.getElementById('editStepModal')).show();
 }
@@ -305,6 +429,7 @@ function saveStepEdit() {
       path: document.getElementById('es_path').value.trim(),
       body: bodyRaw,
       captures: captureState.es.filter(c => c.name.trim()),
+      ...readAsyncFields('es'),
     }),
   }).then(async resp => {
     if (resp.ok) { window.location.reload(); }

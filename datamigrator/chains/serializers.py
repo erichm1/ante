@@ -6,7 +6,11 @@ from .models import CallChain, CallChainRun, CallChainStep, CallChainStepResult
 class CallChainStepSerializer(serializers.ModelSerializer):
     class Meta:
         model = CallChainStep
-        fields = ["id", "chain", "name", "order", "method", "path", "body", "captures"]
+        fields = [
+            "id", "chain", "name", "order", "method", "path", "body", "captures",
+            "is_async", "async_poll_path", "async_poll_method", "async_condition_path",
+            "async_condition_value", "async_interval_seconds", "async_timeout_seconds", "async_result_path",
+        ]
         read_only_fields = ["order", "chain"]  # order assigned by add_step; chain never reassigned via PATCH
 
 
@@ -15,7 +19,7 @@ class CallChainStepResultSerializer(serializers.ModelSerializer):
         model = CallChainStepResult
         fields = [
             "id", "order", "name", "method", "resolved_path", "resolved_body",
-            "status_code", "response_json", "captured_variables", "error",
+            "status_code", "response_json", "poll_attempts", "captured_variables", "error",
         ]
 
 

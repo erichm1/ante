@@ -7,6 +7,7 @@
       <div class="d-flex align-items-center gap-2">
         <div class="page-title mb-0" id="plan-name">{{ plan.name }}</div>
         <span class="status-chip {% if plan.status == 'completed' %}ok{% elif plan.status == 'failed' %}err{% elif plan.status == 'executing' or plan.status == 'scheduled' %}warn{% endif %}" id="plan-status">{{ plan.status }}</span>
+        <span class="mono small text-dim">{{ plan.get_execution_mode_display }}</span>
       </div>
       <div class="page-subtitle">
         <span id="plan-description">{{ plan.description|default:"No description." }}</span>
@@ -18,6 +19,9 @@
     <div class="d-flex gap-2">
       {% if plan.is_editable %}
         <button class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#editPlanModal">Edit</button>
+      {% endif %}
+      {% if plan.status != "executing" %}
+        <button class="btn btn-outline-danger" onclick="deletePlan()">Delete</button>
       {% endif %}
       <div class="btn-group">
         <button class="btn btn-signal" id="executeBtn" onclick="executePlanNow()" {% if plan.status == "executing" or plan.status == "scheduled" %}disabled{% endif %}>
@@ -36,25 +40,46 @@
   <div class="panel mt-3">
     <h6 class="mb-3">Steps <span class="text-dim small">— run sequentially, in order</span></h6>
     <table class="table align-middle mb-0">
-      <thead><tr><th>#</th><th>Route</th><th>Rate limit</th><th>Status</th><th></th></tr></thead>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>{% if plan.execution_mode == "chain" %}Chain{% else %}Route{% endif %}</th>
+          {% if plan.execution_mode != "chain" %}<th>Rate limit</th>{% endif %}
+          <th>Status</th><th></th>
+        </tr>
+      </thead>
       <tbody id="stepsBody">
         {% for step in steps %}
           <tr id="step-row-{{ step.pk }}">
             <td class="mono">{{ step.order }}</td>
-            <td>{% include "jobs/_route.html" with route=step.route %}</td>
-            <td class="mono small">
-              {% if step.rate_limit_per_second %}≤ {{ step.rate_limit_per_second }}/s{% else %}plan default{% endif %}
-              {% if plan.is_editable %}
-                <button type="button" class="entity-edit-btn" title="Edit rate limit" onclick="openEditStepModal({{ step.pk }}, {{ step.rate_limit_per_second|default:'null' }})"><i class="bi-pencil"></i></button>
-              {% endif %}
-            </td>
-            <td>
-              {% if step.run %}
-                <a href="{% url 'jobs:run_detail' step.run.pk %}" class="status-chip {% if step.run.status == 'success' %}ok{% elif step.run.status == 'failed' %}err{% else %}warn{% endif %}" id="step-status-{{ step.pk }}">{{ step.run.status }}</a>
-              {% else %}
-                <span class="status-chip" id="step-status-{{ step.pk }}">not started</span>
-              {% endif %}
-            </td>
+            {% if plan.execution_mode == "chain" %}
+              <td>
+                <a href="{% url 'chains:detail' step.chain.pk %}">{{ step.chain.name }}</a>
+                <div class="text-dim small mono">{{ step.chain.connection.name }}</div>
+              </td>
+              <td>
+                {% if step.chain_run %}
+                  <span class="status-chip {% if step.chain_run.status == 'success' %}ok{% else %}err{% endif %}" id="step-status-{{ step.pk }}">{{ step.chain_run.status }}</span>
+                {% else %}
+                  <span class="status-chip" id="step-status-{{ step.pk }}">not started</span>
+                {% endif %}
+              </td>
+            {% else %}
+              <td>{% include "jobs/_route.html" with route=step.route %}</td>
+              <td class="mono small">
+                {% if step.rate_limit_per_second %}≤ {{ step.rate_limit_per_second }}/s{% else %}plan default{% endif %}
+                {% if plan.is_editable %}
+                  <button type="button" class="entity-edit-btn" title="Edit rate limit" onclick="openEditStepModal({{ step.pk }}, {{ step.rate_limit_per_second|default:'null' }})"><i class="bi-pencil"></i></button>
+                {% endif %}
+              </td>
+              <td>
+                {% if step.run %}
+                  <a href="{% url 'jobs:run_detail' step.run.pk %}" class="status-chip {% if step.run.status == 'success' %}ok{% elif step.run.status == 'failed' %}err{% else %}warn{% endif %}" id="step-status-{{ step.pk }}">{{ step.run.status }}</a>
+                {% else %}
+                  <span class="status-chip" id="step-status-{{ step.pk }}">not started</span>
+                {% endif %}
+              </td>
+            {% endif %}
             <td class="text-end">
               {% if plan.is_editable %}
                 <button class="btn btn-sm btn-outline-secondary" onclick="moveStep({{ step.pk }}, 'up')" {% if forloop.first %}disabled{% endif %}>↑</button>
@@ -64,23 +89,32 @@
             </td>
           </tr>
         {% empty %}
-          <tr id="noStepsRow"><td colspan="5" class="text-dim small">No steps yet — add a mapping below.</td></tr>
+          <tr id="noStepsRow"><td colspan="5" class="text-dim small">No steps yet — add one below.</td></tr>
         {% endfor %}
       </tbody>
     </table>
 
     {% if plan.is_editable %}
       <div class="d-flex gap-2 align-items-end mt-3 pt-3 border-top">
-        <div class="flex-grow-1">
-          <label class="form-label small mb-1">Add mapping</label>
-          <select class="form-select form-select-sm" id="as_mapping">
-            {% for m in mappings %}<option value="{{ m.pk }}">{{ m.name }}</option>{% endfor %}
-          </select>
-        </div>
-        <div>
-          <label class="form-label small mb-1">Rate limit <span class="text-dim">(optional)</span></label>
-          <input type="number" step="0.1" min="0.1" class="form-control form-control-sm" id="as_rate_limit" placeholder="plan default">
-        </div>
+        {% if plan.execution_mode == "chain" %}
+          <div class="flex-grow-1">
+            <label class="form-label small mb-1">Add chain</label>
+            <select class="form-select form-select-sm" id="as_chain">
+              {% for c in chains %}<option value="{{ c.pk }}">{{ c.name }}</option>{% endfor %}
+            </select>
+          </div>
+        {% else %}
+          <div class="flex-grow-1">
+            <label class="form-label small mb-1">Add mapping</label>
+            <select class="form-select form-select-sm" id="as_mapping">
+              {% for m in mappings %}<option value="{{ m.pk }}">{{ m.name }}</option>{% endfor %}
+            </select>
+          </div>
+          <div>
+            <label class="form-label small mb-1">Rate limit <span class="text-dim">(optional)</span></label>
+            <input type="number" step="0.1" min="0.1" class="form-control form-control-sm" id="as_rate_limit" placeholder="plan default">
+          </div>
+        {% endif %}
         <button class="btn btn-sm btn-signal" onclick="addStep()">+ Add step</button>
       </div>
       <div id="addStepError" class="alert alert-danger d-none mt-2 mb-0"></div>
@@ -198,6 +232,7 @@
   window.PLAN_ID = {{ plan.pk }};
   window.PLAN_STATUS = "{{ plan.status }}";
   window.PLAN_NAME = "{{ plan.name|escapejs }}";
+  window.PLAN_MODE = "{{ plan.execution_mode }}";
   initPlanDetail();
 </script>
 {% endblock %}

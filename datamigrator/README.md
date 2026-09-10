@@ -18,6 +18,7 @@ python -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
 
 cp .env.example .env
+
 # Generate a real key and paste it into .env as FIELD_ENCRYPTION_KEY:
 python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 

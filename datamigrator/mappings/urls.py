@@ -6,6 +6,6 @@ app_name = "mappings"
 
 urlpatterns = [
     path("", views.mapping_list, name="list"),
-    path("<int:pk>/raw/", views.mapping_raw, name="raw"),
-    path("<int:pk>/canvas/", views.mapping_canvas, name="canvas"),
+    path("canvas/", views.canvas_list, name="canvas_list"),
+    path("<int:pk>/", views.mapping_detail, name="detail"),
 ]

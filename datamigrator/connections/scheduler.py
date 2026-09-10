@@ -13,6 +13,9 @@ from django.utils import timezone
 
 POLL_INTERVAL_SECONDS = 30
 
+# See jobs/scheduler.py's own LAST_TICK_AT for what this is for.
+LAST_TICK_AT = None
+
 
 def run_job_now(job) -> None:
     """Runs one refresh attempt immediately and records the outcome —
@@ -44,6 +47,7 @@ def _run_due_jobs():
 
 
 def _poll_loop():
+    global LAST_TICK_AT
     while True:
         time.sleep(POLL_INTERVAL_SECONDS)
         try:
@@ -52,6 +56,7 @@ def _poll_loop():
             pass
         finally:
             db_connections.close_all()
+            LAST_TICK_AT = timezone.now()
 
 
 def start():

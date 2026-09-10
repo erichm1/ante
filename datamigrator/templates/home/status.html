@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Status{% endblock %}
+{% block content %}
+  <div class="page-title">Status</div>
+  <div class="page-subtitle">Live health overview — background workers, connections, recent runs, and API errors.</div>
+
+  <div class="status-banner {{ overall }}" id="statusBanner">
+    <span class="status-banner-dot"></span>
+    <span id="statusBannerText">
+      {% if overall == "operational" %}All systems operational
+      {% elif overall == "degraded" %}Degraded performance
+      {% else %}Major issues detected{% endif %}
+    </span>
+    <span class="text-dim small ms-auto" id="statusGeneratedAt">as of {{ generated_at|date:"H:i:s" }}</span>
+  </div>
+
+  <div class="row g-3 mt-1">
+    <div class="col-md-6">
+      <div class="panel h-100">
+        <h6 class="mb-3">Background workers</h6>
+        <div id="workersBox">
+          {% for w in workers %}
+            <div class="d-flex justify-content-between align-items-center border-bottom py-2" id="worker-row-{{ forloop.counter0 }}">
+              <div>
+                <div>{{ w.name }}</div>
+                <div class="text-dim small">{{ w.description }}</div>
+              </div>
+              <span class="status-chip {% if w.status == 'ok' %}ok{% elif w.status == 'starting' %}warn{% else %}err{% endif %}" id="worker-chip-{{ forloop.counter0 }}">
+                {% if w.status == 'ok' %}running{% elif w.status == 'starting' %}starting…{% else %}stalled{% endif %}
+              </span>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-6">
+      <div class="panel h-100">
+        <h6 class="mb-3">Connections</h6>
+        <div class="d-flex align-items-center justify-content-between border-bottom py-2">
+          <span>Connected</span>
+          <span class="mono" id="connConnected">{{ connections.connected }}</span>
+        </div>
+        <div class="d-flex align-items-center justify-content-between py-2">
+          <span>Needs setup</span>
+          <span class="mono" id="connDisconnected">{{ connections.disconnected }}</span>
+        </div>
+        <a href="{% url 'integrations:list' %}?tab=installed" class="small">View all connections →</a>
+      </div>
+    </div>
+
+    <div class="col-md-6">
+      <div class="panel h-100">
+        <h6 class="mb-3">Recent runs <span class="text-dim small">— last {{ runs.window }}</span></h6>
+        <div class="d-flex align-items-center justify-content-between border-bottom py-2">
+          <span>Failure rate</span>
+          <span class="mono" id="runFailureRate">{{ runs.failure_rate_pct }}%</span>
+        </div>
+        <div class="d-flex align-items-center justify-content-between py-2">
+          <span>Active right now</span>
+          <span class="mono" id="runActive">{{ runs.active }}</span>
+        </div>
+        <a href="{% url 'jobs:run_list' %}" class="small">View runs →</a>
+      </div>
+    </div>
+
+    <div class="col-md-6">
+      <div class="panel h-100">
+        <h6 class="mb-3">API errors <span class="text-dim small">— last {{ api_errors.window_hours }}h</span></h6>
+        <div class="d-flex align-items-center justify-content-between border-bottom py-2">
+          <span>Errored calls</span>
+          <span class="mono" id="apiErrored">{{ api_errors.errored_calls }}</span>
+        </div>
+        <div class="d-flex align-items-center justify-content-between py-2">
+          <span>Total calls</span>
+          <span class="mono" id="apiTotal">{{ api_errors.total_calls }}</span>
+        </div>
+        <a href="{% url 'connections:logs' %}?q=error:true" class="small">View errored calls →</a>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function bannerClass(overall) {
+  if (overall === 'operational') return 'operational';
+  if (overall === 'degraded') return 'degraded';
+  return 'down';
+}
+function bannerText(overall) {
+  if (overall === 'operational') return 'All systems operational';
+  if (overall === 'degraded') return 'Degraded performance';
+  return 'Major issues detected';
+}
+function workerChipClass(status) {
+  if (status === 'ok') return 'ok';
+  if (status === 'starting') return 'warn';
+  return 'err';
+}
+function workerChipText(status) {
+  if (status === 'ok') return 'running';
+  if (status === 'starting') return 'starting…';
+  return 'stalled';
+}
+
+async function refreshStatus() {
+  try {
+    const resp = await fetch('{% url "home:status_data" %}');
+    if (!resp.ok) return;
+    const data = await resp.json();
+
+    const banner = document.getElementById('statusBanner');
+    banner.className = 'status-banner ' + bannerClass(data.overall);
+    document.getElementById('statusBannerText').textContent = bannerText(data.overall);
+    document.getElementById('statusGeneratedAt').textContent = 'as of ' + new Date(data.generated_at).toLocaleTimeString();
+
+    data.workers.forEach((w, i) => {
+      const chip = document.getElementById(`worker-chip-${i}`);
+      if (!chip) return;
+      chip.className = 'status-chip ' + workerChipClass(w.status);
+      chip.textContent = workerChipText(w.status);
+    });
+
+    document.getElementById('connConnected').textContent = data.connections.connected;
+    document.getElementById('connDisconnected').textContent = data.connections.disconnected;
+    document.getElementById('runFailureRate').textContent = data.runs.failure_rate_pct + '%';
+    document.getElementById('runActive').textContent = data.runs.active;
+    document.getElementById('apiErrored').textContent = data.api_errors.errored_calls;
+    document.getElementById('apiTotal').textContent = data.api_errors.total_calls;
+  } catch (e) {
+    // transient network hiccup — next tick retries
+  }
+}
+
+setInterval(refreshStatus, 5000);
+</script>
+{% endblock %}

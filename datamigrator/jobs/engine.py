@@ -153,7 +153,15 @@ def run_migration(run: MigrationRun) -> MigrationRun:
 
     def records_for(entity):
         if entity.id not in source_records:
-            if entity.source_file:
+            if run.input_file and entity.source_file:
+                # This run brought its own fresh data — same already-built
+                # mapping (fields, transforms, entity pairing), different
+                # rows, without touching entity.source_file (which stays
+                # whatever was uploaded at discovery/mapping time).
+                _log(run, f"Reading {entity} from this run's uploaded input file ({run.input_file.name}) ...")
+                records = discovery.read_all_records_from_file(run.input_file)
+                _log(run, f"Read {len(records)} record(s) from file.")
+            elif entity.source_file:
                 # No real API behind this entity at all — every row comes
                 # straight from the uploaded CSV/XLSX, no HTTP call, no
                 # throttling, no requests_made bump (there's no request).

@@ -164,11 +164,12 @@
               {% endfor %}
             </select>
           </div>
-          <div class="mb-1">
+          <div class="mb-3">
             <label class="form-label">Auth config (JSON)</label>
             <textarea class="form-control mono" id="c_auth_config" rows="4" placeholder='{"client_id": "...", "authorize_url": "...", "token_url": "..."}'></textarea>
             <div class="form-text">OAuth2: client_id, client_secret, authorize_url, token_url, scope. Bearer: header_name, prefix. Basic/JWT/none: leave empty.</div>
           </div>
+          {% include "connections/_custom_headers_params.html" with prefix="c" %}
         </div>
         <div class="modal-footer">
           <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -203,10 +204,11 @@
               {% endfor %}
             </select>
           </div>
-          <div class="mb-1">
+          <div class="mb-3">
             <label class="form-label">Auth config (JSON)</label>
             <textarea class="form-control mono" id="ec_auth_config" rows="5"></textarea>
           </div>
+          {% include "connections/_custom_headers_params.html" with prefix="ec" %}
         </div>
         <div class="modal-footer">
           <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -218,5 +220,6 @@
 {% endblock %}
 
 {% block extra_scripts %}
+<script src="{% static 'js/kv_editor.js' %}"></script>
 <script src="{% static 'js/connections.js' %}"></script>
 {% endblock %}

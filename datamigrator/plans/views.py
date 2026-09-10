@@ -6,6 +6,7 @@ from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
+from chains.models import CallChain
 from jobs.views import _route_info
 from mappings.models import Mapping
 
@@ -15,24 +16,43 @@ from .serializers import MigrationPlanSerializer, PlanStepSerializer
 
 
 class MigrationPlanViewSet(viewsets.ModelViewSet):
-    queryset = MigrationPlan.objects.prefetch_related("steps__mapping", "steps__run")
+    queryset = MigrationPlan.objects.prefetch_related("steps__mapping", "steps__run", "steps__chain", "steps__chain_run")
     serializer_class = MigrationPlanSerializer
     http_method_names = ["get", "post", "patch", "delete", "head", "options"]
 
     def update(self, request, *args, **kwargs):
         """PATCH edits name/description/rate_limit_per_second (status and
         scheduled_at are read-only on the serializer — those only change via
-        `execute` below) — only while the plan is still a draft."""
+        `execute` below) — only while the plan is still a draft.
+        execution_mode is chosen once at creation and can't be changed
+        afterward, draft or not — every step already committed to being a
+        Mapping or a Chain based on it."""
         plan = self.get_object()
         if not plan.is_editable:
             return Response({"error": "Can't edit a plan once it's left draft."}, status=status.HTTP_400_BAD_REQUEST)
+        new_mode = request.data.get("execution_mode")
+        if new_mode is not None and new_mode != plan.execution_mode:
+            return Response({"error": "Can't change execution mode after a plan is created."}, status=status.HTTP_400_BAD_REQUEST)
         return super().update(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        plan = self.get_object()
+        if plan.status == MigrationPlan.STATUS_EXECUTING:
+            return Response({"error": "Can't delete a plan while it's executing."}, status=status.HTTP_400_BAD_REQUEST)
+        return super().destroy(request, *args, **kwargs)
 
     @action(detail=True, methods=["post"], url_path="steps")
     def add_step(self, request, pk=None):
         plan = self.get_object()
         if not plan.is_editable:
             return Response({"error": "Can't edit a plan once it's left draft."}, status=status.HTTP_400_BAD_REQUEST)
+
+        next_order = (plan.steps.count() or 0) + 1
+
+        if plan.execution_mode == MigrationPlan.MODE_CHAIN:
+            chain = get_object_or_404(CallChain, pk=request.data.get("chain_id"))
+            step = PlanStep.objects.create(plan=plan, chain=chain, order=next_order)
+            return Response(PlanStepSerializer(step).data, status=status.HTTP_201_CREATED)
 
         mapping = get_object_or_404(Mapping, pk=request.data.get("mapping_id"))
         rate_limit_raw = request.data.get("rate_limit_per_second")
@@ -45,7 +65,6 @@ class MigrationPlanViewSet(viewsets.ModelViewSet):
             except (TypeError, ValueError):
                 return Response({"error": "rate_limit_per_second must be a number greater than zero."}, status=status.HTTP_400_BAD_REQUEST)
 
-        next_order = (plan.steps.count() or 0) + 1
         step = PlanStep.objects.create(plan=plan, mapping=mapping, order=next_order, rate_limit_per_second=rate_limit)
         return Response(PlanStepSerializer(step).data, status=status.HTTP_201_CREATED)
 
@@ -53,7 +72,9 @@ class MigrationPlanViewSet(viewsets.ModelViewSet):
     def execute(self, request, pk=None):
         """Same validation/branching shape as MigrationRunViewSet.trigger in
         jobs/views.py — only difference is this starts the sequential plan
-        executor instead of a single run."""
+        executor instead of a single run. rate_limit_per_second only matters
+        in simple mode (chain mode has no rate limiting), but there's no
+        harm accepting/storing it either way."""
         plan = self.get_object()
         if not plan.steps.exists():
             return Response({"error": "Add at least one step before executing."}, status=status.HTTP_400_BAD_REQUEST)
@@ -97,7 +118,7 @@ class MigrationPlanViewSet(viewsets.ModelViewSet):
 
 
 class PlanStepViewSet(viewsets.ModelViewSet):
-    queryset = PlanStep.objects.select_related("plan", "mapping", "run")
+    queryset = PlanStep.objects.select_related("plan", "mapping", "run", "chain", "chain_run")
     serializer_class = PlanStepSerializer
     http_method_names = ["get", "post", "patch", "delete", "head", "options"]
 
@@ -177,6 +198,7 @@ def plan_list(request):
         "page_obj": page_obj,
         "filters": {"q": q, "status": status_filter},
         "status_choices": MigrationPlan.STATUS_CHOICES,
+        "mode_choices": MigrationPlan.MODE_CHOICES,
         "page_size": page_size,
         "page_size_choices": PAGE_SIZE_CHOICES,
     })
@@ -191,15 +213,19 @@ def plan_detail(request, pk):
             "steps__mapping__entity_mappings__source_entity",
             "steps__mapping__entity_mappings__target_entity",
             "steps__run",
+            "steps__chain__connection",
+            "steps__chain_run",
         ),
         pk=pk,
     )
     steps = list(plan.steps.all())
     for step in steps:
-        step.route = _route_info(step.mapping)
+        if step.mapping_id:
+            step.route = _route_info(step.mapping)
 
     return render(request, "plans/detail.html", {
         "plan": plan,
         "steps": steps,
         "mappings": Mapping.objects.order_by("name"),
+        "chains": CallChain.objects.order_by("name"),
     })

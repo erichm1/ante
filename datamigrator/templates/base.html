@@ -16,12 +16,20 @@
   <div class="app-shell">
     <nav class="app-sidebar">
       <div class="brand"><span class="dot">●</span> Ante</div>
-      <a href="{% url 'home:index' %}" class="{% if request.resolver_match.app_name == 'home' %}active{% endif %}">Home</a>
-      <a href="{% url 'integrations:list' %}" class="{% if request.resolver_match.app_name == 'integrations' or request.resolver_match.app_name == 'connections' %}active{% endif %}">App Store</a>
-      <a href="{% url 'mappings:list' %}" class="{% if request.resolver_match.app_name == 'mappings' %}active{% endif %}">Mappings</a>
+      <a href="{% url 'home:index' %}" class="{% if request.resolver_match.app_name == 'home' and request.resolver_match.url_name != 'status' %}active{% endif %}">Home</a>
+      <a href="{% url 'home:status' %}" class="{% if request.resolver_match.url_name == 'status' %}active{% endif %}">Status</a>
+      <a href="{% url 'integrations:list' %}" class="{% if request.resolver_match.app_name == 'integrations' or request.resolver_match.app_name == 'connections' and request.resolver_match.url_name != 'logs' %}active{% endif %}">App Store</a>
+      {% if request.resolver_match.app_name == 'mappings' %}
+        <a href="{% url 'mappings:list' %}" class="{% if request.resolver_match.url_name != 'canvas_list' and request.GET.tab != 'canvas' %}active{% endif %}">Mappings</a>
+        <a href="{% url 'mappings:canvas_list' %}" class="{% if request.resolver_match.url_name == 'canvas_list' or request.GET.tab == 'canvas' %}active{% endif %}">Canvas</a>
+      {% else %}
+        <a href="{% url 'mappings:list' %}">Mappings</a>
+        <a href="{% url 'mappings:canvas_list' %}">Canvas</a>
+      {% endif %}
       <a href="{% url 'jobs:run_list' %}" class="{% if request.resolver_match.app_name == 'jobs' %}active{% endif %}">Runs</a>
       <a href="{% url 'plans:list' %}" class="{% if request.resolver_match.app_name == 'plans' %}active{% endif %}">Plans</a>
       <a href="{% url 'chains:list' %}" class="{% if request.resolver_match.app_name == 'chains' %}active{% endif %}">Chains</a>
+      <a href="{% url 'connections:logs' %}" class="{% if request.resolver_match.url_name == 'logs' %}active{% endif %}">Logs</a>
       <a href="/admin/">Admin</a>
       <div class="sidebar-footer">
         {% if user.is_authenticated %}

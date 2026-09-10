@@ -147,6 +147,10 @@ class ConnectionClient:
             self._apply_basic()
         elif self.connection.auth_type == Connection.AUTH_OAUTH2:
             self._apply_oauth2()
+        if self.connection.use_custom_headers and self.connection.custom_headers:
+            # Layered on top of whatever auth_type just set, not instead of it —
+            # e.g. a bearer token AND a custom header can both be present.
+            self.session.headers.update(self.connection.custom_headers)
         return self.session
 
     def _build_url(self, path: str) -> str:
@@ -201,6 +205,10 @@ class ConnectionClient:
 
     def request(self, method: str, path: str, **kwargs):
         self._prepare()
+        if self.connection.use_custom_params and self.connection.custom_params:
+            # Merged under whatever the caller already passed — a call-site
+            # param with the same name wins over the connection-wide default.
+            kwargs["params"] = {**self.connection.custom_params, **(kwargs.get("params") or {})}
         return self._send(method, self._build_url(path), **kwargs)
 
     def get(self, path: str, **kwargs):

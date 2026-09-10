@@ -10,6 +10,7 @@ class ConnectionSerializer(serializers.ModelSerializer):
         model = Connection
         fields = [
             "id", "name", "base_url", "auth_type", "auth_config",
+            "use_custom_headers", "custom_headers", "use_custom_params", "custom_params",
             "is_active", "is_connected", "created_at", "updated_at",
         ]
 

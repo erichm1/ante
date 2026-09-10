@@ -32,6 +32,15 @@ class MigrationRun(models.Model):
                    "time once jobs/scheduler.py actually kicks it off.",
     )
     finished_at = models.DateTimeField(null=True, blank=True)
+    input_file = models.FileField(
+        upload_to="jobs/run_inputs/%Y/%m/", null=True, blank=True,
+        help_text="A CSV/XLSX uploaded just for this run, read instead of the mapping's source "
+                   "entity's own stored source_file — lets the same already-built mapping (fields, "
+                   "transforms, everything) run against fresh data each time without re-uploading "
+                   "through the connection's 'From file' discovery tab (which would also redo "
+                   "schema/field detection). Ignored for a source entity with no source_file at all "
+                   "(i.e. a real API source) — see jobs/engine.py::records_for.",
+    )
 
     class Meta:
         ordering = ["-started_at"]

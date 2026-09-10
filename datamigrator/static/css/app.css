@@ -251,6 +251,21 @@ code, .mono, .field-type, .endpoint-path, .schema-name {
 .stat-tile { padding: 18px 12px; }
 .stat-value { font-size: 1.8rem; font-weight: 600; margin-top: 4px; }
 
+/* -- Status page -- */
+.status-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 18px;
+  border-radius: 8px;
+  font-weight: 600;
+  color: #fff;
+}
+.status-banner-dot { width: 10px; height: 10px; border-radius: 50%; background: currentColor; }
+.status-banner.operational { background: var(--trace); }
+.status-banner.degraded { background: var(--signal); }
+.status-banner.down { background: var(--danger); }
+
 /* Top-endpoints leaderboard: each row's bar width is proportional to its
    call count relative to the #1 entry (set inline via style="width: n%"). */
 .rank-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
@@ -310,17 +325,50 @@ code, .mono, .field-type, .endpoint-path, .schema-name {
 .verb-delete { background: var(--danger); }
 
 /* -- Mapping canvas: graph-paper backdrop, entities as wired boxes -- */
+/* Fixed-size window onto the canvas — .canvas-surface is transformed
+   (scale + translate, see fitCanvasToView() in canvas.js) to fit its actual
+   content inside this, so it needs a real, clipped viewport to fit into. */
+.canvas-viewport {
+  position: relative;
+  height: calc(100vh - 340px);
+  min-height: 480px;
+  overflow: hidden;
+  border-radius: 8px;
+  background-color: var(--ink);
+}
+
 .canvas-surface {
   position: relative;
-  min-height: 640px;
-  min-width: 1100px;
-  background-color: var(--ink);
   background-image: linear-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 1px),
     linear-gradient(90deg, rgba(255, 255, 255, 0.045) 1px, transparent 1px);
   background-size: 24px 24px;
   border-radius: 8px;
-  overflow: auto;
   padding: 20px;
+  transform-origin: 0 0;
+  transition: transform 0.15s ease;
+}
+
+.canvas-zoom-controls {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: rgba(18, 24, 27, 0.85);
+  border-radius: 6px;
+  padding: 4px;
+}
+
+.canvas-zoom-controls .btn { padding: 2px 9px; line-height: 1.4; }
+
+.canvas-zoom-level {
+  color: #fff;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  min-width: 3.4em;
+  text-align: center;
 }
 
 .entity-box {

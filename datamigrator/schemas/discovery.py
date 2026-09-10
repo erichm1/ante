@@ -145,19 +145,20 @@ def discover_from_xlsx(connection, entity_name: str, endpoint_path: str, file_ob
     return entity
 
 
-def read_all_records_from_source_file(entity) -> list:
-    """Reads every row of an Entity's uploaded source_file (CSV or .xlsx) as
-    a list of dicts keyed by field name — this is what jobs/engine.py calls
-    instead of making an HTTP request when a mapping's source entity has no
-    real API/connection behind it at all, just an uploaded file."""
-    filename = entity.source_file.name.lower()
-    entity.source_file.open("rb")
+def read_all_records_from_file(file_field, filename: str = None) -> list:
+    """Reads every row of a CSV or .xlsx FieldFile as a list of dicts keyed
+    by column name. `filename` picks the parser (defaults to file_field's
+    own name) — lets a caller read a *different* upload (e.g. a run's own
+    input_file, see jobs/engine.py) through whatever extension it was
+    actually saved with, independent of the file_field's own filename."""
+    filename = (filename or file_field.name).lower()
+    file_field.open("rb")
     try:
         if filename.endswith(".csv"):
-            text = io.TextIOWrapper(entity.source_file, encoding="utf-8-sig", newline="")
+            text = io.TextIOWrapper(file_field, encoding="utf-8-sig", newline="")
             return list(csv.DictReader(text))
         if filename.endswith(".xlsx"):
-            workbook = openpyxl.load_workbook(entity.source_file, read_only=True, data_only=True)
+            workbook = openpyxl.load_workbook(file_field, read_only=True, data_only=True)
             sheet = workbook.worksheets[0]
             rows = sheet.iter_rows(values_only=True)
             header = list(next(rows, ()))
@@ -168,9 +169,17 @@ def read_all_records_from_source_file(entity) -> list:
                     for i in range(len(header)) if header[i]
                 })
             return records
-        raise ValueError(f"Unsupported source file type: {entity.source_file.name}")
+        raise ValueError(f"Unsupported source file type: {filename}")
     finally:
-        entity.source_file.close()
+        file_field.close()
+
+
+def read_all_records_from_source_file(entity) -> list:
+    """Reads every row of an Entity's uploaded source_file (CSV or .xlsx) as
+    a list of dicts keyed by field name — this is what jobs/engine.py calls
+    instead of making an HTTP request when a mapping's source entity has no
+    real API/connection behind it at all, just an uploaded file."""
+    return read_all_records_from_file(entity.source_file)
 
 
 def _resolve_schema_ref(operation: dict) -> str | None:

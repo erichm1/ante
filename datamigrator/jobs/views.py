@@ -21,9 +21,10 @@ from .models import MigrationRun
 from .serializers import MigrationRunSerializer, RunStepStatusSerializer
 
 
-def _start_now(mapping, rate_limit_per_second=None):
+def _start_now(mapping, rate_limit_per_second=None, input_file=None):
     run = MigrationRun.objects.create(
         mapping=mapping, status=MigrationRun.STATUS_RUNNING, rate_limit_per_second=rate_limit_per_second,
+        input_file=input_file,
     )
     threading.Thread(target=engine.run_migration_in_background, args=(run.id,), daemon=True).start()
     return run
@@ -45,9 +46,13 @@ class MigrationRunViewSet(viewsets.ModelViewSet):
         that time arrives. Pass `rate_limit_per_second` (any positive number)
         to cap how fast jobs/engine.py fires source reads + destination
         writes for this run — it rides along on the row either way, so a
-        scheduled run is throttled the same as an immediate one once it starts."""
+        scheduled run is throttled the same as an immediate one once it starts.
+        Attach `input_file` (multipart/form-data, not JSON) to feed this one
+        run fresh CSV/XLSX data instead of the mapping's source entity's own
+        stored file — see jobs/engine.py::records_for."""
         mapping = get_object_or_404(Mapping, pk=request.data.get("mapping_id"))
         scheduled_at_raw = request.data.get("scheduled_at")
+        input_file = request.FILES.get("input_file")
 
         rate_limit_raw = request.data.get("rate_limit_per_second")
         rate_limit = None
@@ -60,7 +65,7 @@ class MigrationRunViewSet(viewsets.ModelViewSet):
                 return Response({"error": "rate_limit_per_second must be greater than zero."}, status=status.HTTP_400_BAD_REQUEST)
 
         if not scheduled_at_raw:
-            run = _start_now(mapping, rate_limit_per_second=rate_limit)
+            run = _start_now(mapping, rate_limit_per_second=rate_limit, input_file=input_file)
             return Response(MigrationRunSerializer(run).data, status=status.HTTP_201_CREATED)
 
         scheduled_at = parse_datetime(scheduled_at_raw)
@@ -71,11 +76,11 @@ class MigrationRunViewSet(viewsets.ModelViewSet):
 
         if scheduled_at <= timezone.now():
             # Already due (or a naive "now") — nothing meaningful to schedule, just run it.
-            run = _start_now(mapping, rate_limit_per_second=rate_limit)
+            run = _start_now(mapping, rate_limit_per_second=rate_limit, input_file=input_file)
         else:
             run = MigrationRun.objects.create(
                 mapping=mapping, status=MigrationRun.STATUS_PENDING, scheduled_at=scheduled_at,
-                rate_limit_per_second=rate_limit,
+                rate_limit_per_second=rate_limit, input_file=input_file,
             )
         return Response(MigrationRunSerializer(run).data, status=status.HTTP_201_CREATED)
 
@@ -235,7 +240,7 @@ def run_list(request):
 
 def run_snapshot(request, pk):
     """GitHub-Actions-style live pipeline view: the same entity/field layout
-    as the mapping canvas (see mappings/views.py::mapping_canvas), rendered
+    as the mapping canvas tab (see mappings/views.py::mapping_detail), rendered
     read-only with per-entity-pair status badges sourced from this run's
     RunStepStatus rows (nested on MigrationRunSerializer as step_statuses),
     polled live via GET /api/runs/<id>/ while the run is in flight."""

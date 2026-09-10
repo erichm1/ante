@@ -1,10 +1,10 @@
 {% extends "base.html" %}
-{% block title %}Mappings{% endblock %}
+{% block title %}Canvas{% endblock %}
 {% block content %}
   <div class="d-flex justify-content-between align-items-start">
     <div>
-      <div class="page-title">Mappings</div>
-      <div class="page-subtitle">Pick the origin and destiny(ies) up front — the canvas only lets you map entities that belong to them.</div>
+      <div class="page-title">Canvas</div>
+      <div class="page-subtitle">Every mapping's visual entity/field canvas — pick the origin and destiny(ies) up front, the canvas only lets you map entities that belong to them.</div>
     </div>
     <button class="btn btn-signal" data-bs-toggle="modal" data-bs-target="#newMappingModal">New mapping</button>
   </div>
@@ -22,7 +22,7 @@
                 {% for d in m.destination_connections.all %}{{ d.name }}{% if not forloop.last %}, {% endif %}{% empty %}<span class="text-dim">none yet</span>{% endfor %}
               </td>
               <td class="text-end">
-                <a href="{% url 'mappings:detail' m.pk %}?tab=raw" class="btn btn-sm btn-outline-secondary">Open</a>
+                <a href="{% url 'mappings:detail' m.pk %}?tab=canvas" class="btn btn-sm btn-outline-secondary">Open</a>
               </td>
             </tr>
           {% endfor %}

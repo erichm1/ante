@@ -1,11 +1,12 @@
 {% extends "base.html" %}
+{% load static %}
 {% block title %}Install {{ integration.name }}{% endblock %}
 {% block content %}
   <div class="page-title">Install {{ integration.name }}</div>
   <div class="page-subtitle">{{ integration.description }}</div>
 
   <div class="panel" style="max-width: 520px;">
-    <form method="post">
+    <form method="post" onsubmit="return prepareInstallSubmit()">
       {% csrf_token %}
       <div class="mb-3">
         <label class="form-label">Connection name</label>
@@ -54,6 +55,12 @@
         {% endif %}
       {% endif %}
 
+      {% if not integration.uses_oauth_redirect %}
+        {% include "connections/_custom_headers_params.html" with prefix="install" %}
+        <input type="hidden" name="custom_headers" id="install_custom_headers_json">
+        <input type="hidden" name="custom_params" id="install_custom_params_json">
+      {% endif %}
+
       <div class="d-flex gap-2 mt-3">
         <button class="btn btn-signal" type="submit">{% if integration.uses_oauth_redirect %}Connect via OAuth2{% else %}Install{% endif %}</button>
         <a href="{% url 'integrations:list' %}" class="btn btn-outline-secondary">Cancel</a>
@@ -63,4 +70,17 @@
       <p class="small mt-3 mb-0"><a href="{{ integration.setup_url }}" target="_blank" rel="noopener">Setup docs →</a></p>
     {% endif %}
   </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{% static 'js/kv_editor.js' %}"></script>
+<script>
+function prepareInstallSubmit() {
+  const headersField = document.getElementById('install_custom_headers_json');
+  const paramsField = document.getElementById('install_custom_params_json');
+  if (headersField) headersField.value = JSON.stringify(getKvObject('install_headers'));
+  if (paramsField) paramsField.value = JSON.stringify(getKvObject('install_params'));
+  return true;
+}
+</script>
 {% endblock %}

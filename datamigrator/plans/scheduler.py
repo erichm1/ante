@@ -12,6 +12,9 @@ from . import executor
 
 POLL_INTERVAL_SECONDS = 5
 
+# See jobs/scheduler.py's own LAST_TICK_AT for what this is for.
+LAST_TICK_AT = None
+
 
 def _promote_due_plans():
     from .models import MigrationPlan
@@ -28,6 +31,7 @@ def _promote_due_plans():
 
 
 def _poll_loop():
+    global LAST_TICK_AT
     while True:
         time.sleep(POLL_INTERVAL_SECONDS)
         try:
@@ -36,6 +40,7 @@ def _poll_loop():
             pass
         finally:
             connections.close_all()
+            LAST_TICK_AT = timezone.now()
 
 
 def start():

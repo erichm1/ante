@@ -43,11 +43,12 @@
   <div class="panel">
     {% if page_obj %}
       <table class="table align-middle mb-0">
-        <thead><tr><th>Name</th><th>Steps</th><th>Status</th><th>Scheduled</th><th>Created</th><th></th></tr></thead>
+        <thead><tr><th>Name</th><th>Mode</th><th>Steps</th><th>Status</th><th>Scheduled</th><th>Created</th><th></th></tr></thead>
         <tbody>
           {% for plan in page_obj %}
             <tr>
               <td>{{ plan.name }}</td>
+              <td><span class="mono small text-dim">{{ plan.get_execution_mode_display }}</span></td>
               <td class="mono">{{ plan.steps.count }}</td>
               <td>
                 {% if plan.status == "completed" %}
@@ -64,7 +65,10 @@
               </td>
               <td class="mono small">{{ plan.scheduled_at|date:"Y-m-d H:i"|default:"—" }}</td>
               <td class="mono small">{{ plan.created_at|date:"Y-m-d H:i" }}</td>
-              <td class="text-end"><a href="{% url 'plans:detail' plan.pk %}" class="btn btn-sm btn-outline-secondary">Open</a></td>
+              <td class="text-end">
+                <a href="{% url 'plans:detail' plan.pk %}" class="btn btn-sm btn-outline-secondary">Open</a>
+                <button class="btn btn-sm btn-outline-danger" onclick="deletePlan({{ plan.pk }}, '{{ plan.name|escapejs }}')">Delete</button>
+              </td>
             </tr>
           {% endfor %}
         </tbody>
@@ -94,9 +98,19 @@
             <label class="form-label">Name</label>
             <input class="form-control" id="np_name" placeholder="e.g. Q1 ERP cutover">
           </div>
-          <div class="mb-1">
+          <div class="mb-3">
             <label class="form-label">Description <span class="text-dim">(optional)</span></label>
             <textarea class="form-control" id="np_description" rows="2"></textarea>
+          </div>
+          <div class="mb-1">
+            <label class="form-label">Execution mode</label>
+            {% for value, label in mode_choices %}
+              <div class="form-check">
+                <input class="form-check-input" type="radio" name="np_mode" id="np_mode_{{ value }}" value="{{ value }}" {% if forloop.first %}checked{% endif %}>
+                <label class="form-check-label" for="np_mode_{{ value }}">{{ label }}</label>
+              </div>
+            {% endfor %}
+            <div class="form-text">Fixed once the plan is created — simple mode's steps are mappings, chain mode's steps are chains.</div>
           </div>
         </div>
         <div class="modal-footer">
@@ -120,9 +134,10 @@ async function createPlan() {
     errorBox.classList.remove('d-none');
     return;
   }
+  const mode = document.querySelector('input[name="np_mode"]:checked').value;
   const resp = await fetch('/api/plans/', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, description: document.getElementById('np_description').value }),
+    body: JSON.stringify({ name, description: document.getElementById('np_description').value, execution_mode: mode }),
   });
   if (resp.ok) {
     const body = await resp.json();
@@ -131,6 +146,17 @@ async function createPlan() {
     errorBox.textContent = JSON.stringify(await resp.json());
     errorBox.classList.remove('d-none');
   }
+}
+
+function deletePlan(planId, name) {
+  if (!confirm(`Delete plan "${name}"? This can't be undone.`)) return;
+  fetch(`/api/plans/${planId}/`, { method: 'DELETE' }).then(resp => {
+    if (resp.ok) {
+      window.location.reload();
+    } else {
+      resp.json().then(body => alert(body.error || 'Could not delete this plan.'));
+    }
+  });
 }
 </script>
 {% endblock %}

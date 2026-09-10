@@ -1,0 +1,46 @@
+{% comment %}
+Async (poll-until-done) config, shared by the Add-step row and Edit-step
+modal — keyed by `prefix` (e.g. "as" for add, "es" for edit) so both can
+coexist on the page. Requires `method_choices` in context.
+{% endcomment %}
+<div class="mt-2">
+  <div class="form-check">
+    <input class="form-check-input" type="checkbox" id="{{ prefix }}_is_async" onchange="toggleAsyncSection(this, '{{ prefix }}_async_section')">
+    <label class="form-check-label" for="{{ prefix }}_is_async">Async — this request only starts a job; poll until it's done</label>
+  </div>
+  <div id="{{ prefix }}_async_section" class="d-none mt-2 p-2 border rounded">
+    <div class="row g-2">
+      <div class="col-md-8">
+        <label class="form-label small mb-1">Poll path</label>
+        <input class="form-control form-control-sm mono" id="{{ prefix }}_async_poll_path" placeholder="/exports/{% templatetag openvariable %}this_name.job_id{% templatetag closevariable %}/status">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label small mb-1">Poll method</label>
+        <select class="form-select form-select-sm" id="{{ prefix }}_async_poll_method">
+          {% for value, label in method_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label small mb-1">Condition path</label>
+        <input class="form-control form-control-sm mono" id="{{ prefix }}_async_condition_path" placeholder="status">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label small mb-1">Done when it equals</label>
+        <input class="form-control form-control-sm mono" id="{{ prefix }}_async_condition_value" placeholder="completed">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small mb-1">Every (s)</label>
+        <input type="number" step="0.5" min="0.5" class="form-control form-control-sm" id="{{ prefix }}_async_interval_seconds" value="2">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small mb-1">Timeout (s)</label>
+        <input type="number" step="1" min="1" class="form-control form-control-sm" id="{{ prefix }}_async_timeout_seconds" value="60">
+      </div>
+      <div class="col-md-12">
+        <label class="form-label small mb-1">Result path <span class="text-dim">(optional — one more GET once done)</span></label>
+        <input class="form-control form-control-sm mono" id="{{ prefix }}_async_result_path" placeholder="/exports/{% templatetag openvariable %}this_name.job_id{% templatetag closevariable %}/download">
+      </div>
+    </div>
+    <div class="form-text">Whatever comes back last (the final poll, or the result path if set) is what this step's captures/{% templatetag openvariable %}name.path{% templatetag closevariable %} see.</div>
+  </div>
+</div>

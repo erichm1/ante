@@ -1,3 +1,4 @@
+import json
 import time
 from urllib.parse import urlencode
 
@@ -10,6 +11,20 @@ from django.views.decorators.http import require_POST
 from connections.models import Connection
 
 from .models import Integration, InstalledIntegration, OAuthPendingConnection
+
+
+def _parse_kv_json(raw) -> dict:
+    """The install form's custom-headers/custom-params hidden inputs are
+    filled in by JS (see install.html's prepareInstallSubmit) as a JSON
+    object — malformed/missing input just means "none set" rather than a
+    failed install."""
+    if not raw:
+        return {}
+    try:
+        parsed = json.loads(raw)
+        return parsed if isinstance(parsed, dict) else {}
+    except (TypeError, ValueError):
+        return {}
 
 
 def _oauth_redirect_uri(request) -> str:
@@ -102,6 +117,10 @@ def integration_install(request, pk):
         base_url = "" if integration.is_file_based else (request.POST.get("base_url", "").strip() or integration.default_base_url)
         connection = Connection.objects.create(
             name=_unique_connection_name(connection_name), base_url=base_url, auth_type=integration.auth_type,
+            use_custom_headers=bool(request.POST.get("install_use_custom_headers")),
+            custom_headers=_parse_kv_json(request.POST.get("custom_headers")),
+            use_custom_params=bool(request.POST.get("install_use_custom_params")),
+            custom_params=_parse_kv_json(request.POST.get("custom_params")),
         )
 
         if integration.auth_type == Connection.AUTH_BASIC:

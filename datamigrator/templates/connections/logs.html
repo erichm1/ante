@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Logs{% endblock %}
+{% block content %}
+  <div class="page-title">Logs</div>
+  <div class="page-subtitle">Every outbound API call the app has made — reads, writes, OAuth2 refreshes, chain steps. Query it like a Grafana/Loki log stream.</div>
+
+  <form method="get" class="row g-2 align-items-end mb-2">
+    <div class="col-md-9">
+      <label class="form-label small mb-1">Query</label>
+      <input type="text" name="q" class="form-control mono" placeholder='status:>=400 method:POST json.id:42 connection:olist' value="{{ query }}">
+    </div>
+    <div class="col-md-3 d-flex align-items-end gap-2">
+      <button type="submit" class="btn btn-signal">Search</button>
+      {% if query %}<a href="{% url 'connections:logs' %}" class="small">Clear ×</a>{% endif %}
+    </div>
+  </form>
+
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <button class="btn btn-sm btn-link text-dim px-0" type="button" data-bs-toggle="collapse" data-bs-target="#syntaxHelp">Query syntax ▾</button>
+    {% if page_obj %}
+      <div class="d-flex align-items-center gap-2">
+        <label class="text-dim small mb-0" for="pageSizeSelect">Per page</label>
+        <select name="page_size" class="form-select form-select-sm" id="pageSizeSelect" style="width: auto;" onchange="gotoWithParam('page_size', this.value)">
+          {% for size in page_size_choices %}
+            <option value="{{ size }}" {% if size == page_size %}selected{% endif %}>{{ size }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    {% endif %}
+  </div>
+
+  <div class="collapse mb-3" id="syntaxHelp">
+    <div class="panel small">
+      <p class="mb-2">Space-separated terms, AND-combined — quote a value with spaces (<span class="mono">connection:"my conn"</span>). A bare word searches url/request/response/error text.</p>
+      <table class="table table-sm mb-0">
+        <tbody>
+          <tr><td class="mono">status:200</td><td class="text-dim">exact status code</td></tr>
+          <tr><td class="mono">status:>=400</td><td class="text-dim">comparison — also <span class="mono">&gt; &gt;= &lt; &lt;= !=</span></td></tr>
+          <tr><td class="mono">method:POST</td><td class="text-dim">exact HTTP verb</td></tr>
+          <tr><td class="mono">url:produtos</td><td class="text-dim">substring match on the URL</td></tr>
+          <tr><td class="mono">connection:olist</td><td class="text-dim">substring match on the connection's name</td></tr>
+          <tr><td class="mono">run:91</td><td class="text-dim">exact migration run id</td></tr>
+          <tr><td class="mono">error:true</td><td class="text-dim">only calls that errored (or <span class="mono">error:false</span>)</td></tr>
+          <tr><td class="mono">duration:>500</td><td class="text-dim">duration_ms comparison</td></tr>
+          <tr><td class="mono">json.id:42</td><td class="text-dim">a field extracted from the response body's JSON — dotted paths work, e.g. <span class="mono">json.data.email:"a@b.com"</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  {% if error %}
+    <div class="alert alert-danger">{{ error }}</div>
+  {% else %}
+    <div class="panel">
+      {% if page_obj %}
+        <table class="table table-sm align-middle mb-0">
+          <thead><tr><th></th><th>Time</th><th>Method</th><th>URL</th><th>Status</th><th>Duration</th><th>Connection</th><th>Run</th></tr></thead>
+          <tbody>
+            {% for call in page_obj %}
+              <tr style="cursor: pointer;" onclick="document.getElementById('log-detail-{{ call.pk }}').classList.toggle('d-none')">
+                <td class="text-dim">▸</td>
+                <td class="mono small">{{ call.created_at|date:"Y-m-d H:i:s" }}</td>
+                <td><span class="verb-badge verb-{{ call.method|lower }}">{{ call.method }}</span></td>
+                <td class="mono small">{{ call.url }}</td>
+                <td>
+                  {% if call.error %}<span class="status-chip err">error</span>
+                  {% elif call.status_code and call.status_code < 400 %}<span class="status-chip ok">{{ call.status_code }}</span>
+                  {% else %}<span class="status-chip err">{{ call.status_code|default:"?" }}</span>{% endif %}
+                </td>
+                <td class="mono small text-dim">{{ call.duration_ms|floatformat:0 }} ms</td>
+                <td class="small">{% if call.connection %}<a href="{% url 'connections:detail' call.connection.pk %}" onclick="event.stopPropagation()">{{ call.connection.name }}</a>{% else %}<span class="text-dim">—</span>{% endif %}</td>
+                <td class="small">{% if call.run %}<a href="{% url 'jobs:run_detail' call.run.pk %}" onclick="event.stopPropagation()">#{{ call.run.pk }}</a>{% else %}<span class="text-dim">—</span>{% endif %}</td>
+              </tr>
+              <tr class="d-none" id="log-detail-{{ call.pk }}">
+                <td></td>
+                <td colspan="7">
+                  {% if call.error %}<div class="text-danger small mb-2"><strong>Error:</strong> {{ call.error }}</div>{% endif %}
+                  <div class="small text-dim text-uppercase mb-1">Request headers</div>
+                  <pre class="mono small p-2 border rounded">{{ call.request_headers }}</pre>
+                  {% if call.request_body %}
+                    <div class="small text-dim text-uppercase mb-1">Request body</div>
+                    <pre class="mono small p-2 border rounded">{{ call.request_body }}</pre>
+                  {% endif %}
+                  {% if call.status_code %}
+                    <div class="small text-dim text-uppercase mb-1">Response headers</div>
+                    <pre class="mono small p-2 border rounded">{{ call.response_headers }}</pre>
+                    <div class="small text-dim text-uppercase mb-1">Response body</div>
+                    <pre class="mono small p-2 border rounded">{{ call.response_body }}</pre>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% include "jobs/_pagination.html" with item_label="log entries" %}
+      {% else %}
+        <p class="text-dim small mb-0">{% if query %}No log entries match this query.{% else %}No API calls recorded yet.{% endif %}</p>
+      {% endif %}
+    </div>
+  {% endif %}
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{% static 'js/pagination.js' %}"></script>
+{% endblock %}

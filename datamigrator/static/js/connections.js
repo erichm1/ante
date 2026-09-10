@@ -2,7 +2,10 @@
    (templates/integrations/list.html) and a connection's own detail page
    (templates/connections/detail.html) — create, edit, and delete all just
    drive connections.ConnectionViewSet (a plain ModelViewSet, full CRUD
-   already), the only new part here is the UI. */
+   already), the only new part here is the UI. Custom headers/params use the
+   shared kv_editor.js (prefixes 'c' for create, 'ec' for edit) — sent only
+   when their "use custom ..." checkbox is on, per use_custom_headers/
+   use_custom_params on the Connection model. */
 
 let editingConnectionId = null;
 
@@ -25,6 +28,10 @@ async function createConnection() {
       base_url: document.getElementById('c_base_url').value,
       auth_type: document.getElementById('c_auth_type').value,
       auth_config: authConfig,
+      use_custom_headers: document.getElementById('c_use_custom_headers').checked,
+      custom_headers: getKvObject('c_headers'),
+      use_custom_params: document.getElementById('c_use_custom_params').checked,
+      custom_params: getKvObject('c_params'),
     }),
   });
 
@@ -49,6 +56,14 @@ async function openEditConnectionModal(id) {
   document.getElementById('ec_auth_type').value = connection.auth_type;
   document.getElementById('ec_auth_config').value = JSON.stringify(connection.auth_config || {}, null, 2);
 
+  document.getElementById('ec_use_custom_headers').checked = connection.use_custom_headers;
+  setKvRows('ec_headers', connection.custom_headers);
+  toggleKvSection(document.getElementById('ec_use_custom_headers'), 'ec_headers_section');
+
+  document.getElementById('ec_use_custom_params').checked = connection.use_custom_params;
+  setKvRows('ec_params', connection.custom_params);
+  toggleKvSection(document.getElementById('ec_use_custom_params'), 'ec_params_section');
+
   new bootstrap.Modal(document.getElementById('editConnectionModal')).show();
 }
 
@@ -71,6 +86,10 @@ async function saveConnectionEdit() {
       base_url: document.getElementById('ec_base_url').value,
       auth_type: document.getElementById('ec_auth_type').value,
       auth_config: authConfig,
+      use_custom_headers: document.getElementById('ec_use_custom_headers').checked,
+      custom_headers: getKvObject('ec_headers'),
+      use_custom_params: document.getElementById('ec_use_custom_params').checked,
+      custom_params: getKvObject('ec_params'),
     }),
   });
 

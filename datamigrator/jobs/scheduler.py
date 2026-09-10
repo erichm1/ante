@@ -17,6 +17,12 @@ from django.utils import timezone
 
 POLL_INTERVAL_SECONDS = 5
 
+# Set at the end of every poll iteration (success or not) — a simple in-process
+# heartbeat the status page (home/views.py::status_page) reads to tell "this
+# scheduler thread is alive and polling" from "it died/never started", since
+# these threads and that view share one process under `runserver`.
+LAST_TICK_AT = None
+
 
 def _promote_due_runs():
     from . import engine
@@ -35,6 +41,7 @@ def _promote_due_runs():
 
 
 def _poll_loop():
+    global LAST_TICK_AT
     while True:
         time.sleep(POLL_INTERVAL_SECONDS)
         try:
@@ -45,6 +52,7 @@ def _poll_loop():
             pass
         finally:
             connections.close_all()
+            LAST_TICK_AT = timezone.now()
 
 
 def start():

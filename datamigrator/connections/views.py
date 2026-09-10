@@ -5,6 +5,7 @@ from urllib.parse import urlencode
 
 import requests
 from django.contrib import messages
+from django.core.paginator import Paginator
 from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -15,7 +16,8 @@ from rest_framework.response import Response
 
 from . import scheduler
 from .client import ConnectionClient
-from .models import Connection, TokenRefreshJob
+from .log_query import filter_logs
+from .models import ApiCallLog, Connection, TokenRefreshJob
 from .serializers import ConnectionSecretsSerializer, ConnectionSerializer, TokenRefreshJobSerializer
 
 
@@ -227,3 +229,34 @@ def oauth_callback(request, pk):
     connection.save(update_fields=["secrets_encrypted"])
     messages.success(request, f"Connected to {connection.name}.")
     return redirect("connections:detail", pk=pk)
+
+
+LOG_PAGE_SIZE_CHOICES = (25, 50, 100)
+LOG_DEFAULT_PAGE_SIZE = 25
+
+
+def api_log_list(request):
+    """Grafana/Loki-style single-query-bar log browser over every outbound
+    API call the app has made (see ApiCallLog, populated by every
+    ConnectionClient request — reads, writes, OAuth2 refreshes, chain steps,
+    all of it). See connections/log_query.py for the query syntax."""
+    query = request.GET.get("q", "").strip()
+    base_qs = ApiCallLog.objects.select_related("connection", "run")
+    results, error = filter_logs(base_qs, query)
+
+    try:
+        page_size = int(request.GET.get("page_size", LOG_DEFAULT_PAGE_SIZE))
+    except ValueError:
+        page_size = LOG_DEFAULT_PAGE_SIZE
+    if page_size not in LOG_PAGE_SIZE_CHOICES:
+        page_size = LOG_DEFAULT_PAGE_SIZE
+
+    page_obj = Paginator(results, page_size).get_page(request.GET.get("page")) if error is None else None
+
+    return render(request, "connections/logs.html", {
+        "query": query,
+        "error": error,
+        "page_obj": page_obj,
+        "page_size": page_size,
+        "page_size_choices": LOG_PAGE_SIZE_CHOICES,
+    })

@@ -69,9 +69,15 @@ async function saveStepEdit() {
 async function addStep() {
   const errorBox = document.getElementById('addStepError');
   errorBox.classList.add('d-none');
-  const payload = { mapping_id: document.getElementById('as_mapping').value };
-  const rateLimit = document.getElementById('as_rate_limit').value;
-  if (rateLimit) payload.rate_limit_per_second = rateLimit;
+
+  let payload;
+  if (window.PLAN_MODE === 'chain') {
+    payload = { chain_id: document.getElementById('as_chain').value };
+  } else {
+    payload = { mapping_id: document.getElementById('as_mapping').value };
+    const rateLimit = document.getElementById('as_rate_limit').value;
+    if (rateLimit) payload.rate_limit_per_second = rateLimit;
+  }
 
   const resp = await fetch(`/api/plans/${window.PLAN_ID}/steps/`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
@@ -82,6 +88,18 @@ async function addStep() {
     errorBox.textContent = JSON.stringify(await resp.json());
     errorBox.classList.remove('d-none');
   }
+}
+
+function deletePlan() {
+  if (!confirm(`Delete plan "${window.PLAN_NAME}"? This can't be undone.`)) return;
+  fetch(`/api/plans/${window.PLAN_ID}/`, { method: 'DELETE' }).then(async resp => {
+    if (resp.ok) {
+      window.location.href = '/plans/';
+    } else {
+      const body = await resp.json();
+      alert(body.error || 'Could not delete this plan.');
+    }
+  });
 }
 
 async function removeStep(stepId) {
@@ -144,17 +162,25 @@ function runExecute(payload, errorBoxId, modalId) {
 
 // ---- Live snapshot modal ("pop" onto the screen the moment execution starts) --
 
+function stepExecution(step) {
+  // Whichever of run (simple mode)/chain_run (chain mode) is actually set —
+  // a step only ever has one, matching the plan's execution_mode.
+  return step.run || step.chain_run;
+}
+
 function stepStatusChipClass(step) {
-  return step.run ? statusChipClass(step.run.status) : '';
+  const exec = stepExecution(step);
+  return exec ? statusChipClass(exec.status) : '';
 }
 
 function renderSnapshotStep(step) {
-  const label = step.run ? step.run.status : 'not started';
+  const exec = stepExecution(step);
+  const label = exec ? exec.status : 'not started';
   return `
     <div class="d-flex align-items-center justify-content-between border rounded px-3 py-2" id="snapshot-step-${step.id}">
       <div class="d-flex align-items-center gap-2">
         <span class="mono text-dim small">#${step.order}</span>
-        <span>${step.mapping_name}</span>
+        <span>${step.mapping_name || step.chain_name}</span>
       </div>
       <span class="status-chip ${stepStatusChipClass(step)}" id="snapshot-status-${step.id}">${label}</span>
     </div>`;
@@ -172,7 +198,8 @@ function updateSnapshotModal(plan) {
   plan.steps.forEach(step => {
     const chip = document.getElementById(`snapshot-status-${step.id}`);
     if (!chip) return;
-    chip.textContent = step.run ? step.run.status : 'not started';
+    const exec = stepExecution(step);
+    chip.textContent = exec ? exec.status : 'not started';
     chip.className = 'status-chip ' + stepStatusChipClass(step);
   });
 }
@@ -189,9 +216,10 @@ function updatePlanDetail(plan) {
 
   plan.steps.forEach(step => {
     const chip = document.getElementById(`step-status-${step.id}`);
-    if (!chip || !step.run) return;
-    chip.textContent = step.run.status;
-    chip.className = 'status-chip ' + statusChipClass(step.run.status);
+    const exec = stepExecution(step);
+    if (!chip || !exec) return;
+    chip.textContent = exec.status;
+    chip.className = 'status-chip ' + statusChipClass(exec.status);
   });
 
   updateSnapshotModal(plan);

@@ -20,7 +20,10 @@
               <td class="mono text-dim">{{ chain.connection.name }}</td>
               <td class="mono">{{ chain.steps.count }}</td>
               <td class="mono small">{{ chain.created_at|date:"Y-m-d H:i" }}</td>
-              <td class="text-end"><a href="{% url 'chains:detail' chain.pk %}" class="btn btn-sm btn-outline-secondary">Open</a></td>
+              <td class="text-end">
+                <a href="{% url 'chains:detail' chain.pk %}" class="btn btn-sm btn-outline-secondary">Open</a>
+                <button class="btn btn-sm btn-outline-danger" onclick="deleteChain({{ chain.pk }}, '{{ chain.name|escapejs }}')">Delete</button>
+              </td>
             </tr>
           {% endfor %}
         </tbody>
@@ -92,6 +95,14 @@ async function createChain() {
     errorBox.textContent = JSON.stringify(await resp.json());
     errorBox.classList.remove('d-none');
   }
+}
+
+function deleteChain(chainId, name) {
+  if (!confirm(`Delete chain "${name}"? This can't be undone.`)) return;
+  fetch(`/api/chains/${chainId}/`, { method: 'DELETE' }).then(resp => {
+    if (resp.ok) window.location.reload();
+    else alert('Could not delete this chain.');
+  });
 }
 </script>
 {% endblock %}

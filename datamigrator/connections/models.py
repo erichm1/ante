@@ -59,6 +59,23 @@ class Connection(models.Model):
         ),
     )
     secrets_encrypted = models.TextField(blank=True, default="")
+    use_custom_headers = models.BooleanField(
+        default=False,
+        help_text="When on, custom_headers is sent with every request on top of whatever auth_type "
+                   "already adds (Bearer/JWT/etc.) — off just leaves custom_headers unused, so values "
+                   "already entered aren't lost by unchecking this.",
+    )
+    custom_headers = models.JSONField(
+        default=dict, blank=True, help_text="{\"header-name\": \"value\", ...} — only applied when use_custom_headers is on.",
+    )
+    use_custom_params = models.BooleanField(
+        default=False,
+        help_text="When on, custom_params is added to every request's query string on top of whatever "
+                   "the call itself already passes — off just leaves custom_params unused.",
+    )
+    custom_params = models.JSONField(
+        default=dict, blank=True, help_text="{\"param-name\": \"value\", ...} — only applied when use_custom_params is on.",
+    )
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

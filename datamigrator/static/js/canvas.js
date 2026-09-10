@@ -129,6 +129,68 @@ function createFieldMapping(sourceFieldId, targetFieldId, jsConnection) {
   });
 }
 
+// ---- Zoom / fit-to-screen ---------------------------------------------------
+// #canvasSurface sizes itself to its content's natural (unscaled) bounding box
+// and gets a single `transform: scale(...) translate(...)` — translate (in
+// local, unscaled px) shifts the content's top-left corner to the viewport's
+// origin, and scale shrinks/grows everything (entity boxes AND jsPlumb's own
+// connector overlays, since they're all children of the same transformed
+// element) to fit. jsp.setZoom() doesn't touch the DOM itself — it just tells
+// jsPlumb/katavorio the current scale so dragging an entity box still feels
+// 1:1 with the mouse while zoomed.
+const ZOOM_MIN = 0.2;
+const ZOOM_MAX = 2;
+const ZOOM_STEP = 1.15;
+const FIT_PADDING = 40;
+let currentZoom = 1;
+let currentPanX = 0;
+let currentPanY = 0;
+
+function applyZoom(zoom) {
+  currentZoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, zoom));
+  const surface = document.getElementById('canvasSurface');
+  surface.style.transform = `scale(${currentZoom}) translate(${currentPanX}px, ${currentPanY}px)`;
+  const label = document.getElementById('zoomLevel');
+  if (label) label.textContent = Math.round(currentZoom * 100) + '%';
+  if (jsp) jsp.setZoom(currentZoom, true);
+}
+
+function zoomIn() { applyZoom(currentZoom * ZOOM_STEP); }
+function zoomOut() { applyZoom(currentZoom / ZOOM_STEP); }
+
+function fitCanvasToView() {
+  const viewport = document.getElementById('canvasViewport');
+  const surface = document.getElementById('canvasSurface');
+  if (!viewport || !surface) return;
+  const boxes = surface.querySelectorAll('.entity-box');
+
+  if (!boxes.length) {
+    currentPanX = 0;
+    currentPanY = 0;
+    applyZoom(1);
+    return;
+  }
+
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  boxes.forEach(box => {
+    minX = Math.min(minX, box.offsetLeft);
+    minY = Math.min(minY, box.offsetTop);
+    maxX = Math.max(maxX, box.offsetLeft + box.offsetWidth);
+    maxY = Math.max(maxY, box.offsetTop + box.offsetHeight);
+  });
+
+  const contentWidth = (maxX - minX) + FIT_PADDING * 2;
+  const contentHeight = (maxY - minY) + FIT_PADDING * 2;
+  surface.style.width = Math.max(contentWidth, viewport.clientWidth) + 'px';
+  surface.style.height = Math.max(contentHeight, viewport.clientHeight) + 'px';
+
+  currentPanX = -minX + FIT_PADDING;
+  currentPanY = -minY + FIT_PADDING;
+
+  const zoom = Math.min(viewport.clientWidth / contentWidth, viewport.clientHeight / contentHeight);
+  applyZoom(Math.min(Math.max(zoom, ZOOM_MIN), 1.5));
+}
+
 function initCanvas(data) {
   window.CANVAS_DATA = data;
   window.FIELD_TYPES = data.field_types;
@@ -214,6 +276,19 @@ function initCanvas(data) {
       if (resp.ok) { jsp.deleteConnection(conn); delete fieldMappingByPair[key]; }
     });
   });
+
+  // Let the boxes/connectors just-rendered above actually lay out before
+  // measuring them for fit-to-screen.
+  requestAnimationFrame(fitCanvasToView);
+
+  const viewport = document.getElementById('canvasViewport');
+  if (viewport) {
+    viewport.addEventListener('wheel', e => {
+      e.preventDefault();
+      if (e.deltaY < 0) zoomIn(); else zoomOut();
+    }, { passive: false });
+  }
+  window.addEventListener('resize', () => applyZoom(currentZoom));
 }
 
 async function loadDestinationEntities() {
@@ -314,24 +389,36 @@ function scheduleMigration() {
   const errorBox = document.getElementById('scheduleError');
   errorBox.classList.add('d-none');
 
-  const payload = { mapping_id: window.MAPPING_ID };
-
   const scheduleRaw = document.getElementById('schedule_at').value;
-  if (scheduleRaw) {
-    // datetime-local has no timezone of its own — the browser treats it as
-    // local wall-clock time, so Date() + toISOString() gives the server an
-    // unambiguous UTC instant matching what the user actually picked.
-    payload.scheduled_at = new Date(scheduleRaw).toISOString();
+  // datetime-local has no timezone of its own — the browser treats it as
+  // local wall-clock time, so Date() + toISOString() gives the server an
+  // unambiguous UTC instant matching what the user actually picked.
+  const scheduledAtIso = scheduleRaw ? new Date(scheduleRaw).toISOString() : null;
+  const rateLimitRaw = document.getElementById('rate_limit').value;
+  const fileInput = document.getElementById('run_input_file');
+  const file = fileInput && fileInput.files[0];
+
+  let body, headers;
+  if (file) {
+    // A file means multipart/form-data instead of JSON — request.FILES only
+    // gets populated for multipart requests, and the browser sets the
+    // correct Content-Type (with boundary) on its own when headers omits it.
+    const formData = new FormData();
+    formData.append('mapping_id', window.MAPPING_ID);
+    if (scheduledAtIso) formData.append('scheduled_at', scheduledAtIso);
+    if (rateLimitRaw) formData.append('rate_limit_per_second', rateLimitRaw);
+    formData.append('input_file', file);
+    body = formData;
+    headers = {};
+  } else {
+    const payload = { mapping_id: window.MAPPING_ID };
+    if (scheduledAtIso) payload.scheduled_at = scheduledAtIso;
+    if (rateLimitRaw) payload.rate_limit_per_second = rateLimitRaw;
+    body = JSON.stringify(payload);
+    headers = { 'Content-Type': 'application/json' };
   }
 
-  const rateLimitRaw = document.getElementById('rate_limit').value;
-  if (rateLimitRaw) payload.rate_limit_per_second = rateLimitRaw;
-
-  fetch('/api/runs/trigger/', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  }).then(async resp => {
+  fetch('/api/runs/trigger/', { method: 'POST', headers, body }).then(async resp => {
     const body = await resp.json();
     if (!resp.ok) {
       errorBox.textContent = body.error || JSON.stringify(body);

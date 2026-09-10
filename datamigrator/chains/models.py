@@ -62,6 +62,39 @@ class CallChainStep(models.Model):
                    "id}} would (see chains/executor.py::apply_captures) — same context dict either way.",
     )
 
+    is_async = models.BooleanField(
+        default=False,
+        help_text="This step's own request only starts a job on the external API (a common pattern for "
+                   "bulk/report/export endpoints) — after it responds, poll async_poll_path until "
+                   "async_condition_path in the poll response equals async_condition_value, then "
+                   "(optionally) fetch async_result_path once. Whatever comes back last is what this "
+                   "step's captures/{{name.path}} references end up seeing, exactly as if it had been "
+                   "the immediate response — see chains/executor.py::run_async_step.",
+    )
+    async_poll_path = models.CharField(
+        max_length=500, blank=True,
+        help_text="Status-check endpoint, relative to the connection's base_url. May reference this "
+                   "step's own submit response, e.g. /exports/{{this_name.job_id}}/status.",
+    )
+    async_poll_method = models.CharField(max_length=10, choices=METHOD_CHOICES, default=METHOD_GET)
+    async_condition_path = models.CharField(
+        max_length=200, blank=True,
+        help_text="Dotted path into the poll response checked after every poll, e.g. status or data.state.",
+    )
+    async_condition_value = models.CharField(
+        max_length=200, blank=True,
+        help_text="Polling stops once async_condition_path's value equals this (case-insensitive string "
+                   "compare), e.g. completed.",
+    )
+    async_interval_seconds = models.FloatField(default=2.0, help_text="Wait between polls.")
+    async_timeout_seconds = models.FloatField(default=60.0, help_text="Give up (fail this step) after this long.")
+    async_result_path = models.CharField(
+        max_length=500, blank=True,
+        help_text="Optional: one more GET once the condition is met, e.g. /exports/{{this_name.job_id}}/"
+                   "download — its response becomes this step's result instead of the last poll response. "
+                   "Leave blank to just use the last poll response.",
+    )
+
     class Meta:
         ordering = ["order"]
         unique_together = [("chain", "order"), ("chain", "name")]
@@ -107,6 +140,9 @@ class CallChainStepResult(models.Model):
     resolved_body = models.TextField(blank=True)
     status_code = models.IntegerField(null=True, blank=True)
     response_json = models.JSONField(null=True, blank=True)
+    poll_attempts = models.PositiveIntegerField(
+        null=True, blank=True, help_text="Set for an async step only — how many times it polled before completing.",
+    )
     captured_variables = models.JSONField(
         default=dict, blank=True,
         help_text="{variable_name: extracted_value} for every capture defined on this step, as it "

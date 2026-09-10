@@ -11,6 +11,9 @@
   <div class="page-subtitle">
     {% include "jobs/_route.html" with route=run.route %}
   </div>
+  {% if run.input_file %}
+    <p class="text-dim small">Ran against an uploaded input file for this run only: <a href="{{ run.input_file.url }}" target="_blank" class="mono">{{ run.input_file.name }}</a> — the mapping's source entity keeps its own stored file for future runs.</p>
+  {% endif %}
 
   <div class="panel mb-3">
     <div class="row text-center">
@@ -103,7 +106,7 @@
 
   <a href="{% url 'jobs:run_list' %}" class="btn btn-outline-secondary mt-3">← back to runs</a>
   <a href="{% url 'jobs:run_snapshot' run.pk %}" class="btn btn-outline-secondary mt-3">View pipeline</a>
-  <a href="{% url 'mappings:canvas' run.mapping.pk %}" class="btn btn-outline-secondary mt-3">back to mapping canvas</a>
+  <a href="{% url 'mappings:detail' run.mapping.pk %}?tab=canvas" class="btn btn-outline-secondary mt-3">back to mapping canvas</a>
 {% endblock %}
 
 {% block extra_scripts %}
