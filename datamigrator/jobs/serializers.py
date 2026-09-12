@@ -28,5 +28,6 @@ class MigrationRunSerializer(serializers.ModelSerializer):
         fields = [
             "id", "mapping", "mapping_name", "status", "records_read", "records_written",
             "records_failed", "requests_made", "rate_limit_per_second", "scheduled_at",
-            "started_at", "finished_at", "input_file", "logs", "step_statuses",
+            "started_at", "finished_at", "input_file", "retry_of", "retry_resolved",
+            "logs", "step_statuses",
         ]

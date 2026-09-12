@@ -2,10 +2,18 @@
 {% load static %}
 {% block title %}Run #{{ run.pk }}{% endblock %}
 {% block content %}
-  <div class="d-flex align-items-center gap-2">
+  <div class="d-flex align-items-center gap-2 flex-wrap">
     <div class="page-title mb-0">Run #{{ run.pk }}</div>
     {% if run.status == "pending" or run.status == "running" %}
       <span class="text-dim small" id="liveIndicator">● live</span>
+    {% endif %}
+    {% if run.retry_of_id %}
+      <a href="{% url 'jobs:run_detail' run.retry_of_id %}" class="run-tag run-tag-retry-of">↩ Retry of #{{ run.retry_of_id }}</a>
+    {% endif %}
+    {% if run.retry_resolved and successful_retry %}
+      <a href="{% url 'jobs:run_detail' successful_retry.pk %}" class="run-tag run-tag-retry-ok">✓ Retried by #{{ successful_retry.pk }}</a>
+    {% elif run.retries.exists and not run.retry_resolved %}
+      <span class="run-tag run-tag-retry-pending">↻ Retry in progress</span>
     {% endif %}
   </div>
   <div class="page-subtitle">

@@ -10,6 +10,14 @@ class MigrationRun(models.Model):
 
     mapping = models.ForeignKey("mappings.Mapping", on_delete=models.CASCADE, related_name="runs")
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING)
+    retry_of = models.ForeignKey(
+        "self", null=True, blank=True, on_delete=models.SET_NULL, related_name="retries",
+        help_text="Set when this run was created to retry failed entity mappings from a prior run.",
+    )
+    retry_resolved = models.BooleanField(
+        default=False,
+        help_text="Set to True on the original failed run when one of its retries completes successfully.",
+    )
     records_read = models.IntegerField(default=0)
     records_written = models.IntegerField(default=0)
     records_failed = models.IntegerField(default=0)

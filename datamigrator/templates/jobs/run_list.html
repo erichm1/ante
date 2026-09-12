@@ -72,13 +72,15 @@
         <table class="table align-middle mb-0" id="liveRunsTable">
           <thead>
             <tr>
+              <th class="col-check"><input type="checkbox" class="form-check-input" id="selectAllLive" onclick="selectAll(this, 'live')"></th>
               <th data-t="runs.th.run">Run</th><th data-t="runs.th.route">Route</th><th data-t="th.status">Status</th><th data-t="runs.th.read">Read</th><th data-t="runs.th.written">Written</th><th data-t="runs.th.failed">Failed</th><th data-t="runs.th.requests">Requests</th>
               <th>{% if tab == 'scheduled' %}Scheduled for{% else %}Started{% endif %}</th><th></th>
             </tr>
           </thead>
           <tbody>
             {% for run in page_obj %}
-              <tr id="run-row-{{ run.pk }}">
+              <tr id="run-row-{{ run.pk }}" data-run-id="{{ run.pk }}" data-status="{{ run.status }}" data-mapping-id="{{ run.mapping_id }}">
+                <td class="col-check"><input type="checkbox" class="form-check-input run-cb" data-run-id="{{ run.pk }}" data-status="{{ run.status }}" data-mapping-id="{{ run.mapping_id }}" onclick="toggleSelect(this)"></td>
                 <td class="mono">#{{ run.pk }}</td>
                 <td>{% include "jobs/_route.html" with route=run.route %}</td>
                 <td><span class="status-chip warn" id="run-status-{{ run.pk }}">{{ run.status }}</span></td>
@@ -115,12 +117,24 @@
       {% if page_obj %}
         <table class="table align-middle mb-0">
           <thead>
-            <tr><th>Run</th><th>Route</th><th>Status</th><th>Read</th><th>Written</th><th>Failed</th><th>Started</th><th>Finished</th><th></th></tr>
+            <tr>
+              <th class="col-check"><input type="checkbox" class="form-check-input" id="selectAllDone" onclick="selectAll(this, 'done')"></th>
+              <th>Run</th><th>Route</th><th>Status</th><th>Read</th><th>Written</th><th>Failed</th><th>Started</th><th>Finished</th><th></th>
+            </tr>
           </thead>
           <tbody>
             {% for run in page_obj %}
-              <tr>
-                <td class="mono">#{{ run.pk }}</td>
+              <tr data-run-id="{{ run.pk }}" data-status="{{ run.status }}" data-mapping-id="{{ run.mapping_id }}">
+                <td class="col-check"><input type="checkbox" class="form-check-input run-cb" data-run-id="{{ run.pk }}" data-status="{{ run.status }}" data-mapping-id="{{ run.mapping_id }}" onclick="toggleSelect(this)"></td>
+                <td class="mono">
+                  #{{ run.pk }}
+                  {% if run.retry_of_id %}
+                    <br><a href="{% url 'jobs:run_detail' run.retry_of_id %}" class="run-tag run-tag-retry-of mt-1">↩ retry of #{{ run.retry_of_id }}</a>
+                  {% endif %}
+                  {% if run.retry_resolved %}
+                    <br><span class="run-tag run-tag-retry-ok mt-1">✓ retry done</span>
+                  {% endif %}
+                </td>
                 <td>{% include "jobs/_route.html" with route=run.route %}</td>
                 <td>
                   {% if run.status == "success" %}<span class="status-chip ok">success</span>
@@ -188,6 +202,15 @@
       {% endif %}
     </div>
   {% endif %}
+
+  <!-- Bulk selection bar — fixed at bottom, visible when ≥1 run selected -->
+  <div class="selection-bar d-none" id="selectionBar">
+    <span class="selection-bar-count" id="selectionCount">0 selected</span>
+    <button class="btn btn-sm btn-outline-secondary" onclick="clearSelection()">Clear</button>
+    <button class="btn btn-sm btn-outline-secondary" id="bulkRerunBtn" onclick="bulkRerun()" title="Create a new run for each selected run's mapping">Re-run</button>
+    <button class="btn btn-sm btn-outline-secondary" id="bulkRetryBtn" onclick="bulkRetry()" title="Retry only the failed entity mappings from each selected failed run">Retry failed</button>
+    <button class="btn btn-sm btn-outline-danger" id="bulkDeleteBtn" onclick="bulkDelete()">Delete</button>
+  </div>
 
   <div class="modal fade" id="createRunModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
@@ -350,6 +373,154 @@ if (liveIds.length && (CURRENT_TAB === 'active' || CURRENT_TAB === 'pending' || 
     onUpdate: run => hasLeftThisTab(run) ? removeLiveRow(run.id) : updateLiveRow(run),
     onSettle: run => removeLiveRow(run.id),
   });
+}
+
+/* ── Multiselect ─────────────────────────────────────────────────────────── */
+
+/* {runId -> {status, mappingId}} */
+const selectedRuns = new Map();
+
+function toggleSelect(cb) {
+  const id   = parseInt(cb.dataset.runId);
+  const meta = { status: cb.dataset.status, mappingId: cb.dataset.mappingId };
+  if (cb.checked) selectedRuns.set(id, meta);
+  else            selectedRuns.delete(id);
+  cb.closest('tr').classList.toggle('run-selected', cb.checked);
+  syncSelectAll();
+  renderBar();
+}
+
+function selectAll(masterCb, scope) {
+  document.querySelectorAll('.run-cb').forEach(cb => {
+    cb.checked = masterCb.checked;
+    const id   = parseInt(cb.dataset.runId);
+    const meta = { status: cb.dataset.status, mappingId: cb.dataset.mappingId };
+    if (masterCb.checked) selectedRuns.set(id, meta);
+    else                  selectedRuns.delete(id);
+    cb.closest('tr').classList.toggle('run-selected', masterCb.checked);
+  });
+  renderBar();
+}
+
+function syncSelectAll() {
+  const cbs = [...document.querySelectorAll('.run-cb')];
+  const checked = cbs.filter(c => c.checked).length;
+  ['selectAllLive','selectAllDone'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.checked       = checked > 0 && checked === cbs.length;
+    el.indeterminate = checked > 0 && checked < cbs.length;
+  });
+}
+
+function clearSelection() {
+  selectedRuns.clear();
+  document.querySelectorAll('.run-cb').forEach(cb => { cb.checked = false; cb.closest('tr').classList.remove('run-selected'); });
+  ['selectAllLive','selectAllDone'].forEach(id => { const el = document.getElementById(id); if (el) { el.checked = false; el.indeterminate = false; } });
+  renderBar();
+}
+
+function renderBar() {
+  const n   = selectedRuns.size;
+  const bar = document.getElementById('selectionBar');
+  if (n === 0) { bar.classList.add('d-none'); return; }
+  bar.classList.remove('d-none');
+
+  document.getElementById('selectionCount').textContent = `${n} run${n !== 1 ? 's' : ''} selected`;
+
+  /* Retry only makes sense when at least one selected run actually failed */
+  const hasFailed = [...selectedRuns.values()].some(r => r.status === 'failed');
+  document.getElementById('bulkRetryBtn').classList.toggle('d-none', !hasFailed);
+}
+
+async function bulkDelete() {
+  const ids = [...selectedRuns.keys()];
+  if (!(await confirmModal(`Delete ${ids.length} run${ids.length !== 1 ? 's' : ''}? This cannot be undone.`))) return;
+  const btn = document.getElementById('bulkDeleteBtn');
+  btn.disabled = true; btn.textContent = 'Deleting…';
+
+  for (const id of ids) {
+    const resp = await fetch(`/api/runs/${id}/`, { method: 'DELETE' });
+    if (resp.ok || resp.status === 404) {
+      document.getElementById(`run-row-${id}`)?.remove();
+      document.querySelector(`tr[data-run-id="${id}"]`)?.remove();
+      selectedRuns.delete(id);
+    }
+  }
+  btn.disabled = false; btn.textContent = 'Delete';
+  renderBar();
+}
+
+/* Poll a run until it leaves running/pending state, then resolve. */
+async function waitForRunToSettle(runId) {
+  const SETTLED = new Set(['success', 'failed']);
+  while (true) {
+    await new Promise(r => setTimeout(r, 2500));
+    try {
+      const resp = await fetch(`/api/runs/${runId}/`);
+      if (!resp.ok) break;
+      const run = await resp.json();
+      if (SETTLED.has(run.status)) break;
+    } catch { break; }
+  }
+}
+
+async function bulkRerun() {
+  const entries = [...selectedRuns.entries()];
+  const total   = entries.length;
+  const btn     = document.getElementById('bulkRerunBtn');
+  btn.disabled  = true;
+
+  let lastRunId = null;
+  for (let i = 0; i < entries.length; i++) {
+    const [, { mappingId }] = entries[i];
+    btn.textContent = total > 1 ? `Running ${i + 1}/${total}…` : 'Starting…';
+
+    const resp = await fetch('/api/runs/trigger/', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mapping_id: mappingId }),
+    });
+    if (!resp.ok) continue;
+    const r = await resp.json();
+    lastRunId = r.id;
+
+    /* Wait for this run to finish before starting the next one */
+    if (i < entries.length - 1) await waitForRunToSettle(r.id);
+  }
+
+  if (total === 1 && lastRunId) {
+    window.location.href = `/jobs/runs/${lastRunId}/`;
+  } else {
+    window.location.href = '?tab=finished';
+  }
+}
+
+async function bulkRetry() {
+  const failedIds = [...selectedRuns.entries()]
+    .filter(([, r]) => r.status === 'failed')
+    .map(([id]) => id);
+  const total  = failedIds.length;
+  const btn    = document.getElementById('bulkRetryBtn');
+  btn.disabled = true;
+
+  let lastRunId = null;
+  for (let i = 0; i < failedIds.length; i++) {
+    btn.textContent = total > 1 ? `Retrying ${i + 1}/${total}…` : 'Retrying…';
+
+    const resp = await fetch(`/api/runs/${failedIds[i]}/retry/`, { method: 'POST' });
+    if (!resp.ok) continue;
+    const r = await resp.json();
+    lastRunId = r.id;
+
+    /* Wait for this retry to finish before starting the next one */
+    if (i < failedIds.length - 1) await waitForRunToSettle(r.id);
+  }
+
+  if (total === 1 && lastRunId) {
+    window.location.href = `/jobs/runs/${lastRunId}/`;
+  } else {
+    window.location.href = '?tab=finished';
+  }
 }
 </script>
 {% endblock %}

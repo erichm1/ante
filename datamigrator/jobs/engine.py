@@ -303,10 +303,16 @@ def run_migration(run: MigrationRun, entity_mapping_ids=None) -> MigrationRun:
 def run_migration_in_background(run_id: int, entity_mapping_ids=None):
     """Entry point for a background thread: fetches its own copy of the run
     and always releases the thread's DB connection when done.
-    `entity_mapping_ids` is forwarded to run_migration when retrying failed mappings."""
+    `entity_mapping_ids` is forwarded to run_migration when retrying failed mappings.
+    When a retry run finishes successfully, its parent (retry_of) is automatically
+    marked retry_resolved=True so the UI can show "resolved by retry" on the original."""
     try:
         run = MigrationRun.objects.select_related("mapping", "mapping__source_connection").get(pk=run_id)
         run_migration(run, entity_mapping_ids=entity_mapping_ids)
+        if run.retry_of_id and run.status == MigrationRun.STATUS_SUCCESS:
+            MigrationRun.objects.filter(pk=run.retry_of_id).update(
+                retry_resolved=True, status=MigrationRun.STATUS_SUCCESS,
+            )
     finally:
         connections.close_all()
 

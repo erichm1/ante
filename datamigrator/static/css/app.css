@@ -1322,6 +1322,35 @@ a.home-item-row:hover { color: var(--text); background: var(--ink-soft); border-
   background: var(--chip-svc-bg);
 }
 
+/* ── Run retry tags ───────────────────────────────────────────────────────── */
+
+.run-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 8px;
+  border-radius: 20px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  border: 1px solid transparent;
+  white-space: nowrap;
+  text-decoration: none;
+}
+.run-tag-retry-of {
+  color: var(--chip-svc-txt);
+  border-color: var(--chip-svc-bd);
+  background: var(--chip-svc-bg);
+}
+.run-tag-retry-ok {
+  color: var(--trace);
+  border-color: var(--trace-soft);
+  background: var(--trace-soft);
+}
+.run-tag-retry-pending {
+  color: var(--signal);
+  border-color: var(--chip-warn-bd);
+  background: var(--chip-warn-bg);
+}
+
 /* ── Chain step boxes (run canvas) ───────────────────────────────────────── */
 
 .chain-step-box {
@@ -1449,3 +1478,39 @@ a.home-item-row:hover { color: var(--text); background: var(--ink-soft); border-
 .rsb-cnt-read    { }
 .rsb-cnt-written { color: var(--trace); border-color: var(--trace-soft); background: var(--trace-soft); }
 .rsb-cnt-failed  { color: var(--danger); border-color: var(--chip-err-bd); background: var(--chip-err-bg); }
+
+/* ── Bulk selection bar ───────────────────────────────────────────────────── */
+
+.selection-bar {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--panel);
+  border: 1px solid var(--paper-line);
+  border-radius: 10px;
+  padding: 10px 18px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-shadow: 0 6px 28px rgba(0,0,0,.22);
+  z-index: 300;
+  white-space: nowrap;
+  flex-wrap: wrap;
+  max-width: calc(100vw - 48px);
+}
+
+.selection-bar-count {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text);
+  padding-right: 4px;
+  border-right: 1px solid var(--paper-line);
+  margin-right: 2px;
+}
+
+/* Row selection highlight */
+tr.run-selected td { background: color-mix(in srgb, var(--signal) 6%, transparent); }
+
+/* Checkbox column */
+.col-check { width: 36px; }

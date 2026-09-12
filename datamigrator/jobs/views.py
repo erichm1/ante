@@ -49,7 +49,7 @@ class MigrationRunViewSet(viewsets.ModelViewSet):
     queryset = MigrationRun.objects.select_related("mapping").prefetch_related("logs", "step_statuses")
     serializer_class = MigrationRunSerializer
     filterset_fields = ["mapping", "status"]
-    http_method_names = ["get", "post", "head", "options"]  # runs are immutable once created
+    http_method_names = ["get", "post", "delete", "head", "options"]
 
     @action(detail=False, methods=["post"], url_path="trigger")
     def trigger(self, request):
@@ -116,6 +116,7 @@ class MigrationRunViewSet(viewsets.ModelViewSet):
             mapping=original.mapping,
             status=MigrationRun.STATUS_RUNNING,
             rate_limit_per_second=original.rate_limit_per_second,
+            retry_of=original,
         )
         threading.Thread(
             target=engine.run_migration_in_background,
@@ -196,13 +197,16 @@ def run_detail(request, pk):
     run = get_object_or_404(
         MigrationRun.objects.select_related(
             "mapping", "mapping__source_connection", "mapping__source_connection__integration_install__integration",
+            "retry_of",
         ).prefetch_related(
             "mapping__destination_connections__integration_install__integration",
             "mapping__entity_mappings__source_entity", "mapping__entity_mappings__target_entity",
+            "retries",
         ),
         pk=pk,
     )
     run.route = _route_info(run.mapping)
+    successful_retry = run.retries.filter(status=MigrationRun.STATUS_SUCCESS).first() if run.retry_resolved else None
 
     # Two independent paginators on the same page — separate query params
     # (logs_page/calls_page) so paging through one doesn't reset the other.
@@ -211,7 +215,12 @@ def run_detail(request, pk):
         run.api_call_logs.select_related("connection"), DETAIL_PAGE_SIZE,
     ).get_page(request.GET.get("calls_page"))
 
-    return render(request, "jobs/run_detail.html", {"run": run, "logs_page": logs_page, "api_calls_page": api_calls_page})
+    return render(request, "jobs/run_detail.html", {
+        "run": run,
+        "logs_page": logs_page,
+        "api_calls_page": api_calls_page,
+        "successful_retry": successful_retry,
+    })
 
 
 PAGE_SIZE_CHOICES = (10, 25, 50, 100)
