@@ -59,7 +59,11 @@ class CallChainStep(models.Model):
                    "short name instead of the full {{this_name.some.json.path}} — a list of "
                    "{\"name\": \"customer_id\", \"path\": \"id\"} objects (path may be blank to capture "
                    "the whole response). Once captured, {{customer_id}} works anywhere {{create_customer."
-                   "id}} would (see chains/executor.py::apply_captures) — same context dict either way.",
+                   "id}} would (see chains/executor.py::apply_captures) — same context dict either way. "
+                   "Use a bare `*` as a path segment to capture EVERY matching value as a list instead "
+                   "of just one, e.g. \"itens.*.id\" over a list response captures every item's id — "
+                   "reference the whole list later with {{customer_id}} (or embed it in a later step's "
+                   "JSON body, e.g. {\"ids\": {{product_ids}}}) — see chains/executor.py::_walk.",
     )
 
     is_async = models.BooleanField(

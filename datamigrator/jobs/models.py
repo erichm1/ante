@@ -42,6 +42,12 @@ class MigrationRun(models.Model):
                    "(i.e. a real API source) — see jobs/engine.py::records_for.",
     )
 
+    @property
+    def rate_limit_per_minute(self):
+        """rate_limit_per_second, expressed the way it's entered/displayed in
+        the UI (requests/minute) — see static/js/rate_limit.js."""
+        return round(self.rate_limit_per_second * 60, 2) if self.rate_limit_per_second else None
+
     class Meta:
         ordering = ["-started_at"]
 

@@ -25,6 +25,21 @@ class Mapping(models.Model):
     def __str__(self):
         return self.name
 
+    @property
+    def default_rate_limit_per_second(self):
+        """Falls back to the slowest connection involved (source or any
+        destination) when a run doesn't set its own rate_limit_per_second —
+        lets a Connection's own rate limit (set on its edit page) act as a
+        standing default so every run against it stays under whatever cap
+        the external API actually enforces, without having to remember to
+        set it per run. See jobs/engine.py::run_migration's throttle()."""
+        limits = [
+            c.rate_limit_per_second
+            for c in [self.source_connection, *self.destination_connections.all()]
+            if c and c.rate_limit_per_second
+        ]
+        return min(limits) if limits else None
+
 
 class EntityMapping(models.Model):
     """One entity-to-entity link inside a Mapping, e.g. Source.Customer -> Target.Contact."""

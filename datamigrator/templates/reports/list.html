@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}Reports{% endblock %}
+{% block content %}
+  <div class="d-flex justify-content-between align-items-start">
+    <div>
+      <div class="page-title" data-t="reports.title">Reports</div>
+      <div class="page-subtitle" data-t="reports.subtitle">Combine data from one or more entities into a single CSV export — pick entities and fields by drag-and-drop, preview it on screen, export it, or pull it via the API.</div>
+    </div>
+    <button class="btn btn-signal" data-bs-toggle="modal" data-bs-target="#newReportModal" data-t="reports.new">New report</button>
+  </div>
+
+  <div class="panel">
+    {% if reports %}
+      <table class="table align-middle mb-0">
+        <thead><tr><th data-t="th.name">Name</th><th data-t="reports.th.sections">Sections</th><th data-t="th.created">Created</th><th></th></tr></thead>
+        <tbody>
+          {% for report in reports %}
+            <tr>
+              <td>{{ report.name }}</td>
+              <td class="mono">{{ report.sections.count }}</td>
+              <td class="mono small">{{ report.created_at|date:"Y-m-d H:i" }}</td>
+              <td class="text-end">
+                <a href="/api/reports/{{ report.pk }}/export/" class="btn btn-sm btn-outline-secondary">Export CSV</a>
+                <a href="{% url 'reports:detail' report.pk %}" class="btn btn-sm btn-outline-secondary">Open</a>
+                <button class="btn btn-sm btn-outline-danger" onclick="deleteReport({{ report.pk }}, '{{ report.name|escapejs }}')">Delete</button>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="text-dim mb-0">No reports yet — combine entities/fields into a CSV export to get started.</p>
+    {% endif %}
+  </div>
+
+  <div class="modal fade" id="newReportModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" data-t="reports.new">New report</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div id="createReportError" class="alert alert-danger d-none"></div>
+          <div class="mb-3">
+            <label class="form-label" data-t="lbl.name">Name</label>
+            <input class="form-control" id="nr_name" placeholder="e.g. Monthly product export">
+          </div>
+          <div class="mb-1">
+            <label class="form-label" data-t="lbl.description">Description <span class="text-dim">(optional)</span></label>
+            <textarea class="form-control" id="nr_description" rows="2"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline-secondary" data-bs-dismiss="modal" data-t="btn.cancel">Cancel</button>
+          <button class="btn btn-signal" onclick="createReport()" data-t="reports.btn.create">Create — add entities next</button>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+async function createReport() {
+  const errorBox = document.getElementById('createReportError');
+  errorBox.classList.add('d-none');
+  const name = document.getElementById('nr_name').value.trim();
+  if (!name) {
+    errorBox.textContent = 'Name is required.';
+    errorBox.classList.remove('d-none');
+    return;
+  }
+  const resp = await fetch('/api/reports/', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, description: document.getElementById('nr_description').value }),
+  });
+  if (resp.ok) {
+    const body = await resp.json();
+    window.location.href = `/reports/${body.id}/`;
+  } else {
+    errorBox.textContent = JSON.stringify(await resp.json());
+    errorBox.classList.remove('d-none');
+  }
+}
+
+async function deleteReport(reportId, name) {
+  if (!(await confirmModal(`Delete report "${name}"? This can't be undone.`))) return;
+  fetch(`/api/reports/${reportId}/`, { method: 'DELETE' }).then(resp => {
+    if (resp.ok) window.location.reload();
+    else alert('Could not delete this report.');
+  });
+}
+</script>
+{% endblock %}

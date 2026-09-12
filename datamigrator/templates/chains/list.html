@@ -3,16 +3,16 @@
 {% block content %}
   <div class="d-flex justify-content-between align-items-start">
     <div>
-      <div class="page-title">Call Chains</div>
-      <div class="page-subtitle">Run a sequence of API calls where each step can use values from a previous step's response.</div>
+      <div class="page-title" data-t="chains.title">Call Chains</div>
+      <div class="page-subtitle" data-t="chains.subtitle">Run a sequence of API calls where each step can use values from a previous step's response.</div>
     </div>
-    <button class="btn btn-signal" data-bs-toggle="modal" data-bs-target="#newChainModal">New chain</button>
+    <button class="btn btn-signal" data-bs-toggle="modal" data-bs-target="#newChainModal" data-t="chains.new">New chain</button>
   </div>
 
   <div class="panel">
     {% if chains %}
       <table class="table align-middle mb-0">
-        <thead><tr><th>Name</th><th>Connection</th><th>Steps</th><th>Created</th><th></th></tr></thead>
+        <thead><tr><th data-t="th.name">Name</th><th data-t="th.connection">Connection</th><th data-t="th.steps">Steps</th><th data-t="th.created">Created</th><th></th></tr></thead>
         <tbody>
           {% for chain in chains %}
             <tr>
@@ -37,30 +37,30 @@
     <div class="modal-dialog modal-dialog-centered">
       <div class="modal-content">
         <div class="modal-header">
-          <h5 class="modal-title">New chain</h5>
+          <h5 class="modal-title" data-t="chains.new">New chain</h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
         </div>
         <div class="modal-body">
           <div id="createChainError" class="alert alert-danger d-none"></div>
           <div class="mb-3">
-            <label class="form-label">Name</label>
+            <label class="form-label" data-t="lbl.name">Name</label>
             <input class="form-control" id="nc_name" placeholder="e.g. Create customer then order">
           </div>
           <div class="mb-3">
-            <label class="form-label">Connection</label>
+            <label class="form-label" data-t="th.connection">Connection</label>
             <select class="form-select" id="nc_connection">
               {% for c in connections %}<option value="{{ c.pk }}">{{ c.name }}</option>{% endfor %}
             </select>
             <div class="form-text">Every step in this chain calls this connection's API.</div>
           </div>
           <div class="mb-1">
-            <label class="form-label">Description <span class="text-dim">(optional)</span></label>
+            <label class="form-label" data-t="lbl.description">Description <span class="text-dim">(optional)</span></label>
             <textarea class="form-control" id="nc_description" rows="2"></textarea>
           </div>
         </div>
         <div class="modal-footer">
-          <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-          <button class="btn btn-signal" onclick="createChain()">Create — add steps next</button>
+          <button class="btn btn-outline-secondary" data-bs-dismiss="modal" data-t="btn.cancel">Cancel</button>
+          <button class="btn btn-signal" onclick="createChain()" data-t="chains.btn.create">Create — add steps next</button>
         </div>
       </div>
     </div>
@@ -97,8 +97,8 @@ async function createChain() {
   }
 }
 
-function deleteChain(chainId, name) {
-  if (!confirm(`Delete chain "${name}"? This can't be undone.`)) return;
+async function deleteChain(chainId, name) {
+  if (!(await confirmModal(`Delete chain "${name}"? This can't be undone.`))) return;
   fetch(`/api/chains/${chainId}/`, { method: 'DELETE' }).then(resp => {
     if (resp.ok) window.location.reload();
     else alert('Could not delete this chain.');

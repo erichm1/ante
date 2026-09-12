@@ -11,6 +11,7 @@ from mappings import views as mapping_views
 from jobs import views as job_views
 from plans import views as plan_views
 from chains import views as chain_views
+from reports import views as report_views
 
 router = routers.DefaultRouter()
 router.register(r"connections", connection_views.ConnectionViewSet, basename="connection")
@@ -25,6 +26,8 @@ router.register(r"plans", plan_views.MigrationPlanViewSet, basename="plan")
 router.register(r"plan-steps", plan_views.PlanStepViewSet, basename="plan-step")
 router.register(r"chains", chain_views.CallChainViewSet, basename="chain")
 router.register(r"chain-steps", chain_views.CallChainStepViewSet, basename="chain-step")
+router.register(r"reports", report_views.ReportViewSet, basename="report")
+router.register(r"report-sections", report_views.ReportSectionViewSet, basename="report-section")
 
 urlpatterns = [
     path("admin/", admin.site.urls),
@@ -39,6 +42,7 @@ urlpatterns = [
     path("jobs/", include("jobs.urls")),
     path("plans/", include("plans.urls")),
     path("chains/", include("chains.urls")),
+    path("reports/", include("reports.urls")),
 ]
 
 if settings.DEBUG:

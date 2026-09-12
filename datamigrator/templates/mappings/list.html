@@ -3,16 +3,16 @@
 {% block content %}
   <div class="d-flex justify-content-between align-items-start">
     <div>
-      <div class="page-title">Mappings</div>
-      <div class="page-subtitle">Pick the origin and destiny(ies) up front — the canvas only lets you map entities that belong to them.</div>
+      <div class="page-title" data-t="mappings.title">Mappings</div>
+      <div class="page-subtitle" data-t="mappings.subtitle">Pick the origin and destiny(ies) up front — the canvas only lets you map entities that belong to them.</div>
     </div>
-    <button class="btn btn-signal" data-bs-toggle="modal" data-bs-target="#newMappingModal">New mapping</button>
+    <button class="btn btn-signal" data-bs-toggle="modal" data-bs-target="#newMappingModal" data-t="mappings.new">New mapping</button>
   </div>
 
   <div class="panel">
     {% if mappings %}
       <table class="table align-middle mb-0">
-        <thead><tr><th>Name</th><th>Origin</th><th>Destinies</th><th></th></tr></thead>
+        <thead><tr><th data-t="th.name">Name</th><th data-t="mappings.th.origin">Origin</th><th data-t="mappings.th.destinies">Destinies</th><th></th></tr></thead>
         <tbody>
           {% for m in mappings %}
             <tr>
@@ -37,23 +37,23 @@
     <div class="modal-dialog modal-dialog-centered">
       <div class="modal-content">
         <div class="modal-header">
-          <h5 class="modal-title">New mapping</h5>
+          <h5 class="modal-title" data-t="mappings.new">New mapping</h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
         </div>
         <div class="modal-body">
           <div id="createError" class="alert alert-danger d-none"></div>
           <div class="mb-3">
-            <label class="form-label">Name</label>
+            <label class="form-label" data-t="lbl.name">Name</label>
             <input class="form-control" id="mp_name" placeholder="e.g. CRM to ERP + Data warehouse sync">
           </div>
           <div class="mb-3">
-            <label class="form-label">Integration origin</label>
+            <label class="form-label" data-t="mappings.lbl.origin">Integration origin</label>
             <select class="form-select" id="mp_source">
               {% for c in connections %}<option value="{{ c.pk }}">{{ c.name }}</option>{% endfor %}
             </select>
           </div>
           <div class="mb-1">
-            <label class="form-label">Integration destinies</label>
+            <label class="form-label" data-t="mappings.lbl.destinies">Integration destinies</label>
             <select class="form-select" id="mp_destinations" multiple size="5">
               {% for c in connections %}<option value="{{ c.pk }}">{{ c.name }}</option>{% endfor %}
             </select>
@@ -61,8 +61,8 @@
           </div>
         </div>
         <div class="modal-footer">
-          <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-          <button class="btn btn-signal" onclick="createMapping()">Create</button>
+          <button class="btn btn-outline-secondary" data-bs-dismiss="modal" data-t="btn.cancel">Cancel</button>
+          <button class="btn btn-signal" onclick="createMapping()" data-t="btn.create">Create</button>
         </div>
       </div>
     </div>

@@ -19,10 +19,11 @@
     <h6 class="mb-1">Steps <span class="text-dim small">— run in order, top to bottom</span></h6>
     <p class="text-dim small">Reference an earlier step's parsed JSON response in this step's Path or Body with <span class="mono">{% templatetag openvariable %}step_name.field.path{% templatetag closevariable %}</span> — e.g. <span class="mono">{% templatetag openvariable %}create_customer.id{% templatetag closevariable %}</span>.</p>
     <table class="table align-middle mb-0">
-      <thead><tr><th>#</th><th>Name</th><th>Method</th><th>Path</th><th>Body</th><th>Async</th><th>Captures</th><th></th></tr></thead>
+      <thead><tr><th style="width:28px"></th><th>#</th><th>Name</th><th>Method</th><th>Path</th><th>Body</th><th>Async</th><th>Captures</th><th></th></tr></thead>
       <tbody id="stepsBody">
         {% for step in steps %}
-          <tr id="step-row-{{ step.pk }}">
+          <tr id="step-row-{{ step.pk }}" draggable="true" data-step-id="{{ step.pk }}">
+            <td class="text-dim" style="cursor:grab;user-select:none;font-size:1rem;line-height:1;padding-right:0" title="Drag to reorder">⠿</td>
             <td class="mono">{{ step.order }}</td>
             <td class="mono">{{ step.name }}</td>
             <td><span class="verb-badge verb-{{ step.method|lower }}">{{ step.method }}</span></td>
@@ -82,7 +83,7 @@
       </div>
 
       <div class="mt-2">
-        <label class="form-label small mb-1 text-dim">Captures <span class="fw-normal">— pull values out of this step's own response, for later steps to use as {% templatetag openvariable %}name{% templatetag closevariable %}</span></label>
+        <label class="form-label small mb-1 text-dim">Captures <span class="fw-normal">— pull values out of this step's own response, for later steps to use as {% templatetag openvariable %}name{% templatetag closevariable %}. Use `*` in the path (e.g. itens.*.id) to capture every matching value as a list instead of just one.</span></label>
         <div id="as_captures_list"></div>
         <button type="button" class="btn btn-sm btn-outline-secondary" onclick="addCaptureRow('as')">+ Add capture</button>
       </div>
@@ -298,8 +299,8 @@ function saveChainEdit() {
   });
 }
 
-function deleteChain() {
-  if (!confirm(`Delete chain "${window.CHAIN_NAME}"? This can't be undone.`)) return;
+async function deleteChain() {
+  if (!(await confirmModal(`Delete chain "${window.CHAIN_NAME}"? This can't be undone.`))) return;
   fetch(`/api/chains/${window.CHAIN_ID}/`, { method: 'DELETE' }).then(resp => {
     if (resp.ok) {
       window.location.href = '/chains/';
@@ -324,7 +325,7 @@ function renderCaptureRows(prefix) {
     <div class="d-flex gap-2 align-items-center mb-1">
       <input type="text" class="form-control form-control-sm mono" style="max-width: 200px;" placeholder="variable_name" value="${escapeAttr(c.name)}" oninput="updateCaptureRow('${prefix}', ${i}, 'name', this.value)">
       <span class="text-dim">←</span>
-      <input type="text" class="form-control form-control-sm mono" placeholder="json.path (blank = whole response)" value="${escapeAttr(c.path)}" oninput="updateCaptureRow('${prefix}', ${i}, 'path', this.value)">
+      <input type="text" class="form-control form-control-sm mono" placeholder="json.path — blank = whole response, itens.*.id = every id" value="${escapeAttr(c.path)}" oninput="updateCaptureRow('${prefix}', ${i}, 'path', this.value)">
       <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeCaptureRow('${prefix}', ${i})">&times;</button>
     </div>`).join('') : '<p class="text-dim small mb-1">No captures yet.</p>';
 }
@@ -437,8 +438,8 @@ function saveStepEdit() {
   });
 }
 
-function removeStep(stepId) {
-  if (!confirm('Remove this step?')) return;
+async function removeStep(stepId) {
+  if (!(await confirmModal('Remove this step?'))) return;
   fetch(`/api/chain-steps/${stepId}/`, { method: 'DELETE' }).then(resp => {
     if (resp.ok) window.location.reload();
   });
@@ -450,6 +451,77 @@ function moveStep(stepId, direction) {
     body: JSON.stringify({ direction }),
   }).then(resp => { if (resp.ok) window.location.reload(); });
 }
+
+/* Drag-and-drop step reordering */
+(function () {
+  var tbody = document.getElementById('stepsBody');
+  if (!tbody) return;
+  var dragging = null;
+
+  tbody.addEventListener('dragstart', function (e) {
+    var row = e.target.closest('tr[data-step-id]');
+    if (!row) return;
+    dragging = row;
+    row.classList.add('dnd-dragging');
+    e.dataTransfer.effectAllowed = 'move';
+  });
+
+  tbody.addEventListener('dragover', function (e) {
+    e.preventDefault();
+    var row = e.target.closest('tr[data-step-id]');
+    if (!row || row === dragging) return;
+    tbody.querySelectorAll('tr').forEach(function (r) { r.classList.remove('dnd-over'); });
+    row.classList.add('dnd-over');
+    /* Move dragging row in the DOM for live preview */
+    var rows = Array.from(tbody.querySelectorAll('tr[data-step-id]'));
+    var fromIdx = rows.indexOf(dragging);
+    var toIdx   = rows.indexOf(row);
+    if (fromIdx < toIdx) row.after(dragging);
+    else row.before(dragging);
+  });
+
+  tbody.addEventListener('dragleave', function (e) {
+    var row = e.target.closest('tr[data-step-id]');
+    if (row) row.classList.remove('dnd-over');
+  });
+
+  tbody.addEventListener('dragend', async function () {
+    if (!dragging) return;
+    dragging.classList.remove('dnd-dragging');
+    tbody.querySelectorAll('tr').forEach(function (r) { r.classList.remove('dnd-over'); });
+
+    /* Compute new order from current DOM positions */
+    var rows = Array.from(tbody.querySelectorAll('tr[data-step-id]'));
+    var finalId = parseInt(dragging.dataset.stepId, 10);
+    var finalIdx = rows.indexOf(dragging);
+
+    /* Find what the original index was by comparing order numbers */
+    var originalIdx = -1;
+    rows.forEach(function (r, i) {
+      if (parseInt(r.querySelector('td:nth-child(2)').textContent, 10) === finalIdx + 1) originalIdx = i;
+    });
+
+    /* Simpler: count how many steps that originally came before are now after */
+    var orderCells = rows.map(function (r) { return parseInt(r.querySelector('td:nth-child(2)').textContent, 10); });
+    var myOrigOrder = parseInt(dragging.querySelector('td:nth-child(2)').textContent, 10);
+    var delta = finalIdx - (myOrigOrder - 1);
+    var direction = delta > 0 ? 'down' : 'up';
+    var steps = Math.abs(delta);
+
+    dragging = null;
+    if (steps === 0) return;
+
+    for (var i = 0; i < steps; i++) {
+      var resp = await fetch('/api/chain-steps/' + finalId + '/move/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ direction: direction }),
+      });
+      if (!resp.ok) break;
+    }
+    window.location.reload();
+  });
+}());
 
 function runChain() {
   const btn = document.getElementById('runChainBtn');

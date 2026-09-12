@@ -62,6 +62,12 @@ class MigrationPlan(models.Model):
     def is_editable(self) -> bool:
         return self.status == self.STATUS_DRAFT
 
+    @property
+    def rate_limit_per_minute(self):
+        """rate_limit_per_second, expressed the way it's entered/displayed in
+        the UI (requests/minute) — see static/js/rate_limit.js."""
+        return round(self.rate_limit_per_second * 60, 2) if self.rate_limit_per_second else None
+
 
 class PlanStep(models.Model):
     """One step in a plan's sequence — either a Mapping (simple mode) or a
@@ -96,3 +102,9 @@ class PlanStep(models.Model):
     def __str__(self):
         target = self.mapping.name if self.mapping_id else self.chain.name
         return f"{self.plan.name} step {self.order}: {target}"
+
+    @property
+    def rate_limit_per_minute(self):
+        """rate_limit_per_second, expressed the way it's entered/displayed in
+        the UI (requests/minute) — see static/js/rate_limit.js."""
+        return round(self.rate_limit_per_second * 60, 2) if self.rate_limit_per_second else None

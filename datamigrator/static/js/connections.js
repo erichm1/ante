@@ -32,6 +32,7 @@ async function createConnection() {
       custom_headers: getKvObject('c_headers'),
       use_custom_params: document.getElementById('c_use_custom_params').checked,
       custom_params: getKvObject('c_params'),
+      rate_limit_per_second: rpmToRps(document.getElementById('c_rate_limit').value),
     }),
   });
 
@@ -55,6 +56,7 @@ async function openEditConnectionModal(id) {
   document.getElementById('ec_base_url').value = connection.base_url;
   document.getElementById('ec_auth_type').value = connection.auth_type;
   document.getElementById('ec_auth_config').value = JSON.stringify(connection.auth_config || {}, null, 2);
+  document.getElementById('ec_rate_limit').value = rpsToRpm(connection.rate_limit_per_second);
 
   document.getElementById('ec_use_custom_headers').checked = connection.use_custom_headers;
   setKvRows('ec_headers', connection.custom_headers);
@@ -90,6 +92,7 @@ async function saveConnectionEdit() {
       custom_headers: getKvObject('ec_headers'),
       use_custom_params: document.getElementById('ec_use_custom_params').checked,
       custom_params: getKvObject('ec_params'),
+      rate_limit_per_second: rpmToRps(document.getElementById('ec_rate_limit').value),
     }),
   });
 
@@ -103,7 +106,7 @@ async function saveConnectionEdit() {
 }
 
 async function deleteConnection(id, name, redirectTo) {
-  const ok = confirm(
+  const ok = await confirmModal(
     `Delete connection "${name}"? This can't be undone — its entities, and any ` +
     `mapping where it's the source (with that mapping's runs), get deleted too.`
   );

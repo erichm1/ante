@@ -11,8 +11,15 @@ class ConnectionSerializer(serializers.ModelSerializer):
         fields = [
             "id", "name", "base_url", "auth_type", "auth_config",
             "use_custom_headers", "custom_headers", "use_custom_params", "custom_params",
-            "is_active", "is_connected", "created_at", "updated_at",
+            "rate_limit_per_second", "is_active", "is_connected", "created_at", "updated_at",
         ]
+
+    def validate_rate_limit_per_second(self, value):
+        # jobs/engine.py's throttle() does 1.0 / rate_limit and time.sleep(...) with
+        # it — zero or negative would divide-by-zero or crash time.sleep() outright.
+        if value is not None and value <= 0:
+            raise serializers.ValidationError("Must be greater than zero.")
+        return value
 
 
 class ConnectionSecretsSerializer(serializers.Serializer):

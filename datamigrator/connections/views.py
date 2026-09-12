@@ -231,8 +231,8 @@ def oauth_callback(request, pk):
     return redirect("connections:detail", pk=pk)
 
 
-LOG_PAGE_SIZE_CHOICES = (25, 50, 100)
-LOG_DEFAULT_PAGE_SIZE = 25
+LOG_PAGE_SIZE_CHOICES = (10, 25, 50, 100)
+LOG_DEFAULT_PAGE_SIZE = 10
 
 
 def api_log_list(request):

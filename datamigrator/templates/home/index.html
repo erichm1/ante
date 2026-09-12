@@ -2,31 +2,31 @@
 {% load static %}
 {% block title %}Home{% endblock %}
 {% block content %}
-  <div class="page-title">Home</div>
-  <div class="page-subtitle">Live overview of every migration run.</div>
+  <div class="page-title" data-t="home.title">Home</div>
+  <div class="page-subtitle" data-t="home.subtitle">Live overview of every migration run.</div>
 
   <div class="row row-cols-2 row-cols-md-4 g-3 mb-3">
     <div class="col">
       <div class="panel text-center stat-tile">
-        <div class="text-dim small">Total runs</div>
+        <div class="text-dim small" data-t="home.stat.total">Total runs</div>
         <div class="mono stat-value" id="stat-total">—</div>
       </div>
     </div>
     <div class="col">
       <div class="panel text-center stat-tile">
-        <div class="text-dim small">Active</div>
+        <div class="text-dim small" data-t="home.stat.active">Active</div>
         <div class="mono stat-value" id="stat-active">—</div>
       </div>
     </div>
     <div class="col">
       <div class="panel text-center stat-tile">
-        <div class="text-dim small">Success</div>
+        <div class="text-dim small" data-t="home.stat.success">Success</div>
         <div class="mono stat-value" style="color: var(--trace);" id="stat-success">—</div>
       </div>
     </div>
     <div class="col">
       <div class="panel text-center stat-tile">
-        <div class="text-dim small">Failed</div>
+        <div class="text-dim small" data-t="home.stat.failed">Failed</div>
         <div class="mono stat-value" style="color: var(--danger);" id="stat-failed">—</div>
       </div>
     </div>
@@ -35,9 +35,9 @@
   <div class="row g-3">
     <div class="col-md-7">
       <div class="panel h-100">
-        <h6 class="mb-3">By connection</h6>
+        <h6 class="mb-3" data-t="home.section.by_connection">By connection</h6>
         <table class="table align-middle mb-0">
-          <thead><tr><th>Connection</th><th>Status</th><th class="text-end">Success</th><th class="text-end">Failed</th></tr></thead>
+          <thead><tr><th data-t="th.connection">Connection</th><th data-t="th.status">Status</th><th class="text-end" data-t="home.stat.success">Success</th><th class="text-end" data-t="home.stat.failed">Failed</th></tr></thead>
           <tbody id="connectionStatsBody">
             <tr><td colspan="4" class="text-dim small">Loading…</td></tr>
           </tbody>
@@ -46,7 +46,7 @@
     </div>
     <div class="col-md-5">
       <div class="panel h-100">
-        <h6 class="mb-3">Active now</h6>
+        <h6 class="mb-3" data-t="home.section.active_now">Active now</h6>
         <div id="activeRunsBox">
           <p class="text-dim small mb-0">Loading…</p>
         </div>
@@ -58,7 +58,7 @@
     <div class="col-12">
       <div class="panel">
         <div class="d-flex align-items-center justify-content-between mb-3">
-          <h6 class="mb-0">Top API endpoints</h6>
+          <h6 class="mb-0" data-t="home.section.top_endpoints">Top API endpoints</h6>
           <span class="text-dim small"><span class="mono" id="stat-total-calls">—</span> total API calls</span>
         </div>
         <div id="topEndpointsBox">

@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Profile{% endblock %}
+{% block content %}
+  <div class="page-title" data-t="profile.title">Profile</div>
+  <div class="page-subtitle" data-t="profile.subtitle">Your account details and company info.</div>
+
+  <form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    {% if form.errors %}
+      <div class="alert alert-danger">{{ form.errors }}</div>
+    {% endif %}
+
+    <div class="row g-3">
+      <div class="col-md-6">
+        <div class="panel h-100">
+          <h6 class="mb-3" data-t="profile.personal">Personal</h6>
+          <div class="d-flex align-items-center gap-3 mb-3">
+            <span class="app-icon">
+              {% if profile.avatar %}
+                <img src="{{ profile.avatar.url }}" alt="">
+              {% else %}
+                <i class="bi-person"></i>
+              {% endif %}
+            </span>
+            <div class="flex-grow-1">
+              <label class="form-label small mb-1" data-t="profile.avatar">Avatar <span class="text-dim">(optional)</span></label>
+              {{ form.avatar }}
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label" data-t="profile.first_name">First name</label>
+            <input type="text" name="first_name" class="form-control" value="{{ user.first_name }}">
+          </div>
+          <div class="mb-3">
+            <label class="form-label" data-t="profile.last_name">Last name</label>
+            <input type="text" name="last_name" class="form-control" value="{{ user.last_name }}">
+          </div>
+          <div class="mb-1">
+            <label class="form-label" data-t="profile.email">Email</label>
+            <input type="email" name="email" class="form-control" value="{{ user.email }}">
+          </div>
+        </div>
+      </div>
+
+      <div class="col-md-6">
+        <div class="panel h-100">
+          <h6 class="mb-3" data-t="profile.company">Company</h6>
+          <div class="d-flex align-items-center gap-3 mb-3">
+            <span class="app-icon">
+              {% if profile.company_icon %}
+                <img src="{{ profile.company_icon.url }}" alt="">
+              {% else %}
+                <i class="bi-building"></i>
+              {% endif %}
+            </span>
+            <div class="flex-grow-1">
+              <label class="form-label small mb-1" data-t="profile.company_logo">Company logo <span class="text-dim">(optional)</span></label>
+              {{ form.company_icon }}
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label" data-t="profile.company_name">Company name</label>
+            {{ form.company_name }}
+          </div>
+          <div class="mb-1">
+            <label class="form-label" data-t="profile.company_doc">Company document <span class="text-dim">(e.g. CNPJ)</span></label>
+            {{ form.company_document }}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <button type="submit" class="btn btn-signal mt-3" data-t="btn.save">Save</button>
+  </form>
+{% endblock %}

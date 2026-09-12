@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}{{ report.name }} · Report{% endblock %}
+{% block content %}
+  <div class="d-flex justify-content-between align-items-start">
+    <div>
+      <div class="page-title mb-0">{{ report.name }}</div>
+      <div class="page-subtitle">{{ report.description|default:"Drag an entity in to add it, then drag its fields into the section to build your columns." }}</div>
+    </div>
+    <a href="/api/reports/{{ report.pk }}/export/" class="btn btn-signal">Download CSV</a>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-md-4">
+      <div class="panel h-100">
+        <h6 class="mb-1">Entities</h6>
+        <p class="text-dim small">Drag an entity onto the report canvas to add a section. Drag one of its fields onto that section to add a column.</p>
+        <div id="entityPalette"></div>
+      </div>
+    </div>
+
+    <div class="col-md-8">
+      <div class="panel mb-3">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h6 class="mb-0">Report canvas</h6>
+          <span class="text-dim small" id="sectionCount"></span>
+        </div>
+        <div id="reportCanvas" class="report-dropzone" ondragover="onCanvasDragOver(event)" ondragleave="onCanvasDragLeave(event)" ondrop="onCanvasDrop(event)">
+          <p class="text-dim small mb-0" id="emptyCanvasHint">Drag an entity here to start.</p>
+          <div id="sectionsList"></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h6 class="mb-3">Preview <span class="text-dim small">— first 50 rows per section, exactly what the CSV export contains beyond that cap</span></h6>
+        <div id="previewArea"><p class="text-dim small mb-0">Add a section with at least one column to see a preview.</p></div>
+      </div>
+    </div>
+  </div>
+
+  {{ entities_data|json_script:"entities-data" }}
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{% static 'js/reports.js' %}"></script>
+<script>
+window.REPORT_ID = {{ report.pk }};
+initReportDetail();
+</script>
+{% endblock %}

@@ -62,12 +62,35 @@ def infer_type_from_string(value: str) -> str:
     return Field.TYPE_STRING
 
 
+# Common list-envelope keys across the APIs this app talks to — "itens" is
+# Tiny ERP's own (pt-BR) list key, e.g. GET /produtos -> {"itens": [...]}.
+# Kept in one place so extract_records_from_payload and _first_record never
+# drift out of sync with each other.
+LIST_ENVELOPE_KEYS = ("results", "data", "items", "itens")
+
+
+def extract_records_from_payload(payload):
+    """Normalizes a parsed JSON API response into a flat list of records —
+    a list stays a list; a dict is checked for a common list-envelope key
+    (see LIST_ENVELOPE_KEYS); anything else becomes a single-record list.
+    Shared by read_all_records (below) and jobs/engine.py::records_for's
+    live-read branch."""
+    if isinstance(payload, list):
+        return payload
+    if isinstance(payload, dict):
+        for key in LIST_ENVELOPE_KEYS:
+            if isinstance(payload.get(key), list):
+                return payload[key]
+        return [payload]
+    return []
+
+
 def _first_record(payload):
     """Unwrap common list/envelope shapes to get one representative record."""
     if isinstance(payload, list):
         return payload[0] if payload else {}
     if isinstance(payload, dict):
-        for key in ("results", "data", "items"):
+        for key in LIST_ENVELOPE_KEYS:
             value = payload.get(key)
             if isinstance(value, list) and value:
                 return value[0]
@@ -180,6 +203,25 @@ def read_all_records_from_source_file(entity) -> list:
     instead of making an HTTP request when a mapping's source entity has no
     real API/connection behind it at all, just an uploaded file."""
     return read_all_records_from_file(entity.source_file)
+
+
+def read_all_records(entity) -> list:
+    """Every record for this entity, full stop — from its stored file if it
+    has one (read_all_records_from_source_file), else one live GET against
+    its connection's endpoint_path. Used by reports/exporter.py, which
+    needs a plain "give me everything this entity has" with no run/
+    throttle bookkeeping (a report issues one read per included entity, not
+    a bulk per-record loop) — jobs/engine.py::records_for is the run-scoped
+    equivalent (adds throttling, logging, and a run's own input_file
+    override) and stays separate rather than this delegating to it."""
+    if entity.source_file:
+        return read_all_records_from_source_file(entity)
+
+    from connections.client import ConnectionClient  # local import: schemas -> connections is fine, avoids a cycle at module load
+
+    response = ConnectionClient(entity.connection).get(entity.endpoint_path)
+    response.raise_for_status()
+    return extract_records_from_payload(response.json())
 
 
 def _resolve_schema_ref(operation: dict) -> str | None:

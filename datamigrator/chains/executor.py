@@ -10,9 +10,11 @@ via {{step_name.some.json.path}} — resolved against a running `context`
 dict, keyed by step name (the whole parsed response) *and* by any variable
 names the step explicitly `captures` out of it (see apply_captures below) —
 so a later step can use the short {{customer_id}} instead of needing to
-know {{create_customer.id}}'s full shape. `context` (both forms together)
-is what gets written to CallChainRun.result_file once the chain finishes,
-so it can be read back independently of the run's own DB rows.
+know {{create_customer.id}}'s full shape. A `*` path segment (e.g.
+itens.*.id) captures/looks up every matching value as a list instead of
+just one — see _walk. `context` (both forms together) is what gets written
+to CallChainRun.result_file once the chain finishes, so it can be read
+back independently of the run's own DB rows.
 """
 import json
 import re
@@ -25,7 +27,7 @@ from connections.client import ConnectionClient
 
 from .models import CallChainRun, CallChainStepResult
 
-VAR_RE = re.compile(r"\{\{\s*([A-Za-z_][A-Za-z0-9_-]*(?:\.[A-Za-z0-9_-]+)*)\s*\}\}")
+VAR_RE = re.compile(r"\{\{\s*([A-Za-z_][A-Za-z0-9_-]*(?:\.[A-Za-z0-9_*-]+)*)\s*\}\}")
 
 # Defense-in-depth alongside async_timeout_seconds — bounds the loop even if
 # async_interval_seconds is misconfigured to something tiny.
@@ -36,40 +38,51 @@ class TemplateResolutionError(Exception):
     pass
 
 
+def _walk(value, parts):
+    """Dotted-path walk shared by _lookup and _extract: each plain segment
+    indexes a dict key or a numeric (optionally negative) list index, same
+    as a single-value lookup always worked. A bare `*` segment instead means
+    "every item in this list" — it fans the rest of the path out across
+    each item and returns a list of results instead of one value, e.g.
+    path 'itens.*.id' against {"itens": [{"id": 1}, {"id": 2}]} returns
+    [1, 2] (a `*` against a non-list, or past the end of a path, yields
+    None/the list itself same as any other unresolved/terminal segment)."""
+    if not parts:
+        return value
+    part, rest = parts[0], parts[1:]
+    if part == "*":
+        if not isinstance(value, list):
+            return None
+        return [_walk(item, rest) for item in value]
+    if isinstance(value, dict):
+        value = value.get(part)
+    elif isinstance(value, list) and part.lstrip("-").isdigit():
+        idx = int(part)
+        value = value[idx] if -len(value) <= idx < len(value) else None
+    else:
+        value = None
+    return _walk(value, rest)
+
+
 def _lookup(dotted_path: str, context: dict):
     parts = dotted_path.split(".")
     if parts[0] not in context:
         raise TemplateResolutionError(
             f"{{{{{dotted_path}}}}} references step '{parts[0]}', which hasn't run yet (or doesn't exist)."
         )
-    value = context[parts[0]]
-    for part in parts[1:]:
-        if isinstance(value, dict):
-            value = value.get(part)
-        elif isinstance(value, list) and part.lstrip("-").isdigit():
-            idx = int(part)
-            value = value[idx] if -len(value) <= idx < len(value) else None
-        else:
-            value = None
-    return value
+    return _walk(context[parts[0]], parts[1:])
 
 
 def _extract(value, dotted_path: str):
-    """Same dotted dict/list walk as _lookup, but starting from an already-
-    known value (a step's own parsed response) rather than looking a name
-    up in the context — this is what turns a capture's `path` into the
-    value that gets stored under its `name`."""
+    """Same dotted dict/list/`*`-wildcard walk as _lookup (see _walk), but
+    starting from an already-known value (a step's own parsed response)
+    rather than looking a name up in the context — this is what turns a
+    capture's `path` into the value stored under its `name`. A `*` segment
+    (e.g. 'itens.*.id') captures every matching value as a list instead of
+    just one — e.g. every product id in a list response, to use later."""
     if not dotted_path or not dotted_path.strip():
         return value
-    for part in dotted_path.split("."):
-        if isinstance(value, dict):
-            value = value.get(part)
-        elif isinstance(value, list) and part.lstrip("-").isdigit():
-            idx = int(part)
-            value = value[idx] if -len(value) <= idx < len(value) else None
-        else:
-            value = None
-    return value
+    return _walk(value, dotted_path.split("."))
 
 
 def _extract_with_found(value, dotted_path: str):

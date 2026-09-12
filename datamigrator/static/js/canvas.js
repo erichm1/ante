@@ -266,12 +266,12 @@ function initCanvas(data) {
     createFieldMapping(sourceFieldId, targetFieldId, info.connection);
   });
 
-  jsp.bind('click', conn => {
+  jsp.bind('click', async conn => {
     const sourceFieldId = parseInt(conn.endpoints[0].getUuid().replace('src-field-', ''), 10);
     const targetFieldId = parseInt(conn.endpoints[1].getUuid().replace('tgt-field-', ''), 10);
     const key = `${sourceFieldId}-${targetFieldId}`;
     const fmId = fieldMappingByPair[key];
-    if (!fmId || !confirm('Remove this field mapping?')) return;
+    if (!fmId || !(await confirmModal('Remove this field mapping?'))) return;
     fetch(`/api/field-mappings/${fmId}/`, { method: 'DELETE' }).then(resp => {
       if (resp.ok) { jsp.deleteConnection(conn); delete fieldMappingByPair[key]; }
     });
@@ -394,31 +394,43 @@ function scheduleMigration() {
   // local wall-clock time, so Date() + toISOString() gives the server an
   // unambiguous UTC instant matching what the user actually picked.
   const scheduledAtIso = scheduleRaw ? new Date(scheduleRaw).toISOString() : null;
-  const rateLimitRaw = document.getElementById('rate_limit').value;
+  const rateLimitRps = rpmToRps(document.getElementById('rate_limit').value);
   const fileInput = document.getElementById('run_input_file');
-  const file = fileInput && fileInput.files[0];
+  const files = fileInput ? fileInput.files : [];
 
-  let body, headers;
-  if (file) {
-    // A file means multipart/form-data instead of JSON — request.FILES only
-    // gets populated for multipart requests, and the browser sets the
-    // correct Content-Type (with boundary) on its own when headers omits it.
+  let url, body;
+  const headers = {};
+  if (files.length > 1) {
+    // A batch: same mapping, one run per file, run sequentially server-side
+    // (see MigrationRunViewSet.trigger_batch) — scheduling doesn't apply.
+    url = '/api/runs/trigger-batch/';
     const formData = new FormData();
     formData.append('mapping_id', window.MAPPING_ID);
-    if (scheduledAtIso) formData.append('scheduled_at', scheduledAtIso);
-    if (rateLimitRaw) formData.append('rate_limit_per_second', rateLimitRaw);
-    formData.append('input_file', file);
+    if (rateLimitRps) formData.append('rate_limit_per_second', rateLimitRps);
+    for (const file of files) formData.append('input_files', file);
     body = formData;
-    headers = {};
   } else {
-    const payload = { mapping_id: window.MAPPING_ID };
-    if (scheduledAtIso) payload.scheduled_at = scheduledAtIso;
-    if (rateLimitRaw) payload.rate_limit_per_second = rateLimitRaw;
-    body = JSON.stringify(payload);
-    headers = { 'Content-Type': 'application/json' };
+    url = '/api/runs/trigger/';
+    if (files.length === 1) {
+      // A file means multipart/form-data instead of JSON — request.FILES only
+      // gets populated for multipart requests, and the browser sets the
+      // correct Content-Type (with boundary) on its own when headers omits it.
+      const formData = new FormData();
+      formData.append('mapping_id', window.MAPPING_ID);
+      if (scheduledAtIso) formData.append('scheduled_at', scheduledAtIso);
+      if (rateLimitRps) formData.append('rate_limit_per_second', rateLimitRps);
+      formData.append('input_file', files[0]);
+      body = formData;
+    } else {
+      const payload = { mapping_id: window.MAPPING_ID };
+      if (scheduledAtIso) payload.scheduled_at = scheduledAtIso;
+      if (rateLimitRps) payload.rate_limit_per_second = rateLimitRps;
+      body = JSON.stringify(payload);
+      headers['Content-Type'] = 'application/json';
+    }
   }
 
-  fetch('/api/runs/trigger/', { method: 'POST', headers, body }).then(async resp => {
+  fetch(url, { method: 'POST', headers, body }).then(async resp => {
     const body = await resp.json();
     if (!resp.ok) {
       errorBox.textContent = body.error || JSON.stringify(body);
@@ -426,8 +438,14 @@ function scheduleMigration() {
       return;
     }
     bootstrap.Modal.getInstance(document.getElementById('scheduleRunModal'))?.hide();
-    if (body.status === 'pending' && body.scheduled_at) {
-      alert(`Run #${body.id} scheduled for ${new Date(body.scheduled_at).toLocaleString()}${body.rate_limit_per_second ? ` at up to ${body.rate_limit_per_second} req/s` : ''}.`);
+    if (Array.isArray(body)) {
+      // Batch — N runs, executing sequentially in the background. The canvas's
+      // own run-stats widget only tracks one run at a time, so send them to
+      // the Runs page to watch the batch progress there instead.
+      alert(`Started a batch of ${body.length} runs (one per file) — they'll run one after another.`);
+      window.location.href = '/jobs/';
+    } else if (body.status === 'pending' && body.scheduled_at) {
+      alert(`Run #${body.id} scheduled for ${new Date(body.scheduled_at).toLocaleString()}${body.rate_limit_per_second ? ` at up to ${rpsToRpm(body.rate_limit_per_second)} req/min` : ''}.`);
     } else {
       // No schedule (or the chosen time had already passed) — it's running now.
       document.getElementById('runMigrationBtn').textContent = 'Running…';

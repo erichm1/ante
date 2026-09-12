@@ -22,8 +22,7 @@ async function savePlanEdit() {
     name: document.getElementById('ep_name').value.trim(),
     description: document.getElementById('ep_description').value,
   };
-  const rateLimitRaw = document.getElementById('ep_rate_limit').value;
-  payload.rate_limit_per_second = rateLimitRaw ? rateLimitRaw : null;
+  payload.rate_limit_per_second = rpmToRps(document.getElementById('ep_rate_limit').value);
 
   if (!payload.name) {
     errorBox.textContent = 'Name is required.';
@@ -45,7 +44,7 @@ async function savePlanEdit() {
 function openEditStepModal(stepId, currentRateLimit) {
   editingStepId = stepId;
   document.getElementById('editStepError').classList.add('d-none');
-  document.getElementById('es_rate_limit').value = currentRateLimit || '';
+  document.getElementById('es_rate_limit').value = rpsToRpm(currentRateLimit);
   new bootstrap.Modal(document.getElementById('editStepModal')).show();
 }
 
@@ -53,10 +52,9 @@ async function saveStepEdit() {
   const errorBox = document.getElementById('editStepError');
   errorBox.classList.add('d-none');
 
-  const rateLimitRaw = document.getElementById('es_rate_limit').value;
   const resp = await fetch(`/api/plan-steps/${editingStepId}/`, {
     method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ rate_limit_per_second: rateLimitRaw ? rateLimitRaw : null }),
+    body: JSON.stringify({ rate_limit_per_second: rpmToRps(document.getElementById('es_rate_limit').value) }),
   });
   if (resp.ok) {
     reload();
@@ -75,7 +73,7 @@ async function addStep() {
     payload = { chain_id: document.getElementById('as_chain').value };
   } else {
     payload = { mapping_id: document.getElementById('as_mapping').value };
-    const rateLimit = document.getElementById('as_rate_limit').value;
+    const rateLimit = rpmToRps(document.getElementById('as_rate_limit').value);
     if (rateLimit) payload.rate_limit_per_second = rateLimit;
   }
 
@@ -90,8 +88,8 @@ async function addStep() {
   }
 }
 
-function deletePlan() {
-  if (!confirm(`Delete plan "${window.PLAN_NAME}"? This can't be undone.`)) return;
+async function deletePlan() {
+  if (!(await confirmModal(`Delete plan "${window.PLAN_NAME}"? This can't be undone.`))) return;
   fetch(`/api/plans/${window.PLAN_ID}/`, { method: 'DELETE' }).then(async resp => {
     if (resp.ok) {
       window.location.href = '/plans/';
@@ -103,7 +101,7 @@ function deletePlan() {
 }
 
 async function removeStep(stepId) {
-  if (!confirm('Remove this step from the plan?')) return;
+  if (!(await confirmModal('Remove this step from the plan?'))) return;
   const resp = await fetch(`/api/plan-steps/${stepId}/`, { method: 'DELETE' });
   if (resp.ok) reload();
 }
@@ -125,8 +123,8 @@ function executePlanWithOptions() {
   const payload = {};
   const scheduleRaw = document.getElementById('ex_schedule_at').value;
   if (scheduleRaw) payload.scheduled_at = new Date(scheduleRaw).toISOString();
-  const rateLimitRaw = document.getElementById('ex_rate_limit').value;
-  if (rateLimitRaw) payload.rate_limit_per_second = rateLimitRaw;
+  const rateLimitRps = rpmToRps(document.getElementById('ex_rate_limit').value);
+  if (rateLimitRps) payload.rate_limit_per_second = rateLimitRps;
   runExecute(payload, 'executeError', 'executeOptionsModal');
 }
 
@@ -248,3 +246,65 @@ async function initPlanDetail() {
   if (resp.ok) showSnapshotModal(await resp.json());
   startPolling();
 }
+
+/* ---- Drag-and-drop step reordering --------------------------------------- */
+(function () {
+  const tbody = document.getElementById('stepsBody');
+  if (!tbody) return;
+  let dragging = null;
+
+  tbody.addEventListener('dragstart', function (e) {
+    const row = e.target.closest('tr[data-step-id]');
+    if (!row) return;
+    dragging = row;
+    row.classList.add('dnd-dragging');
+    e.dataTransfer.effectAllowed = 'move';
+  });
+
+  tbody.addEventListener('dragover', function (e) {
+    e.preventDefault();
+    const row = e.target.closest('tr[data-step-id]');
+    if (!row || row === dragging) return;
+    tbody.querySelectorAll('tr').forEach(r => r.classList.remove('dnd-over'));
+    row.classList.add('dnd-over');
+    const rows = Array.from(tbody.querySelectorAll('tr[data-step-id]'));
+    const fromIdx = rows.indexOf(dragging);
+    const toIdx   = rows.indexOf(row);
+    if (fromIdx < toIdx) row.after(dragging);
+    else row.before(dragging);
+  });
+
+  tbody.addEventListener('dragleave', function (e) {
+    const row = e.target.closest('tr[data-step-id]');
+    if (row) row.classList.remove('dnd-over');
+  });
+
+  tbody.addEventListener('dragend', async function () {
+    if (!dragging) return;
+    dragging.classList.remove('dnd-dragging');
+    tbody.querySelectorAll('tr').forEach(r => r.classList.remove('dnd-over'));
+
+    const finalId  = parseInt(dragging.dataset.stepId, 10);
+    const rows     = Array.from(tbody.querySelectorAll('tr[data-step-id]'));
+    const finalIdx = rows.indexOf(dragging);
+    /* Determine original 1-based order from the #-cell (second td after the handle) */
+    const orderCell = dragging.querySelector('td:nth-child(2)');
+    const myOrigOrder = parseInt(orderCell ? orderCell.textContent : '0', 10);
+    const delta = finalIdx - (myOrigOrder - 1);
+    const direction = delta > 0 ? 'down' : 'up';
+    const steps = Math.abs(delta);
+
+    dragging = null;
+    if (steps === 0) return;
+
+    for (let i = 0; i < steps; i++) {
+      const resp = await fetch(`/api/plan-steps/${finalId}/move/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ direction }),
+      });
+      if (!resp.ok) break;
+    }
+    reload();
+  });
+}());

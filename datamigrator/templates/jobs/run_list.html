@@ -4,21 +4,21 @@
 {% block content %}
   <div class="d-flex justify-content-between align-items-start">
     <div>
-      <div class="page-title">Runs</div>
-      <div class="page-subtitle">Every migration run and plan, live and historical.</div>
+      <div class="page-title" data-t="runs.title">Runs</div>
+      <div class="page-subtitle" data-t="runs.subtitle">Every migration run and plan, live and historical.</div>
     </div>
-    <button class="btn btn-signal" data-bs-toggle="modal" data-bs-target="#createRunModal">Create run</button>
+    <button class="btn btn-signal" data-bs-toggle="modal" data-bs-target="#createRunModal" data-t="runs.create">Create run</button>
   </div>
 
   {% if tab != 'plans' %}
     <form method="get" class="row g-2 align-items-end mb-3">
       <input type="hidden" name="tab" value="{{ tab }}">
       <div class="col-md-5">
-        <label class="form-label small mb-1">Search</label>
+        <label class="form-label small mb-1" data-t="lbl.search">Search</label>
         <input type="text" name="q" class="form-control form-control-sm" placeholder="Run #, mapping, connection, or entity name" value="{{ filters.q }}">
       </div>
       <div class="col-md-3">
-        <label class="form-label small mb-1">Integration</label>
+        <label class="form-label small mb-1" data-t="runs.lbl.integration">Integration</label>
         <select name="integration" class="form-select form-select-sm">
           <option value="">Any</option>
           {% for integ in integrations %}
@@ -27,20 +27,20 @@
         </select>
       </div>
       <div class="col-md-2">
-        <label class="form-label small mb-1">From</label>
+        <label class="form-label small mb-1" data-t="lbl.from">From</label>
         <input type="date" name="date_from" class="form-control form-control-sm" value="{{ filters.date_from }}">
       </div>
       <div class="col-md-2">
-        <label class="form-label small mb-1">To</label>
+        <label class="form-label small mb-1" data-t="lbl.to">To</label>
         <input type="date" name="date_to" class="form-control form-control-sm" value="{{ filters.date_to }}">
       </div>
       <div class="col-12 d-flex align-items-center gap-2">
-        <button type="submit" class="btn btn-sm btn-signal">Filter</button>
+        <button type="submit" class="btn btn-sm btn-signal" data-t="btn.filter">Filter</button>
         {% if filters.q or filters.integration or filters.date_from or filters.date_to %}
           <a href="?tab={{ tab }}" class="small">Clear filters ×</a>
         {% endif %}
         <div class="d-flex align-items-center gap-2 ms-auto">
-          <label class="text-dim small mb-0" for="pageSizeSelect">Per page</label>
+          <label class="text-dim small mb-0" for="pageSizeSelect" data-t="lbl.per_page">Per page</label>
           <select name="page_size" class="form-select form-select-sm" id="pageSizeSelect" style="width: auto;" onchange="gotoWithParam('page_size', this.value)">
             {% for size in page_size_choices %}
               <option value="{{ size }}" {% if size == page_size %}selected{% endif %}>{{ size }}</option>
@@ -52,12 +52,12 @@
   {% endif %}
 
   <ul class="nav nav-tabs mb-3">
-    <li class="nav-item"><a class="nav-link {% if tab == 'active' %}active{% endif %}" href="?tab=active">Active</a></li>
-    <li class="nav-item"><a class="nav-link {% if tab == 'pending' %}active{% endif %}" href="?tab=pending">Pending</a></li>
-    <li class="nav-item"><a class="nav-link {% if tab == 'scheduled' %}active{% endif %}" href="?tab=scheduled">Scheduled</a></li>
-    <li class="nav-item"><a class="nav-link {% if tab == 'failed' %}active{% endif %}" href="?tab=failed">Failed</a></li>
-    <li class="nav-item"><a class="nav-link {% if tab == 'finished' %}active{% endif %}" href="?tab=finished">Finished</a></li>
-    <li class="nav-item"><a class="nav-link {% if tab == 'plans' %}active{% endif %}" href="?tab=plans">Plans</a></li>
+    <li class="nav-item"><a class="nav-link {% if tab == 'active' %}active{% endif %}" href="?tab=active" data-t="runs.tab.active">Active</a></li>
+    <li class="nav-item"><a class="nav-link {% if tab == 'pending' %}active{% endif %}" href="?tab=pending" data-t="runs.tab.pending">Pending</a></li>
+    <li class="nav-item"><a class="nav-link {% if tab == 'scheduled' %}active{% endif %}" href="?tab=scheduled" data-t="runs.tab.scheduled">Scheduled</a></li>
+    <li class="nav-item"><a class="nav-link {% if tab == 'failed' %}active{% endif %}" href="?tab=failed" data-t="runs.tab.failed">Failed</a></li>
+    <li class="nav-item"><a class="nav-link {% if tab == 'finished' %}active{% endif %}" href="?tab=finished" data-t="runs.tab.finished">Finished</a></li>
+    <li class="nav-item"><a class="nav-link {% if tab == 'plans' %}active{% endif %}" href="?tab=plans" data-t="nav.plans">Plans</a></li>
   </ul>
 
   {% if tab == 'active' or tab == 'pending' or tab == 'scheduled' %}
@@ -72,7 +72,7 @@
         <table class="table align-middle mb-0" id="liveRunsTable">
           <thead>
             <tr>
-              <th>Run</th><th>Route</th><th>Status</th><th>Read</th><th>Written</th><th>Failed</th><th>Requests</th>
+              <th data-t="runs.th.run">Run</th><th data-t="runs.th.route">Route</th><th data-t="th.status">Status</th><th data-t="runs.th.read">Read</th><th data-t="runs.th.written">Written</th><th data-t="runs.th.failed">Failed</th><th data-t="runs.th.requests">Requests</th>
               <th>{% if tab == 'scheduled' %}Scheduled for{% else %}Started{% endif %}</th><th></th>
             </tr>
           </thead>
@@ -87,7 +87,7 @@
                 <td class="mono" id="run-failed-{{ run.pk }}">{{ run.records_failed }}</td>
                 <td class="mono">
                   <span id="run-requests-{{ run.pk }}">{{ run.requests_made }}</span>
-                  {% if run.rate_limit_per_second %}<div class="text-dim small">≤ {{ run.rate_limit_per_second }}/s</div>{% endif %}
+                  {% if run.rate_limit_per_second %}<div class="text-dim small">≤ {{ run.rate_limit_per_minute }}/min</div>{% endif %}
                 </td>
                 <td class="mono small">
                   {% if tab == 'scheduled' %}{{ run.scheduled_at|date:"Y-m-d H:i" }}{% else %}{{ run.started_at|date:"Y-m-d H:i:s" }}{% endif %}
@@ -215,13 +215,13 @@
           </div>
           <div class="mb-3">
             <label class="form-label">Rate limit <span class="text-dim">(optional)</span></label>
-            <input type="number" step="0.1" min="0.1" class="form-control" id="cr_rate_limit" placeholder="e.g. 5">
-            <div class="form-text">Max requests/second (source reads + destination writes combined). Leave blank for unthrottled.</div>
+            <input type="number" step="1" min="0.1" class="form-control" id="cr_rate_limit" placeholder="e.g. 60">
+            <div class="form-text">Max requests/minute (source reads + destination writes combined). Leave blank for unthrottled.</div>
           </div>
           <div class="mb-1">
-            <label class="form-label">Input file <span class="text-dim">(optional)</span></label>
-            <input type="file" class="form-control" id="cr_input_file" accept=".csv,.xlsx">
-            <div class="form-text">CSV/XLSX for this run only, if the mapping's source entity already has a file attached — read instead of that stored file.</div>
+            <label class="form-label">Input file(s) <span class="text-dim">(optional)</span></label>
+            <input type="file" class="form-control" id="cr_input_file" accept=".csv,.xlsx" multiple>
+            <div class="form-text">CSV/XLSX (header row, then data rows) for this run only, if the mapping's source entity already has a file attached — read instead of that stored file. Pick more than one to run them as a batch, one run per file, in order — "Schedule for" is ignored for a batch.</div>
           </div>
         </div>
         <div class="modal-footer">
@@ -256,34 +256,46 @@ function createRun() {
   // unambiguous UTC instant matching what was actually picked.
   const scheduleRaw = document.getElementById('cr_schedule_at').value;
   const scheduledAtIso = scheduleRaw ? new Date(scheduleRaw).toISOString() : null;
-  const rateLimitRaw = document.getElementById('cr_rate_limit').value;
+  const rateLimitRps = rpmToRps(document.getElementById('cr_rate_limit').value);
   const fileInput = document.getElementById('cr_input_file');
-  const file = fileInput && fileInput.files[0];
+  const files = fileInput ? fileInput.files : [];
 
-  let body, headers;
-  if (file) {
-    // A file means multipart/form-data instead of JSON — request.FILES only
-    // gets populated for multipart requests, and the browser sets the
-    // correct Content-Type (with boundary) on its own when headers omits it.
+  let url, body;
+  const headers = {};
+  if (files.length > 1) {
+    // A batch: same mapping, one run per file, run sequentially server-side
+    // (see MigrationRunViewSet.trigger_batch) — scheduling doesn't apply.
+    url = '/api/runs/trigger-batch/';
     const formData = new FormData();
     formData.append('mapping_id', mappingId);
-    if (scheduledAtIso) formData.append('scheduled_at', scheduledAtIso);
-    if (rateLimitRaw) formData.append('rate_limit_per_second', rateLimitRaw);
-    formData.append('input_file', file);
+    if (rateLimitRps) formData.append('rate_limit_per_second', rateLimitRps);
+    for (const file of files) formData.append('input_files', file);
     body = formData;
-    headers = {};
   } else {
-    const payload = { mapping_id: mappingId };
-    if (scheduledAtIso) payload.scheduled_at = scheduledAtIso;
-    if (rateLimitRaw) payload.rate_limit_per_second = rateLimitRaw;
-    body = JSON.stringify(payload);
-    headers = { 'Content-Type': 'application/json' };
+    url = '/api/runs/trigger/';
+    if (files.length === 1) {
+      // A file means multipart/form-data instead of JSON — request.FILES only
+      // gets populated for multipart requests, and the browser sets the
+      // correct Content-Type (with boundary) on its own when headers omits it.
+      const formData = new FormData();
+      formData.append('mapping_id', mappingId);
+      if (scheduledAtIso) formData.append('scheduled_at', scheduledAtIso);
+      if (rateLimitRps) formData.append('rate_limit_per_second', rateLimitRps);
+      formData.append('input_file', files[0]);
+      body = formData;
+    } else {
+      const payload = { mapping_id: mappingId };
+      if (scheduledAtIso) payload.scheduled_at = scheduledAtIso;
+      if (rateLimitRps) payload.rate_limit_per_second = rateLimitRps;
+      body = JSON.stringify(payload);
+      headers['Content-Type'] = 'application/json';
+    }
   }
 
   const btn = document.getElementById('createRunBtn');
   btn.disabled = true;
 
-  fetch('/api/runs/trigger/', { method: 'POST', headers, body }).then(async resp => {
+  fetch(url, { method: 'POST', headers, body }).then(async resp => {
     const body = await resp.json();
     btn.disabled = false;
     if (!resp.ok) {

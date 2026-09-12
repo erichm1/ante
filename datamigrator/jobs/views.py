@@ -30,6 +30,21 @@ def _start_now(mapping, rate_limit_per_second=None, input_file=None):
     return run
 
 
+def _parse_rate_limit(raw):
+    """Shared by trigger/trigger_batch: (parsed_value, error_response) — the
+    caller returns error_response as-is when it isn't None, else proceeds
+    with parsed_value (None means unthrottled, same as leaving it blank)."""
+    if raw in (None, ""):
+        return None, None
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        return None, Response({"error": "rate_limit_per_second must be a number."}, status=status.HTTP_400_BAD_REQUEST)
+    if value <= 0:
+        return None, Response({"error": "rate_limit_per_second must be greater than zero."}, status=status.HTTP_400_BAD_REQUEST)
+    return value, None
+
+
 class MigrationRunViewSet(viewsets.ModelViewSet):
     queryset = MigrationRun.objects.select_related("mapping").prefetch_related("logs", "step_statuses")
     serializer_class = MigrationRunSerializer
@@ -54,15 +69,9 @@ class MigrationRunViewSet(viewsets.ModelViewSet):
         scheduled_at_raw = request.data.get("scheduled_at")
         input_file = request.FILES.get("input_file")
 
-        rate_limit_raw = request.data.get("rate_limit_per_second")
-        rate_limit = None
-        if rate_limit_raw not in (None, ""):
-            try:
-                rate_limit = float(rate_limit_raw)
-            except (TypeError, ValueError):
-                return Response({"error": "rate_limit_per_second must be a number."}, status=status.HTTP_400_BAD_REQUEST)
-            if rate_limit <= 0:
-                return Response({"error": "rate_limit_per_second must be greater than zero."}, status=status.HTTP_400_BAD_REQUEST)
+        rate_limit, error_response = _parse_rate_limit(request.data.get("rate_limit_per_second"))
+        if error_response:
+            return error_response
 
         if not scheduled_at_raw:
             run = _start_now(mapping, rate_limit_per_second=rate_limit, input_file=input_file)
@@ -83,6 +92,34 @@ class MigrationRunViewSet(viewsets.ModelViewSet):
                 rate_limit_per_second=rate_limit, input_file=input_file,
             )
         return Response(MigrationRunSerializer(run).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=["post"], url_path="trigger-batch")
+    def trigger_batch(self, request):
+        """Batch variant of trigger(): the same mapping run once per uploaded
+        file — each file its own CSV/XLSX with a header row followed by data
+        rows, exactly like a single run's input_file (see
+        schemas/discovery.py::read_all_records_from_file), just N of them at
+        once instead of hand-triggering one run per file. Runs execute
+        sequentially in one background thread (jobs.engine.run_batch_in_background),
+        not one thread per file — see that function's docstring for why.
+        `rate_limit_per_second`, if given, applies to every run in the batch."""
+        mapping = get_object_or_404(Mapping, pk=request.data.get("mapping_id"))
+        files = request.FILES.getlist("input_files")
+        if not files:
+            return Response({"error": "Attach at least one file."}, status=status.HTTP_400_BAD_REQUEST)
+
+        rate_limit, error_response = _parse_rate_limit(request.data.get("rate_limit_per_second"))
+        if error_response:
+            return error_response
+
+        runs = [
+            MigrationRun.objects.create(
+                mapping=mapping, status=MigrationRun.STATUS_PENDING, rate_limit_per_second=rate_limit, input_file=f,
+            )
+            for f in files
+        ]
+        threading.Thread(target=engine.run_batch_in_background, args=([r.id for r in runs],), daemon=True).start()
+        return Response(MigrationRunSerializer(runs, many=True).data, status=status.HTTP_201_CREATED)
 
 
 def _connection_integration(connection):
@@ -120,22 +157,32 @@ def _attach_routes(runs):
     return runs
 
 
+DETAIL_PAGE_SIZE = 10
+
+
 def run_detail(request, pk):
     run = get_object_or_404(
         MigrationRun.objects.select_related(
             "mapping", "mapping__source_connection", "mapping__source_connection__integration_install__integration",
         ).prefetch_related(
-            "logs", "mapping__destination_connections__integration_install__integration",
+            "mapping__destination_connections__integration_install__integration",
             "mapping__entity_mappings__source_entity", "mapping__entity_mappings__target_entity",
         ),
         pk=pk,
     )
     run.route = _route_info(run.mapping)
-    api_calls = run.api_call_logs.select_related("connection")
-    return render(request, "jobs/run_detail.html", {"run": run, "api_calls": api_calls})
+
+    # Two independent paginators on the same page — separate query params
+    # (logs_page/calls_page) so paging through one doesn't reset the other.
+    logs_page = Paginator(run.logs.all(), DETAIL_PAGE_SIZE).get_page(request.GET.get("logs_page"))
+    api_calls_page = Paginator(
+        run.api_call_logs.select_related("connection"), DETAIL_PAGE_SIZE,
+    ).get_page(request.GET.get("calls_page"))
+
+    return render(request, "jobs/run_detail.html", {"run": run, "logs_page": logs_page, "api_calls_page": api_calls_page})
 
 
-PAGE_SIZE_CHOICES = (10, 25, 50)
+PAGE_SIZE_CHOICES = (10, 25, 50, 100)
 DEFAULT_PAGE_SIZE = 10
 
 

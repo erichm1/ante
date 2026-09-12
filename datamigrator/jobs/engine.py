@@ -106,17 +106,6 @@ def _assign_nested(out: dict, dotted_name: str, value) -> None:
     container[parts[-1]] = value
 
 
-def _extract_records(payload):
-    if isinstance(payload, list):
-        return payload
-    if isinstance(payload, dict):
-        for key in ("results", "data", "items"):
-            if isinstance(payload.get(key), list):
-                return payload[key]
-        return [payload]
-    return []
-
-
 def run_migration(run: MigrationRun) -> MigrationRun:
     """Executes `run` in place. `run` must already exist (status=running) so
     its id is known to the caller before this function's progress updates land."""
@@ -129,12 +118,16 @@ def run_migration(run: MigrationRun) -> MigrationRun:
     def throttle():
         """Sleeps just long enough to keep this run's combined read+write rate
         under run.rate_limit_per_second — the user's own flow-control knob,
-        set at trigger time (see MigrationRunViewSet.trigger) and left null
-        for the unthrottled default."""
+        set at trigger time (see MigrationRunViewSet.trigger) — falling back
+        to the mapping's connections' own configured rate_limit_per_second
+        (set on a connection's edit page) when the run didn't set one of its
+        own, so a rate-limited API stays protected by default. Null/no limit
+        anywhere in that chain means unthrottled."""
         nonlocal last_request_at
-        if not run.rate_limit_per_second:
+        limit = run.rate_limit_per_second or mapping.default_rate_limit_per_second
+        if not limit:
             return
-        min_interval = 1.0 / run.rate_limit_per_second
+        min_interval = 1.0 / limit
         now = time.monotonic()
         if last_request_at is not None:
             wait = min_interval - (now - last_request_at)
@@ -174,7 +167,7 @@ def run_migration(run: MigrationRun) -> MigrationRun:
                 response = source_client.get(entity.endpoint_path)
                 note_request()
                 response.raise_for_status()
-                records = _extract_records(response.json())
+                records = discovery.extract_records_from_payload(response.json())
                 _log(run, f"Fetched {len(records)} record(s).")
             source_records[entity.id] = records
             run.records_read += len(records)
@@ -308,5 +301,25 @@ def run_migration_in_background(run_id: int):
     try:
         run = MigrationRun.objects.select_related("mapping", "mapping__source_connection").get(pk=run_id)
         run_migration(run)
+    finally:
+        connections.close_all()
+
+
+def run_batch_in_background(run_ids):
+    """Entry point for a background thread running a batch of MigrationRuns
+    (see MigrationRunViewSet.trigger_batch — one uploaded file per run, same
+    mapping) one at a time, in the given order. Deliberately sequential, not
+    one thread per file: each run only throttles itself (see throttle()
+    above), so N runs firing in parallel against the same connection would
+    multiply straight past whatever rate_limit_per_second it's configured
+    with — running them one after another is what keeps the whole batch
+    under the connection's real cap, the same reasoning as plans/executor.py's
+    sequential step loop."""
+    try:
+        for run_id in run_ids:
+            run = MigrationRun.objects.select_related("mapping", "mapping__source_connection").get(pk=run_id)
+            run.status = MigrationRun.STATUS_RUNNING
+            run.save(update_fields=["status"])
+            run_migration(run)
     finally:
         connections.close_all()

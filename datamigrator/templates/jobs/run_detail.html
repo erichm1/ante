@@ -28,7 +28,7 @@
       <div class="col"><div class="text-dim small">Written</div><div class="mono" id="run-written">{{ run.records_written }}</div></div>
       <div class="col"><div class="text-dim small">Failed</div><div class="mono" id="run-failed">{{ run.records_failed }}</div></div>
       <div class="col"><div class="text-dim small">Requests</div><div class="mono" id="run-requests">{{ run.requests_made }}</div></div>
-      <div class="col"><div class="text-dim small">Rate limit</div><div class="mono">{% if run.rate_limit_per_second %}≤ {{ run.rate_limit_per_second }} rq/s{% else %}none{% endif %}</div></div>
+      <div class="col"><div class="text-dim small">Rate limit</div><div class="mono">{% if run.rate_limit_per_second %}≤ {{ run.rate_limit_per_minute }} rq/min{% else %}none{% endif %}</div></div>
       <div class="col"><div class="text-dim small">Started</div><div class="mono small">{{ run.started_at|date:"Y-m-d H:i:s" }}</div></div>
     </div>
   </div>
@@ -36,7 +36,7 @@
   <div class="panel">
     <h6 class="mb-3">Logs</h6>
     <div id="run-logs">
-      {% for log in run.logs.all %}
+      {% for log in logs_page %}
         <div class="d-flex gap-2 border-bottom py-1 small">
           <span class="text-dim mono">{{ log.created_at|date:"H:i:s" }}</span>
           {% if log.level == "error" %}
@@ -52,15 +52,16 @@
         <p class="text-dim small mb-0" id="noLogs">No log entries.</p>
       {% endfor %}
     </div>
+    {% include "jobs/_pagination.html" with page_obj=logs_page item_label="log entries" page_param="logs_page" %}
   </div>
 
   <div class="panel mt-3">
-    <h6 class="mb-3">API calls <span class="text-dim small">({{ api_calls|length }})</span></h6>
-    {% if api_calls %}
+    <h6 class="mb-3">API calls <span class="text-dim small">({{ api_calls_page.paginator.count }})</span></h6>
+    {% if api_calls_page %}
       <table class="table table-sm align-middle mb-0">
         <thead><tr><th></th><th>Method</th><th>URL</th><th>Status</th><th>Duration</th></tr></thead>
         <tbody>
-          {% for call in api_calls %}
+          {% for call in api_calls_page %}
             <tr style="cursor: pointer;" onclick="document.getElementById('call-detail-{{ call.pk }}').classList.toggle('d-none')">
               <td class="text-dim">▸</td>
               <td><span class="verb-badge verb-{{ call.method|lower }}">{{ call.method }}</span></td>
@@ -99,6 +100,7 @@
           {% endfor %}
         </tbody>
       </table>
+      {% include "jobs/_pagination.html" with page_obj=api_calls_page item_label="API calls" page_param="calls_page" %}
     {% else %}
       <p class="text-dim small mb-0">No API calls recorded for this run.</p>
     {% endif %}
@@ -124,7 +126,10 @@ function logLevelClass(level) {
 function renderLogs(logs) {
   const box = document.getElementById('run-logs');
   if (!logs.length) return;
-  box.innerHTML = logs.map(log => `
+  // Live tail while the run is still going — capped to the same page size
+  // (10) as the server-rendered pagination below, so a long-running
+  // migration doesn't dump hundreds of lines back into the page on every poll.
+  box.innerHTML = logs.slice(-10).map(log => `
     <div class="d-flex gap-2 border-bottom py-1 small">
       <span class="text-dim mono">${log.created_at.slice(11, 19)}</span>
       <span class="status-chip ${logLevelClass(log.level)}">${log.level}</span>

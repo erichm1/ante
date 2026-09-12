@@ -138,7 +138,7 @@ async function createEntity(connectionId) {
 }
 
 async function deleteEntity(entityId, name) {
-  const ok = confirm(
+  const ok = await confirmModal(
     `Delete entity "${name}"? This can't be undone — its fields, and any entity ` +
     `pairing (in any mapping) that uses it as a source or target, get deleted too.`
   );

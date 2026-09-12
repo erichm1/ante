@@ -2,8 +2,8 @@
 {% load static %}
 {% block title %}Status{% endblock %}
 {% block content %}
-  <div class="page-title">Status</div>
-  <div class="page-subtitle">Live health overview — background workers, connections, recent runs, and API errors.</div>
+  <div class="page-title" data-t="status.title">Status</div>
+  <div class="page-subtitle" data-t="status.subtitle">Live health overview — background workers, connections, recent runs, and API errors.</div>
 
   <div class="status-banner {{ overall }}" id="statusBanner">
     <span class="status-banner-dot"></span>
@@ -28,7 +28,7 @@
   <div class="row g-3 mt-1">
     <div class="col-md-6">
       <div class="panel h-100">
-        <h6 class="mb-3">Background workers</h6>
+        <h6 class="mb-3" data-t="status.workers">Background workers</h6>
         <div id="workersBox">
           {% for w in workers %}
             <div class="d-flex justify-content-between align-items-center border-bottom py-2" id="worker-row-{{ forloop.counter0 }}">
@@ -47,13 +47,13 @@
 
     <div class="col-md-6">
       <div class="panel h-100">
-        <h6 class="mb-3">Connections</h6>
+        <h6 class="mb-3" data-t="status.connections">Connections</h6>
         <div class="d-flex align-items-center justify-content-between border-bottom py-2">
-          <span>Connected</span>
+          <span data-t="status.connected">Connected</span>
           <span class="mono" id="connConnected">{{ connections.connected }}</span>
         </div>
         <div class="d-flex align-items-center justify-content-between py-2">
-          <span>Needs setup</span>
+          <span data-t="status.needs_setup">Needs setup</span>
           <span class="mono" id="connDisconnected">{{ connections.disconnected }}</span>
         </div>
         <a href="{% url 'integrations:list' %}?tab=installed" class="small">View all connections →</a>
@@ -62,13 +62,13 @@
 
     <div class="col-md-6">
       <div class="panel h-100">
-        <h6 class="mb-3">Recent runs <span class="text-dim small">— last {{ runs.window }}</span></h6>
+        <h6 class="mb-3"><span data-t="status.recent_runs">Recent runs</span> <span class="text-dim small">— last {{ runs.window }}</span></h6>
         <div class="d-flex align-items-center justify-content-between border-bottom py-2">
-          <span>Failure rate</span>
+          <span data-t="status.failure_rate">Failure rate</span>
           <span class="mono" id="runFailureRate">{{ runs.failure_rate_pct }}%</span>
         </div>
         <div class="d-flex align-items-center justify-content-between py-2">
-          <span>Active right now</span>
+          <span data-t="status.active_now">Active right now</span>
           <span class="mono" id="runActive">{{ runs.active }}</span>
         </div>
         <a href="{% url 'jobs:run_list' %}" class="small">View runs →</a>
@@ -77,18 +77,39 @@
 
     <div class="col-md-6">
       <div class="panel h-100">
-        <h6 class="mb-3">API errors <span class="text-dim small">— last {{ api_errors.window_hours }}h</span></h6>
+        <h6 class="mb-3"><span data-t="status.api_errors">API errors</span> <span class="text-dim small">— last {{ api_errors.window_hours }}h</span></h6>
         <div class="d-flex align-items-center justify-content-between border-bottom py-2">
-          <span>Errored calls</span>
+          <span data-t="status.errored_calls">Errored calls</span>
           <span class="mono" id="apiErrored">{{ api_errors.errored_calls }}</span>
         </div>
         <div class="d-flex align-items-center justify-content-between py-2">
-          <span>Total calls</span>
+          <span data-t="status.total_calls">Total calls</span>
           <span class="mono" id="apiTotal">{{ api_errors.total_calls }}</span>
         </div>
         <a href="{% url 'connections:logs' %}?q=error%3Atrue+since%3A1h" class="small">View errored calls →</a>
       </div>
     </div>
+  </div>
+
+  <!-- Endpoint honeycomb -->
+  <div class="panel mt-3">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h6 class="mb-0"><span data-t="status.endpoint_health">Endpoint health</span> <span class="text-dim small" data-t="status.endpoint_health_sub">— all-time call volume &amp; error rate</span></h6>
+      <div class="d-flex gap-3 small text-dim">
+        <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#2f9c94;vertical-align:middle;margin-right:4px"></span>ok</span>
+        <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#d98a2b;vertical-align:middle;margin-right:4px"></span>&lt;10% errors</span>
+        <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#c1453a;vertical-align:middle;margin-right:4px"></span>≥10% errors</span>
+      </div>
+    </div>
+    {% if honeycomb %}
+      <div id="honeycombWrap" style="overflow-x:auto;">
+        <canvas id="honeycombCanvas" style="display:block;"></canvas>
+      </div>
+      <div id="hexTooltip" style="position:fixed;display:none;z-index:200;pointer-events:none;background:var(--ink);color:#e7ecea;font-size:0.75rem;font-family:var(--font-mono);padding:6px 10px;border-radius:6px;max-width:280px;line-height:1.4;white-space:pre-wrap;box-shadow:0 4px 12px rgba(0,0,0,0.28)"></div>
+      {{ honeycomb|json_script:"honeycomb-data" }}
+    {% else %}
+      <p class="text-dim small mb-0">No API calls recorded yet. Make some migrations to populate endpoint data.</p>
+    {% endif %}
   </div>
 {% endblock %}
 
@@ -143,14 +164,171 @@ async function refreshStatus() {
     document.getElementById('statusReasons').innerHTML = data.reasons.map(r =>
       `<li class="small ${r.severity === 'down' ? 'text-danger' : 'text-dim'}"></li>`
     ).join('');
-    // set via textContent (not the template string above) to avoid re-introducing
-    // an HTML-injection risk from a message string built from live data
     document.querySelectorAll('#statusReasons li').forEach((li, i) => { li.textContent = data.reasons[i].message; });
+
+    if (data.honeycomb) renderHoneycomb(data.honeycomb);
   } catch (e) {
     // transient network hiccup — next tick retries
   }
 }
 
 setInterval(refreshStatus, 5000);
+
+/* ---- Honeycomb renderer --------------------------------------------------- */
+(function () {
+  const dataEl = document.getElementById('honeycomb-data');
+  if (!dataEl) return;
+  const initialData = JSON.parse(dataEl.textContent);
+
+  /* colours */
+  const COL_OK   = '#2f9c94';
+  const COL_WARN = '#d98a2b';
+  const COL_ERR  = '#c1453a';
+  const COL_BG   = getComputedStyle(document.documentElement).getPropertyValue('--panel').trim() || '#ffffff';
+
+  function hexColor(errorRate) {
+    if (errorRate <= 0)   return COL_OK;
+    if (errorRate < 0.10) return COL_WARN;
+    return COL_ERR;
+  }
+
+  function drawHex(ctx, cx, cy, r, fillColor) {
+    ctx.beginPath();
+    for (let i = 0; i < 6; i++) {
+      const angle = Math.PI / 180 * (60 * i - 30);
+      const x = cx + r * Math.cos(angle);
+      const y = cy + r * Math.sin(angle);
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    ctx.fillStyle = fillColor;
+    ctx.fill();
+  }
+
+  function labelInHex(ctx, cx, cy, r, text, color) {
+    ctx.fillStyle = color;
+    ctx.font = `${Math.max(9, Math.round(r * 0.28))}px var(--font-mono, monospace)`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    /* truncate label to fit */
+    const maxW = r * 1.5;
+    let label = text;
+    while (label.length > 2 && ctx.measureText(label).width > maxW) {
+      label = label.slice(0, -2) + '…';
+    }
+    ctx.fillText(label, cx, cy);
+  }
+
+  function layout(items) {
+    /* Pointy-top hexagons in offset columns:
+       column c, row r — same algorithm as most hexagonal grids. */
+    const maxCount = Math.max(...items.map(d => d.count), 1);
+    const R_MIN = 28, R_MAX = 60;
+    const hexes = items.map(d => ({
+      ...d,
+      r: Math.round(R_MIN + (d.count / maxCount) * (R_MAX - R_MIN)),
+    }));
+
+    /* Pack into rows of ~5 per row */
+    const cols = Math.min(items.length, 6);
+    const result = hexes.map((h, i) => {
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      const R = h.r;
+      const HW = R * Math.sqrt(3);          /* hex width  */
+      const VH = R * 1.5;                   /* vertical step */
+      const cx = col * HW + (row % 2 === 0 ? 0 : HW / 2) + R_MAX + 4;
+      const cy = row * VH + R_MAX + 4;
+      return { ...h, cx, cy };
+    });
+    return result;
+  }
+
+  function render(data) {
+    const canvas = document.getElementById('honeycombCanvas');
+    if (!canvas) return;
+    const items = layout(data);
+    if (!items.length) return;
+
+    const maxR = Math.max(...items.map(h => h.r));
+    const W = Math.ceil(Math.max(...items.map(h => h.cx + h.r * Math.sqrt(3) / 2)) + maxR + 8);
+    const H = Math.ceil(Math.max(...items.map(h => h.cy + h.r)) + maxR + 8);
+
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width  = W * dpr;
+    canvas.height = H * dpr;
+    canvas.style.width  = W + 'px';
+    canvas.style.height = H + 'px';
+
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+    ctx.clearRect(0, 0, W, H);
+
+    items.forEach(h => {
+      /* shadow hex (border effect) */
+      drawHex(ctx, h.cx, h.cy, h.r + 2, 'rgba(0,0,0,0.08)');
+      /* filled hex */
+      drawHex(ctx, h.cx, h.cy, h.r, hexColor(h.error_rate));
+      /* method label */
+      labelInHex(ctx, h.cx, h.cy - h.r * 0.2, h.r, h.method, 'rgba(255,255,255,0.9)');
+      /* path label (smaller, below method) */
+      const pathLabel = h.endpoint.replace(/^https?:\/\/[^/]+/, '');
+      ctx.fillStyle = 'rgba(255,255,255,0.72)';
+      ctx.font = `${Math.max(8, Math.round(h.r * 0.22))}px var(--font-mono, monospace)`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      let label = pathLabel || '/';
+      const maxW = h.r * 1.5;
+      while (label.length > 2 && ctx.measureText(label).width > maxW) {
+        label = label.slice(0, -2) + '…';
+      }
+      ctx.fillText(label, h.cx, h.cy + h.r * 0.22);
+    });
+
+    /* Tooltip handling */
+    canvas.onmousemove = function (e) {
+      const rect = canvas.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+      const tip = document.getElementById('hexTooltip');
+      let hit = null;
+      for (const h of items) {
+        const dist = Math.sqrt((mx - h.cx) ** 2 + (my - h.cy) ** 2);
+        if (dist < h.r * 0.95) { hit = h; break; }
+      }
+      if (hit) {
+        const errorPct = (hit.error_rate * 100).toFixed(1);
+        tip.textContent = `${hit.method} ${hit.endpoint}\n${hit.count} calls · ${hit.errors} errors (${errorPct}%)`;
+        tip.style.display = 'block';
+        tip.style.left = (e.clientX + 14) + 'px';
+        tip.style.top  = (e.clientY - 10) + 'px';
+        canvas.style.cursor = 'pointer';
+      } else {
+        tip.style.display = 'none';
+        canvas.style.cursor = 'default';
+      }
+    };
+    canvas.onmouseleave = function () {
+      document.getElementById('hexTooltip').style.display = 'none';
+    };
+    canvas.onclick = function (e) {
+      const rect = canvas.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+      for (const h of items) {
+        const dist = Math.sqrt((mx - h.cx) ** 2 + (my - h.cy) ** 2);
+        if (dist < h.r * 0.95) {
+          /* Navigate to logs filtered on this endpoint */
+          const q = encodeURIComponent(`url:${h.endpoint.replace(/^https?:\/\/[^/]+/, '')}`);
+          window.location.href = `/connections/logs/?q=${q}`;
+          break;
+        }
+      }
+    };
+  }
+
+  window.renderHoneycomb = render;
+  render(initialData);
+}());
 </script>
 {% endblock %}

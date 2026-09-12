@@ -275,13 +275,13 @@
           </div>
           <div class="mb-3">
             <label class="form-label">Rate limit <span class="text-dim">(optional)</span></label>
-            <input type="number" step="0.1" min="0.1" class="form-control" id="rate_limit" placeholder="e.g. 5">
-            <div class="form-text">Max requests/second (source reads + destination writes combined). Leave blank for unthrottled.</div>
+            <input type="number" step="1" min="0.1" class="form-control" id="rate_limit" placeholder="e.g. 60">
+            <div class="form-text">Max requests/minute (source reads + destination writes combined). Leave blank for unthrottled.</div>
           </div>
           <div class="mb-1">
-            <label class="form-label">Input file <span class="text-dim">(optional)</span></label>
-            <input type="file" class="form-control" id="run_input_file" accept=".csv,.xlsx">
-            <div class="form-text">CSV/XLSX for this run only — read instead of the source entity's own stored file, without touching the mapping itself. Only applies if the source entity already has a file attached (see its connection's "From file" tab).</div>
+            <label class="form-label">Input file(s) <span class="text-dim">(optional)</span></label>
+            <input type="file" class="form-control" id="run_input_file" accept=".csv,.xlsx" multiple>
+            <div class="form-text">CSV/XLSX (header row, then data rows) for this run only — read instead of the source entity's own stored file, without touching the mapping itself. Only applies if the source entity already has a file attached (see its connection's "From file" tab). Pick more than one to run them as a batch, one run per file, in order — "Run at" is ignored for a batch.</div>
           </div>
         </div>
         <div class="modal-footer">

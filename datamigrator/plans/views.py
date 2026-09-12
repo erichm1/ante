@@ -171,7 +171,7 @@ class PlanStepViewSet(viewsets.ModelViewSet):
 
 # ---- Page views -----------------------------------------------------------
 
-PAGE_SIZE_CHOICES = (10, 25, 50)
+PAGE_SIZE_CHOICES = (10, 25, 50, 100)
 DEFAULT_PAGE_SIZE = 10
 
 

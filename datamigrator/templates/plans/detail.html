@@ -42,6 +42,7 @@
     <table class="table align-middle mb-0">
       <thead>
         <tr>
+          {% if plan.is_editable %}<th style="width:28px"></th>{% endif %}
           <th>#</th>
           <th>{% if plan.execution_mode == "chain" %}Chain{% else %}Route{% endif %}</th>
           {% if plan.execution_mode != "chain" %}<th>Rate limit</th>{% endif %}
@@ -50,7 +51,8 @@
       </thead>
       <tbody id="stepsBody">
         {% for step in steps %}
-          <tr id="step-row-{{ step.pk }}">
+          <tr id="step-row-{{ step.pk }}" {% if plan.is_editable %}draggable="true" data-step-id="{{ step.pk }}"{% endif %}>
+            {% if plan.is_editable %}<td class="text-dim" style="cursor:grab;user-select:none;font-size:1rem;line-height:1;padding-right:0" title="Drag to reorder">⠿</td>{% endif %}
             <td class="mono">{{ step.order }}</td>
             {% if plan.execution_mode == "chain" %}
               <td>
@@ -67,7 +69,7 @@
             {% else %}
               <td>{% include "jobs/_route.html" with route=step.route %}</td>
               <td class="mono small">
-                {% if step.rate_limit_per_second %}≤ {{ step.rate_limit_per_second }}/s{% else %}plan default{% endif %}
+                {% if step.rate_limit_per_second %}≤ {{ step.rate_limit_per_minute }}/min{% else %}plan default{% endif %}
                 {% if plan.is_editable %}
                   <button type="button" class="entity-edit-btn" title="Edit rate limit" onclick="openEditStepModal({{ step.pk }}, {{ step.rate_limit_per_second|default:'null' }})"><i class="bi-pencil"></i></button>
                 {% endif %}
@@ -111,8 +113,8 @@
             </select>
           </div>
           <div>
-            <label class="form-label small mb-1">Rate limit <span class="text-dim">(optional)</span></label>
-            <input type="number" step="0.1" min="0.1" class="form-control form-control-sm" id="as_rate_limit" placeholder="plan default">
+            <label class="form-label small mb-1">Rate limit <span class="text-dim">(optional, req/min)</span></label>
+            <input type="number" step="1" min="0.1" class="form-control form-control-sm" id="as_rate_limit" placeholder="plan default">
           </div>
         {% endif %}
         <button class="btn btn-sm btn-signal" onclick="addStep()">+ Add step</button>
@@ -141,8 +143,8 @@
             <textarea class="form-control" id="ep_description" rows="2">{{ plan.description }}</textarea>
           </div>
           <div class="mb-1">
-            <label class="form-label">Default rate limit <span class="text-dim">(optional)</span></label>
-            <input type="number" step="0.1" min="0.1" class="form-control" id="ep_rate_limit" value="{{ plan.rate_limit_per_second|default:'' }}" placeholder="e.g. 5">
+            <label class="form-label">Default rate limit <span class="text-dim">(optional, req/min)</span></label>
+            <input type="number" step="1" min="0.1" class="form-control" id="ep_rate_limit" value="{{ plan.rate_limit_per_minute|default:'' }}" placeholder="e.g. 60">
             <div class="form-text">Applies to any step that doesn't set its own.</div>
           </div>
         </div>
@@ -163,8 +165,8 @@
         </div>
         <div class="modal-body">
           <div id="editStepError" class="alert alert-danger d-none"></div>
-          <label class="form-label">Rate limit <span class="text-dim">(optional)</span></label>
-          <input type="number" step="0.1" min="0.1" class="form-control" id="es_rate_limit" placeholder="plan default">
+          <label class="form-label">Rate limit <span class="text-dim">(optional, req/min)</span></label>
+          <input type="number" step="1" min="0.1" class="form-control" id="es_rate_limit" placeholder="plan default">
           <div class="form-text">Leave blank to fall back to the plan's default rate limit.</div>
         </div>
         <div class="modal-footer">
@@ -190,8 +192,8 @@
             <div class="form-text">Leave blank to execute immediately once you click below.</div>
           </div>
           <div class="mb-1">
-            <label class="form-label">Rate limit <span class="text-dim">(optional)</span></label>
-            <input type="number" step="0.1" min="0.1" class="form-control" id="ex_rate_limit" value="{{ plan.rate_limit_per_second|default:'' }}" placeholder="e.g. 5">
+            <label class="form-label">Rate limit <span class="text-dim">(optional, req/min)</span></label>
+            <input type="number" step="1" min="0.1" class="form-control" id="ex_rate_limit" value="{{ plan.rate_limit_per_minute|default:'' }}" placeholder="e.g. 60">
             <div class="form-text">Default for every step (a step's own rate limit still overrides this).</div>
           </div>
         </div>

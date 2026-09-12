@@ -76,6 +76,13 @@ class Connection(models.Model):
     custom_params = models.JSONField(
         default=dict, blank=True, help_text="{\"param-name\": \"value\", ...} — only applied when use_custom_params is on.",
     )
+    rate_limit_per_second = models.FloatField(
+        null=True, blank=True,
+        help_text="Max requests/second the app will send to this connection. Set this to whatever "
+                   "the external API actually allows to stop hitting HTTP 429 — every migration run "
+                   "touching this connection is throttled to it automatically unless the run sets its "
+                   "own, stricter rate_limit_per_second. Leave blank for no limit.",
+    )
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

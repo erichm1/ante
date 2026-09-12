@@ -39,6 +39,30 @@ def _top_endpoints(limit=5):
     ]
 
 
+def _endpoint_honeycomb_data(limit=30):
+    """Returns per-endpoint call counts and error counts for the honeycomb view."""
+    counter = Counter()
+    error_counter = Counter()
+    for method, url, status_code, error in ApiCallLog.objects.values_list("method", "url", "status_code", "error"):
+        parts = urlsplit(url)
+        path = parts.path.rstrip("/") or "/"
+        endpoint = f"{parts.scheme}://{parts.netloc}{path}" if parts.netloc else path
+        key = (method, endpoint)
+        counter[key] += 1
+        if error or (status_code and status_code >= 400):
+            error_counter[key] += 1
+    return [
+        {
+            "method": method,
+            "endpoint": endpoint,
+            "count": count,
+            "errors": error_counter.get((method, endpoint), 0),
+            "error_rate": round(error_counter.get((method, endpoint), 0) / count, 3) if count else 0,
+        }
+        for (method, endpoint), count in counter.most_common(limit)
+    ]
+
+
 def stats(request):
     runs = MigrationRun.objects.all()
 
@@ -169,8 +193,12 @@ def _compute_status_data():
 
 
 def status_page(request):
-    return render(request, "home/status.html", _compute_status_data())
+    data = _compute_status_data()
+    data["honeycomb"] = _endpoint_honeycomb_data()
+    return render(request, "home/status.html", data)
 
 
 def status_data(request):
-    return JsonResponse(_compute_status_data())
+    data = _compute_status_data()
+    data["honeycomb"] = _endpoint_honeycomb_data()
+    return JsonResponse(data)

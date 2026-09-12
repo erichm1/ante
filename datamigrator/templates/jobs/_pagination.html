@@ -1,14 +1,17 @@
 {% comment %}
 Shared pagination footer — expects `page_obj` (a Django Page), the
 static/js/pagination.js `gotoWithParam(name, value)` JS helper, and
-optionally `item_label` (defaults to "runs"; pass e.g. "plans" elsewhere).
+optionally `item_label` (defaults to "runs"; pass e.g. "plans" elsewhere)
+and `page_param` (defaults to "page" — pass a distinct name when more than
+one paginated list lives on the same page, e.g. "logs_page"/"calls_page" on
+jobs/run_detail.html, so paging through one doesn't reset the other).
 {% endcomment %}
 {% if page_obj.paginator.num_pages > 1 %}
   <div class="d-flex justify-content-between align-items-center mt-3">
     <span class="text-dim small">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }} ({{ page_obj.paginator.count }} {{ item_label|default:"runs" }})</span>
     <div class="d-flex gap-2">
-      {% if page_obj.has_previous %}<button type="button" class="btn btn-sm btn-outline-secondary" onclick="gotoWithParam('page', {{ page_obj.previous_page_number }})">← Prev</button>{% endif %}
-      {% if page_obj.has_next %}<button type="button" class="btn btn-sm btn-outline-secondary" onclick="gotoWithParam('page', {{ page_obj.next_page_number }})">Next →</button>{% endif %}
+      {% if page_obj.has_previous %}<button type="button" class="btn btn-sm btn-outline-secondary" onclick="gotoWithParam('{{ page_param|default:"page" }}', {{ page_obj.previous_page_number }})">← Prev</button>{% endif %}
+      {% if page_obj.has_next %}<button type="button" class="btn btn-sm btn-outline-secondary" onclick="gotoWithParam('{{ page_param|default:"page" }}', {{ page_obj.next_page_number }})">Next →</button>{% endif %}
     </div>
   </div>
 {% endif %}

@@ -1,4 +1,7 @@
+from django import forms
 from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
+
+from .models import Profile
 
 
 class BootstrapFormMixin:
@@ -18,3 +21,15 @@ class StyledAuthenticationForm(BootstrapFormMixin, AuthenticationForm):
 
 class StyledUserCreationForm(BootstrapFormMixin, UserCreationForm):
     pass
+
+
+class ProfileForm(BootstrapFormMixin, forms.ModelForm):
+    """avatar/company_icon carry FileExtensionValidator + a size check (see
+    Profile) — going through a real ModelForm (is_valid()) is what actually
+    runs those, unlike a bare instance.save() after assigning request.FILES
+    directly."""
+
+    class Meta:
+        model = Profile
+        fields = ["avatar", "company_name", "company_document", "company_icon"]
+
