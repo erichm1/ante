@@ -1133,9 +1133,9 @@
     });
   }
 
-  /* Build and inject the custom language selector into the sidebar footer */
+  /* Build and inject the custom language selector into the navbar end */
   function buildSelector() {
-    var footer = document.querySelector('.sidebar-footer');
+    var footer = document.querySelector('.nav-end');
     if (!footer) return;
 
     var lang = getLang();
@@ -1195,7 +1195,7 @@
 
     wrap.appendChild(menu);
     wrap.appendChild(btn);
-    footer.insertBefore(wrap, footer.firstChild);
+    footer.insertBefore(wrap, footer.firstChild); /* prepend before avatar/logout */
   }
 
   /* Boot */

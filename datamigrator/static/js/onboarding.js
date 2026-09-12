@@ -27,7 +27,7 @@
       id:    'nav-app-store',
       title: 'App Store',
       body:  'Start here. Browse 100+ pre-built connectors for REST APIs, CSV files, and spreadsheets. <strong>Install</strong> an integration to create an authenticated channel — a Connection — to that service.',
-      target: '.app-sidebar a[href="/app-store/"]',
+      target: '.nav-links a[href="/app-store/"]',
     },
     {
       id:    'app-store-tabs',
@@ -49,7 +49,7 @@
       id:    'nav-mappings',
       title: 'Mappings',
       body:  'A Mapping pairs a source Connection with one or more destination Connections and defines which data entities (API endpoints, CSV sheets) to move between them.',
-      target: '.app-sidebar a[href="/mappings/"]',
+      target: '.nav-links a[href="/mappings/"]',
     },
     {
       id:    'mappings-new',
@@ -64,7 +64,7 @@
       id:    'nav-canvas',
       title: 'Canvas',
       body:  'The Canvas is the visual field-wiring editor inside a Mapping. Drag teal dots (source fields) onto amber dots (destination fields) to map individual columns. One source field can fan out to multiple destinations.',
-      target: '.app-sidebar a[href="/mappings/canvas/"]',
+      target: '.nav-links a[href="/mappings/canvas/"]',
     },
     {
       id:    'canvas-page',
@@ -79,7 +79,7 @@
       id:    'nav-runs',
       title: 'Runs',
       body:  'Trigger a migration here: upload a CSV or XLSX file for file-backed connections, or kick off a live API pull for REST connections. Logs update in real time as records are processed.',
-      target: '.app-sidebar a[href="/jobs/"]',
+      target: '.nav-links a[href="/jobs/"]',
     },
     {
       id:    'runs-create',
@@ -94,7 +94,7 @@
       id:    'nav-plans',
       title: 'Plans',
       body:  'Plans bundle multiple Mappings into one ordered, sequential migration batch. Run them on demand or schedule them. Each step runs after the previous one completes, so you can chain dependent data moves.',
-      target: '.app-sidebar a[href="/plans/"]',
+      target: '.nav-links a[href="/plans/"]',
     },
     {
       id:    'plans-new',
@@ -109,7 +109,7 @@
       id:    'nav-chains',
       title: 'Chains',
       body:  'Chains compose multi-step API call sequences where each step can use captured values from the previous response. Useful for create-then-link patterns — e.g. create a customer, capture their ID, then create an order against that ID.',
-      target: '.app-sidebar a[href="/chains/"]',
+      target: '.nav-links a[href="/chains/"]',
     },
     {
       id:    'chains-new',
@@ -124,7 +124,7 @@
       id:    'nav-reports',
       title: 'Reports',
       body:  'Reports combine data from multiple entities into a single combined CSV export. Build one by dragging entities onto the canvas, picking the columns you want, and previewing the output — then download or call the export API.',
-      target: '.app-sidebar a[href="/reports/"]',
+      target: '.nav-links a[href="/reports/"]',
     },
     {
       id:    'reports-new',
@@ -139,7 +139,7 @@
       id:    'nav-logs',
       title: 'Logs',
       body:  'Every outbound API call made across all your Connections is recorded here — URL, method, status, response time, headers, and body. Think of it as Grafana Loki for your migrations.',
-      target: '.app-sidebar a[href="/connections/logs/"]',
+      target: '.nav-links a[href="/connections/logs/"]',
     },
     {
       id:    'logs-query',
@@ -318,7 +318,7 @@
        card off-screen, try left. If that also fails, center horizontally. */
     var CARD_W = 288;
     var GAP    = 20;
-    var rightLeft = Math.max(r.right + GAP, 252);  /* at least past the sidebar */
+    var rightLeft = r.right + GAP;
     var leftLeft  = r.left - CARD_W - GAP;
 
     var cardLeft;

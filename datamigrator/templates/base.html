@@ -14,66 +14,79 @@
 <body>
   {% csrf_token %}
   <div class="app-shell">
-    <nav class="app-sidebar">
-      <div class="brand"><img src="{% static 'img/logo.svg' %}" alt=""> Ante</div>
-      <a href="{% url 'home:index' %}"
-         class="{% if request.resolver_match.app_name == 'home' and request.resolver_match.url_name != 'status' %}active{% endif %}"
-         data-t-tip="tip.home" data-sb-tip="Dashboard — runs at a glance, recent activity, quick stats."><span data-t="nav.home">Home</span></a>
-      <a href="{% url 'home:status' %}"
-         class="{% if request.resolver_match.url_name == 'status' %}active{% endif %}"
-         data-t-tip="tip.status" data-sb-tip="Platform status — connection health, API call volumes, top endpoints."><span data-t="nav.status">Status</span></a>
-      <a href="{% url 'integrations:list' %}"
-         class="{% if request.resolver_match.app_name == 'integrations' or request.resolver_match.app_name == 'connections' and request.resolver_match.url_name != 'logs' %}active{% endif %}"
-         data-t-tip="tip.appstore" data-sb-tip="App Store — install connectors for REST APIs, CSV files, and spreadsheets. Then create Connections from each integration."><span data-t="nav.appstore">App Store</span></a>
-      {% if request.resolver_match.app_name == 'mappings' %}
-        <a href="{% url 'mappings:list' %}"
-           class="{% if request.resolver_match.url_name != 'canvas_list' and request.GET.tab != 'canvas' %}active{% endif %}"
-           data-t-tip="tip.mappings" data-sb-tip="Mappings — pair a source connection with one or more destinations and define which data entities to move."><span data-t="nav.mappings">Mappings</span></a>
-        <a href="{% url 'mappings:canvas_list' %}"
-           class="{% if request.resolver_match.url_name == 'canvas_list' or request.GET.tab == 'canvas' %}active{% endif %}"
-           data-t-tip="tip.canvas" data-sb-tip="Canvas — drag connector lines between source and destination fields to wire up column-level transformations visually."><span data-t="nav.canvas">Canvas</span></a>
-      {% else %}
-        <a href="{% url 'mappings:list' %}"
-           data-t-tip="tip.mappings" data-sb-tip="Mappings — pair a source connection with one or more destinations and define which data entities to move."><span data-t="nav.mappings">Mappings</span></a>
-        <a href="{% url 'mappings:canvas_list' %}"
-           data-t-tip="tip.canvas" data-sb-tip="Canvas — drag connector lines between source and destination fields to wire up column-level transformations visually."><span data-t="nav.canvas">Canvas</span></a>
-      {% endif %}
-      <a href="{% url 'jobs:run_list' %}"
-         class="{% if request.resolver_match.app_name == 'jobs' %}active{% endif %}"
-         data-t-tip="tip.runs" data-sb-tip="Runs — trigger a migration by uploading a file or pulling a live API. Logs update in real time as records are processed."><span data-t="nav.runs">Runs</span></a>
-      <a href="{% url 'plans:list' %}"
-         class="{% if request.resolver_match.app_name == 'plans' %}active{% endif %}"
-         data-t-tip="tip.plans" data-sb-tip="Plans — bundle multiple mappings into one ordered, sequential migration batch with scheduling support."><span data-t="nav.plans">Plans</span></a>
-      <a href="{% url 'chains:list' %}"
-         class="{% if request.resolver_match.app_name == 'chains' %}active{% endif %}"
-         data-t-tip="tip.chains" data-sb-tip="Chains — compose multi-step API call sequences where each step can use captured values from the previous response."><span data-t="nav.chains">Chains</span></a>
-      <a href="{% url 'reports:list' %}"
-         class="{% if request.resolver_match.app_name == 'reports' %}active{% endif %}"
-         data-t-tip="tip.reports" data-sb-tip="Reports — combine data from multiple entities into a single drag-and-drop CSV export, with on-screen preview."><span data-t="nav.reports">Reports</span></a>
-      <a href="{% url 'connections:logs' %}"
-         class="{% if request.resolver_match.url_name == 'logs' %}active{% endif %}"
-         data-t-tip="tip.logs" data-sb-tip="Logs — full history of every outbound API call made across all connections, with status codes and response times."><span data-t="nav.logs">Logs</span></a>
-      <a href="/admin/"
-         data-t-tip="tip.admin" data-sb-tip="Django admin — manage users, inspect raw database records, and configure system objects."><span data-t="nav.admin">Admin</span></a>
-      <div class="sidebar-footer">
-        {% if user.is_authenticated %}
-          <a href="{% url 'accounts:profile' %}"
-             class="sidebar-user"
-             data-t-tip="tip.profile" data-sb-tip="Profile — update your name, email, avatar, and company details."
-             aria-label="{{ user.username }} — profile">
-            {% if current_profile.avatar %}
-              <img src="{{ current_profile.avatar.url }}" alt="{{ user.username }}" class="sidebar-avatar">
-            {% else %}
-              <i class="bi-person-circle sidebar-avatar-fallback"></i>
-            {% endif %}
-          </a>
-          <form method="post" action="{% url 'accounts:logout' %}">
-            {% csrf_token %}
-            <button type="submit" class="sidebar-logout" data-t="nav.logout">Log out</button>
-          </form>
-        {% endif %}
-      </div>
-    </nav>
+    <header class="app-navbar">
+      <a href="{% url 'home:index' %}" class="nav-brand">
+        <img src="{% static 'img/logo.svg' %}" alt=""> Ante
+      </a>
+
+      <div class="nav-drawer" id="navDrawer">
+        <nav class="nav-links" id="navLinks">
+          <a href="{% url 'home:index' %}"
+             class="{% if request.resolver_match.app_name == 'home' and request.resolver_match.url_name != 'status' %}active{% endif %}"
+             data-t-tip="tip.home" data-sb-tip="Dashboard — runs at a glance, recent activity, quick stats."><span data-t="nav.home">Home</span></a>
+          <a href="{% url 'home:status' %}"
+             class="{% if request.resolver_match.url_name == 'status' %}active{% endif %}"
+             data-t-tip="tip.status" data-sb-tip="Platform status — connection health, API call volumes, top endpoints."><span data-t="nav.status">Status</span></a>
+          <a href="{% url 'integrations:list' %}"
+             class="{% if request.resolver_match.app_name == 'integrations' or request.resolver_match.app_name == 'connections' and request.resolver_match.url_name != 'logs' %}active{% endif %}"
+             data-t-tip="tip.appstore" data-sb-tip="App Store — install connectors for REST APIs, CSV files, and spreadsheets. Then create Connections from each integration."><span data-t="nav.appstore">App Store</span></a>
+          {% if request.resolver_match.app_name == 'mappings' %}
+            <a href="{% url 'mappings:list' %}"
+               class="{% if request.resolver_match.url_name != 'canvas_list' and request.GET.tab != 'canvas' %}active{% endif %}"
+               data-t-tip="tip.mappings" data-sb-tip="Mappings — pair a source connection with one or more destinations and define which data entities to move."><span data-t="nav.mappings">Mappings</span></a>
+            <a href="{% url 'mappings:canvas_list' %}"
+               class="{% if request.resolver_match.url_name == 'canvas_list' or request.GET.tab == 'canvas' %}active{% endif %}"
+               data-t-tip="tip.canvas" data-sb-tip="Canvas — drag connector lines between source and destination fields to wire up column-level transformations visually."><span data-t="nav.canvas">Canvas</span></a>
+          {% else %}
+            <a href="{% url 'mappings:list' %}"
+               data-t-tip="tip.mappings" data-sb-tip="Mappings — pair a source connection with one or more destinations and define which data entities to move."><span data-t="nav.mappings">Mappings</span></a>
+            <a href="{% url 'mappings:canvas_list' %}"
+               data-t-tip="tip.canvas" data-sb-tip="Canvas — drag connector lines between source and destination fields to wire up column-level transformations visually."><span data-t="nav.canvas">Canvas</span></a>
+          {% endif %}
+          <a href="{% url 'jobs:run_list' %}"
+             class="{% if request.resolver_match.app_name == 'jobs' %}active{% endif %}"
+             data-t-tip="tip.runs" data-sb-tip="Runs — trigger a migration by uploading a file or pulling a live API. Logs update in real time as records are processed."><span data-t="nav.runs">Runs</span></a>
+          <a href="{% url 'plans:list' %}"
+             class="{% if request.resolver_match.app_name == 'plans' %}active{% endif %}"
+             data-t-tip="tip.plans" data-sb-tip="Plans — bundle multiple mappings into one ordered, sequential migration batch with scheduling support."><span data-t="nav.plans">Plans</span></a>
+          <a href="{% url 'chains:list' %}"
+             class="{% if request.resolver_match.app_name == 'chains' %}active{% endif %}"
+             data-t-tip="tip.chains" data-sb-tip="Chains — compose multi-step API call sequences where each step can use captured values from the previous response."><span data-t="nav.chains">Chains</span></a>
+          <a href="{% url 'reports:list' %}"
+             class="{% if request.resolver_match.app_name == 'reports' %}active{% endif %}"
+             data-t-tip="tip.reports" data-sb-tip="Reports — combine data from multiple entities into a single drag-and-drop CSV export, with on-screen preview."><span data-t="nav.reports">Reports</span></a>
+          <a href="{% url 'connections:logs' %}"
+             class="{% if request.resolver_match.url_name == 'logs' %}active{% endif %}"
+             data-t-tip="tip.logs" data-sb-tip="Logs — full history of every outbound API call made across all connections, with status codes and response times."><span data-t="nav.logs">Logs</span></a>
+          <a href="/admin/"
+             data-t-tip="tip.admin" data-sb-tip="Django admin — manage users, inspect raw database records, and configure system objects."><span data-t="nav.admin">Admin</span></a>
+        </nav>
+
+        <div class="nav-end" id="navEnd">
+          {% if user.is_authenticated %}
+            <a href="{% url 'accounts:profile' %}"
+               class="nav-avatar"
+               data-t-tip="tip.profile" data-sb-tip="Profile — update your name, email, avatar, and company details."
+               aria-label="{{ user.username }} — profile">
+              {% if current_profile.avatar %}
+                <img src="{{ current_profile.avatar.url }}" alt="{{ user.username }}" class="nav-avatar-img">
+              {% else %}
+                <i class="bi-person-circle nav-avatar-fallback"></i>
+              {% endif %}
+            </a>
+            <form method="post" action="{% url 'accounts:logout' %}">
+              {% csrf_token %}
+              <button type="submit" class="nav-logout" data-t="nav.logout">Log out</button>
+            </form>
+          {% endif %}
+        </div>
+      </div><!-- /nav-drawer -->
+
+      <button class="nav-toggle" id="navToggle" aria-expanded="false" aria-controls="navDrawer" aria-label="Open navigation">
+        <i class="bi-list"></i>
+      </button>
+    </header>
+
     <main class="app-main">
       {% if messages %}
         {% for message in messages %}
@@ -128,14 +141,25 @@
   <script src="{% static 'js/onboarding.js' %}"></script>
   {% endif %}
   <script>
-  /* Sidebar tooltips: set --sb-tip-top to the vertical centre of each hovered
-     link so the fixed-position ::after pseudo-element aligns with the link. */
-  document.querySelectorAll('.app-sidebar [data-sb-tip]').forEach(function (el) {
-    el.addEventListener('mouseenter', function () {
-      var r = el.getBoundingClientRect();
-      el.style.setProperty('--sb-tip-top', Math.round(r.top + r.height / 2) + 'px');
+  /* Hamburger toggle */
+  (function () {
+    var toggle = document.getElementById('navToggle');
+    var drawer = document.getElementById('navDrawer');
+    if (!toggle || !drawer) return;
+    toggle.addEventListener('click', function () {
+      var open = drawer.classList.toggle('open');
+      toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+      toggle.querySelector('i').className = open ? 'bi-x' : 'bi-list';
     });
-  });
+    /* Close drawer when a nav link is tapped on mobile */
+    drawer.querySelectorAll('.nav-links a').forEach(function (a) {
+      a.addEventListener('click', function () {
+        drawer.classList.remove('open');
+        toggle.setAttribute('aria-expanded', 'false');
+        toggle.querySelector('i').className = 'bi-list';
+      });
+    });
+  }());
   </script>
   {% block extra_scripts %}{% endblock %}
 </body>

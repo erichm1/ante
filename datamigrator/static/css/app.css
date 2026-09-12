@@ -26,20 +26,24 @@ code, .mono, .field-type, .endpoint-path, .schema-name {
 
 .text-dim { color: var(--text-dim); }
 
-/* -- Shell layout -- */
-.app-shell { display: flex; min-height: 100vh; }
+/* -- Shell layout (mobile-first: column flow) -- */
+.app-shell { display: flex; flex-direction: column; min-height: 100vh; }
 
-.app-sidebar {
-  width: 232px;
-  flex-shrink: 0;
+/* -- Top navbar -- */
+.app-navbar {
   background: var(--ink);
   color: #e7ecea;
-  padding: 24px 0;
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  position: sticky;
+  top: 0;
+  z-index: 200;
+  height: 52px;
+  padding: 0 16px;
+  gap: 0;
 }
 
-.app-sidebar .brand {
+.nav-brand {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -47,64 +51,139 @@ code, .mono, .field-type, .endpoint-path, .schema-name {
   font-size: 0.95rem;
   letter-spacing: 0.02em;
   color: #fff;
-  padding: 0 20px 20px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  margin-bottom: 12px;
+  text-decoration: none;
+  flex-shrink: 0;
+  padding-right: 16px;
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
 }
+.nav-brand img { width: 20px; height: 20px; }
 
-.app-sidebar .brand .dot { color: var(--trace); }
-.app-sidebar .brand img { width: 20px; height: 20px; }
+/* Mobile drawer: hidden until .open */
+.nav-drawer {
+  display: none;
+  position: fixed;
+  top: 52px;
+  left: 0;
+  right: 0;
+  background: var(--ink);
+  z-index: 199;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  flex-direction: column;
+  max-height: calc(100vh - 52px);
+  overflow-y: auto;
+}
+.nav-drawer.open { display: flex; }
 
-.app-sidebar a {
+.nav-links { display: flex; flex-direction: column; }
+.nav-links a {
   display: block;
-  padding: 9px 20px;
+  padding: 10px 20px;
   color: #b9c4c1;
   text-decoration: none;
   font-size: 0.92rem;
-  border-left: 2px solid transparent;
+  border-left: 3px solid transparent;
 }
+.nav-links a:hover { color: #fff; background: var(--ink-soft); }
+.nav-links a.active { color: #fff; border-left-color: var(--trace); background: var(--ink-soft); }
 
-.app-sidebar a:hover { color: #fff; background: var(--ink-soft); }
-
-.app-sidebar a.active {
-  color: #fff;
-  border-left-color: var(--trace);
-  background: var(--ink-soft);
-}
-
-.sidebar-footer {
-  margin-top: auto;
-  padding: 16px 20px 0;
+.nav-end {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px 16px;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-.sidebar-user { display: flex; align-items: center; gap: 8px; color: #e7ecea; font-size: 0.82rem; margin-bottom: 8px; text-decoration: none; }
-.sidebar-user:hover { color: #fff; }
-.sidebar-user:hover span { text-decoration: underline; }
+/* Hamburger: visible on mobile */
+.nav-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: #e7ecea;
+  font-size: 1.5rem;
+  padding: 6px 4px;
+  cursor: pointer;
+  margin-left: auto;
+  line-height: 1;
+}
+.nav-toggle:hover { color: #fff; }
 
-.sidebar-avatar {
+/* Profile in navbar */
+.nav-avatar { display: flex; align-items: center; color: #e7ecea; text-decoration: none; }
+.nav-avatar:hover { color: #fff; }
+.nav-avatar-img {
   width: 28px;
   height: 28px;
   border-radius: 50%;
   object-fit: cover;
   border: 1px solid rgba(255, 255, 255, 0.15);
 }
-.sidebar-avatar-fallback { font-size: 1.4rem; line-height: 1; color: #b9c4c1; }
+.nav-avatar-fallback { font-size: 1.4rem; line-height: 1; color: #b9c4c1; }
 
-.sidebar-logout {
+.nav-logout {
   background: none;
   border: none;
   color: #b9c4c1;
   font-size: 0.85rem;
   padding: 0;
   cursor: pointer;
+  white-space: nowrap;
 }
-.sidebar-logout:hover { color: #fff; text-decoration: underline; }
+.nav-logout:hover { color: #fff; text-decoration: underline; }
 
-/* No max-width here — flex:1 should fill whatever space is left next to the
-   sidebar on every page; a fixed cap left a growing dead gutter on wider
-   viewports and made pages feel inconsistent with each other. */
-.app-main { flex: 1; padding: 32px 40px; min-width: 0; }
+/* Main content */
+.app-main { flex: 1; padding: 16px; min-width: 0; }
+
+/* -- Desktop navbar (≥768px) -- */
+@media (min-width: 768px) {
+  .nav-drawer {
+    display: flex !important;
+    position: static;
+    background: transparent;
+    border-bottom: none;
+    flex-direction: row;
+    flex: 1;
+    align-items: stretch;
+    min-width: 0;
+    max-height: none;
+    overflow-y: visible;
+  }
+  .nav-links {
+    flex-direction: row;
+    flex: 1;
+    overflow-x: auto;
+    align-items: stretch;
+    scrollbar-width: none;
+  }
+  .nav-links::-webkit-scrollbar { display: none; }
+  .nav-links a {
+    display: flex;
+    align-items: center;
+    padding: 0 14px;
+    height: 52px;
+    white-space: nowrap;
+    border-left: none;
+    border-bottom: 2px solid transparent;
+  }
+  .nav-links a.active {
+    border-left-color: transparent;
+    border-bottom-color: var(--trace);
+    background: transparent;
+    color: #fff;
+  }
+  .nav-links a:hover { background: var(--ink-soft); border-bottom-color: rgba(255,255,255,0.1); }
+  .nav-end {
+    border-top: none;
+    padding: 0;
+    margin-left: auto;
+    flex-shrink: 0;
+    gap: 10px;
+  }
+  .nav-toggle { display: none; }
+  .app-main { padding: 32px 40px; }
+}
 
 .page-title { font-size: 1.4rem; font-weight: 600; margin-bottom: 4px; }
 .page-subtitle { color: var(--text-dim); margin-bottom: 24px; }
@@ -745,83 +824,10 @@ code, .mono, .field-type, .endpoint-path, .schema-name {
 
 /* ── /onboarding ─────────────────────────────────────────────────────────── */
 
-/* ── Sidebar tooltips ────────────────────────────────────────────────────── */
-
-/* Every sidebar link that carries data-sb-tip gets a custom tooltip on hover.
-   The tooltip appears to the right of the sidebar (right of the 232px nav),
-   uses the same ink palette as the sidebar itself, and fades + slides in. */
-
-.app-sidebar [data-sb-tip] {
-  position: relative;
-}
-
-/* The tooltip bubble */
-.app-sidebar [data-sb-tip]::after {
-  content: attr(data-sb-tip);
-  position: fixed;           /* fixed so it escapes the sidebar stacking context */
-  left: 244px;               /* 232px sidebar + 12px gap */
-  /* top is set to match the hovered link via --sb-top (see JS) */
-  top: var(--sb-tip-top, 0px);
-  transform: translateY(-50%) translateX(4px);
-  pointer-events: none;
-
-  /* Appearance */
-  max-width: 240px;
-  padding: 8px 12px;
-  background: var(--ink);
-  color: #e7ecea;
-  font-size: 0.775rem;
-  font-family: var(--font-ui);
-  line-height: 1.5;
-  border-radius: 6px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.28);
-  white-space: normal;
-  word-break: break-word;
-  z-index: 8000;
-
-  /* Hidden by default */
-  opacity: 0;
-  visibility: hidden;
-  transition: opacity 0.15s ease, transform 0.15s ease, visibility 0s linear 0.15s;
-}
-
-/* Arrow pointing left toward the sidebar link */
-.app-sidebar [data-sb-tip]::before {
-  content: '';
-  position: fixed;
-  left: 238px;               /* just left of the bubble */
-  top: var(--sb-tip-top, 0px);
-  transform: translateY(-50%) translateX(4px);
-  pointer-events: none;
-  width: 0; height: 0;
-  border-top: 6px solid transparent;
-  border-bottom: 6px solid transparent;
-  border-right: 6px solid var(--ink);
-  z-index: 8001;
-
-  opacity: 0;
-  visibility: hidden;
-  transition: opacity 0.15s ease, transform 0.15s ease, visibility 0s linear 0.15s;
-}
-
-/* Show on hover */
-.app-sidebar [data-sb-tip]:hover::after,
-.app-sidebar [data-sb-tip]:hover::before {
-  opacity: 1;
-  visibility: visible;
-  transform: translateY(-50%) translateX(0);
-  transition-delay: 0s;
-}
-
-/* The profile link in the footer uses a slightly different layout */
-.sidebar-user[data-sb-tip]::after {
-  top: var(--sb-tip-top, 0px);
-}
-.sidebar-user[data-sb-tip]::before {
-  top: var(--sb-tip-top, 0px);
-}
-
-/* ── /sidebar tooltips ───────────────────────────────────────────────────── */
+/* ── Nav tooltips (desktop: show data-sb-tip as title-style tooltip below) ── */
+/* Tooltips are handled natively via title attribute on desktop;
+   data-sb-tip is used by i18n.js to keep them translated. */
+/* ── /nav tooltips ───────────────────────────────────────────────────────── */
 
 /* -- Log template query chips ----------------------------------------------- */
 .log-tpl-btn {
@@ -847,11 +853,10 @@ tr.dnd-dragging { opacity: 0.4; }
 tr.dnd-over td { background: var(--trace-soft); }
 /* ── /dnd row states ─────────────────────────────────────────────────────── */
 
-/* -- Language selector in sidebar footer ------------------------------------ */
+/* -- Language selector in navbar end ---------------------------------------- */
 .lang-selector {
   display: flex;
-  justify-content: center;
-  padding: 2px 12px 6px;
+  align-items: center;
   position: relative;
 }
 .lang-btn {
@@ -887,14 +892,14 @@ tr.dnd-over td { background: var(--trace-soft); }
 
 .lang-menu {
   position: absolute;
-  bottom: calc(100% + 6px);
-  left: 8px;
-  right: 8px;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 160px;
   background: #1a2125;
   border: 1px solid rgba(255,255,255,0.12);
   border-radius: 10px;
   padding: 4px;
-  box-shadow: 0 -8px 28px rgba(0,0,0,0.45);
+  box-shadow: 0 8px 28px rgba(0,0,0,0.45);
   z-index: 500;
   display: none;
   max-height: 300px;
