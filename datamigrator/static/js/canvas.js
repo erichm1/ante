@@ -370,18 +370,7 @@ function runMigration() {
       btn.textContent = 'Run migration';
       return;
     }
-    btn.textContent = 'Running…';
-    startRunPolling(body.id);
-
-    const statsBox = document.getElementById('runStats');
-    if (!document.getElementById('viewPipelineLink')) {
-      const pipelineLink = document.createElement('a');
-      pipelineLink.id = 'viewPipelineLink';
-      pipelineLink.href = `/jobs/runs/${body.id}/snapshot/`;
-      pipelineLink.className = 'small ms-2';
-      pipelineLink.textContent = 'View live pipeline →';
-      statsBox.appendChild(pipelineLink);
-    }
+    window.location.href = `/jobs/runs/${body.id}/`;
   });
 }
 
@@ -447,9 +436,8 @@ function scheduleMigration() {
     } else if (body.status === 'pending' && body.scheduled_at) {
       alert(`Run #${body.id} scheduled for ${new Date(body.scheduled_at).toLocaleString()}${body.rate_limit_per_second ? ` at up to ${rpsToRpm(body.rate_limit_per_second)} req/min` : ''}.`);
     } else {
-      // No schedule (or the chosen time had already passed) — it's running now.
-      document.getElementById('runMigrationBtn').textContent = 'Running…';
-      startRunPolling(body.id);
+      // No schedule (or the chosen time had already passed) — go straight to run detail.
+      window.location.href = `/jobs/runs/${body.id}/`;
     }
   });
 }

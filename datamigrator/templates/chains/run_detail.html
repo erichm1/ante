@@ -1,22 +1,21 @@
 {% extends "base.html" %}
 {% load static %}
 {% block title %}Run #{{ run.pk }} · {{ chain.name }}{% endblock %}
-{% block content %}
 
+{% block content %}
   <div class="d-flex align-items-center gap-2 mb-1 flex-wrap">
     <a href="{% url 'chains:detail' chain.pk %}" class="text-dim small">← {{ chain.name }}</a>
   </div>
 
-  <div class="d-flex justify-content-between align-items-start page-actions">
+  <div class="d-flex justify-content-between align-items-center page-actions">
     <div>
-      <div class="page-title mb-1">Run #{{ run.pk }}
+      <div class="page-title mb-1">
+        Run #{{ run.pk }}
         <span class="status-chip {% if run.status == 'success' %}ok{% else %}err{% endif %} ms-2">{{ run.status }}</span>
       </div>
       <div class="text-dim small mono">
         {{ run.started_at|date:"Y-m-d H:i:s" }}
-        {% if run.finished_at %}
-          · finished {{ run.finished_at|date:"H:i:s" }}
-        {% endif %}
+        {% if run.finished_at %}· finished {{ run.finished_at|date:"H:i:s" }}{% endif %}
         · {{ chain.connection.name }}
       </div>
     </div>
@@ -25,167 +24,235 @@
     {% endif %}
   </div>
 
-  <!-- Flow canvas -->
-  <div class="panel mt-3">
-    <h6 class="mb-3 text-dim small text-uppercase" style="letter-spacing:.06em">Execution flow</h6>
-    <div class="chain-canvas" id="chainCanvas">
-      {% for node in nodes %}
-        <div class="chain-node chain-node-{{ node.node_status }}" id="node-{{ forloop.counter0 }}"
-             onclick="selectNode({{ forloop.counter0 }})" style="cursor:pointer">
-          <div class="chain-node-order">{{ node.step.order }}</div>
-          <div class="chain-node-name mono">{{ node.step.name }}</div>
-          <div class="chain-node-method">
-            <span class="verb-badge verb-{{ node.step.method|lower }}">{{ node.step.method }}</span>
-          </div>
-          <div class="chain-node-path mono small text-dim" title="{{ node.step.path }}">{{ node.step.path }}</div>
-          {% if node.result %}
-            <div class="chain-node-status mt-1">
-              {% if node.node_status == "success" %}
-                <span class="sla-chip sla-ok">{{ node.result.status_code }}</span>
-              {% else %}
-                <span class="sla-chip sla-breached">{{ node.result.status_code|default:"error" }}</span>
-              {% endif %}
-              {% if node.step.is_async and node.result.poll_attempts %}
-                <span class="text-dim small">{{ node.result.poll_attempts }} polls</span>
-              {% endif %}
-            </div>
-          {% else %}
-            <div class="chain-node-status mt-1">
-              <span class="text-dim small">not reached</span>
-            </div>
-          {% endif %}
-        </div>
-        {% if not forloop.last %}
-          <div class="chain-arrow {% if node.node_status == 'success' %}chain-arrow-ok{% elif node.node_status == 'error' %}chain-arrow-err{% endif %}">→</div>
-        {% endif %}
-      {% endfor %}
+  <!-- Canvas -->
+  <div class="canvas-viewport mt-3" id="chainViewport">
+    <div class="canvas-surface" id="chainSurface"></div>
+    <div class="canvas-zoom-controls">
+      <button class="btn btn-sm" onclick="zoomOut()" title="Zoom out">−</button>
+      <span class="canvas-zoom-level" id="zoomLevel">100%</span>
+      <button class="btn btn-sm" onclick="zoomIn()" title="Zoom in">+</button>
+      <button class="btn btn-sm" onclick="fitView()" title="Fit all steps">⊡</button>
     </div>
   </div>
 
-  <!-- Detail panel -->
-  <div class="panel mt-3" id="nodeDetail" style="display:none">
+  <!-- Step detail panel (hidden until a node is clicked) -->
+  <div class="panel mt-3" id="stepDetail" style="display:none">
     <div class="d-flex align-items-center justify-content-between mb-3">
-      <h6 class="mb-0" id="detailTitle">Step detail</h6>
-      <button class="btn btn-sm btn-outline-secondary" onclick="closeDetail()">×</button>
+      <h6 class="mb-0" id="detailTitle">Step</h6>
+      <button class="btn-close btn-sm" onclick="closeDetail()"></button>
     </div>
     <div id="detailContent"></div>
   </div>
 
-  <a href="{% url 'chains:detail' chain.pk %}" class="btn btn-outline-secondary mt-2">← back to chain</a>
+  <div class="d-flex gap-2 mt-3">
+    <a href="{% url 'chains:detail' chain.pk %}" class="btn btn-outline-secondary">← back to chain</a>
+    {% if run.status == "failed" %}
+      <button class="btn btn-outline-secondary" id="retryBtn" onclick="retryFromFailure()">Retry from failure</button>
+    {% endif %}
+  </div>
 
-  <!-- Embed step data for JS -->
-  <script id="nodes-data" type="application/json">
-  [
-    {% for node in nodes %}
-    {
-      "order": {{ node.step.order }},
-      "name": "{{ node.step.name|escapejs }}",
-      "method": "{{ node.step.method|escapejs }}",
-      "path": "{{ node.step.path|escapejs }}",
-      "body": {{ node.step.body|default:"null"|safe }},
-      "status": "{{ node.node_status }}",
-      "is_async": {{ node.step.is_async|yesno:"true,false" }},
-      {% if node.result %}
-      "status_code": {{ node.result.status_code|default:"null" }},
-      "resolved_path": "{{ node.result.resolved_path|escapejs }}",
-      "resolved_body": {{ node.result.resolved_body|default:"null"|safe }},
-      "response_json": {% if node.result.response_json != None %}{{ node.result.response_json|safe }}{% else %}null{% endif %},
-      "captured_variables": {% if node.result.captured_variables %}{{ node.result.captured_variables|safe }}{% else %}{}{% endif %},
-      "poll_attempts": {{ node.result.poll_attempts|default:"null" }},
-      "error": {{ node.result.error|default:"null"|safe }}
-      {% else %}
-      "status_code": null, "resolved_path": "", "resolved_body": null,
-      "response_json": null, "captured_variables": {}, "poll_attempts": null, "error": null
-      {% endif %}
-    }{% if not forloop.last %},{% endif %}
-    {% endfor %}
-  ]
-  </script>
-
+  {{ nodes_data|json_script:"nodes-data" }}
 {% endblock %}
 
 {% block extra_scripts %}
+<script src="https://cdn.jsdelivr.net/npm/jsplumb@2.15.6/dist/js/jsplumb.min.js"></script>
 <script>
-const NODES = JSON.parse(document.getElementById('nodes-data').textContent);
-let selectedIdx = null;
+/* ── Constants ── */
+const STATUS_COLOR = { success: '#2f9c94', error: '#c1453a', pending: '#9aa5a9' };
+const BOX_W = 220, BOX_H_BASE = 110, BOX_GAP = 100;
+const ZOOM_MIN = 0.25, ZOOM_MAX = 2, ZOOM_STEP = 1.2;
+let currentZoom = 1, currentPanX = 0, currentPanY = 0;
+let jsp;
 
+const NODES = JSON.parse(document.getElementById('nodes-data').textContent);
+
+/* ── Zoom ── */
+function applyZoom(z) {
+  currentZoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z));
+  document.getElementById('chainSurface').style.transform =
+    `scale(${currentZoom}) translate(${currentPanX}px, ${currentPanY}px)`;
+  document.getElementById('zoomLevel').textContent = Math.round(currentZoom * 100) + '%';
+  if (jsp) jsp.setZoom(currentZoom, true);
+}
+function zoomIn()  { applyZoom(currentZoom * ZOOM_STEP); }
+function zoomOut() { applyZoom(currentZoom / ZOOM_STEP); }
+
+function fitView() {
+  const vp = document.getElementById('chainViewport');
+  const boxes = document.querySelectorAll('.chain-step-box');
+  if (!boxes.length) { applyZoom(1); return; }
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  boxes.forEach(b => {
+    minX = Math.min(minX, b.offsetLeft);
+    minY = Math.min(minY, b.offsetTop);
+    maxX = Math.max(maxX, b.offsetLeft + b.offsetWidth);
+    maxY = Math.max(maxY, b.offsetTop + b.offsetHeight);
+  });
+  const pad = 40;
+  const cw = (maxX - minX) + pad * 2;
+  const ch = (maxY - minY) + pad * 2;
+  const surf = document.getElementById('chainSurface');
+  surf.style.width  = Math.max(cw, vp.clientWidth)  + 'px';
+  surf.style.height = Math.max(ch, vp.clientHeight) + 'px';
+  currentPanX = -minX + pad;
+  currentPanY = -minY + pad;
+  const zoom = Math.min(vp.clientWidth / cw, vp.clientHeight / ch);
+  applyZoom(Math.min(Math.max(zoom, ZOOM_MIN), 1.0));
+}
+
+/* ── Helpers ── */
 function escHtml(s) {
   if (s == null) return '';
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
-
 function prettyJson(v) {
-  if (v == null) return '<span class="text-dim">—</span>';
-  try {
-    return '<pre class="mono small p-2 rounded chain-json-pre">' + escHtml(JSON.stringify(v, null, 2)) + '</pre>';
-  } catch(e) {
-    return escHtml(String(v));
-  }
+  if (v == null) return '<span class="text-dim small">—</span>';
+  const s = (typeof v === 'string') ? v : JSON.stringify(v, null, 2);
+  return '<pre class="chain-json-pre">' + escHtml(s) + '</pre>';
 }
 
-function selectNode(idx) {
-  // Deselect previous
-  document.querySelectorAll('.chain-node').forEach(n => n.classList.remove('chain-node-selected'));
-  document.getElementById(`node-${idx}`).classList.add('chain-node-selected');
-  selectedIdx = idx;
+/* ── Build boxes ── */
+function buildBox(node, idx) {
+  const x = 40 + idx * (BOX_W + BOX_GAP);
+  const y = 40;
+
+  const box = document.createElement('div');
+  box.className = 'chain-step-box';
+  box.id = `step-box-${idx}`;
+  box.style.left = x + 'px';
+  box.style.top  = y + 'px';
+  box.dataset.idx = idx;
+
+  const statusBorder = node.node_status === 'success' ? 'var(--trace)'
+                     : node.node_status === 'error'   ? 'var(--danger)'
+                     : 'var(--paper-line)';
+  box.style.borderColor = statusBorder;
+
+  const methodClass = `verb-badge verb-${node.method.toLowerCase()}`;
+  const statusCode = node.status_code != null
+    ? `<span class="sla-chip ${node.node_status === 'success' ? 'sla-ok' : 'sla-breached'}">${node.status_code}</span>`
+    : node.error ? '<span class="sla-chip sla-breached">error</span>'
+    : '<span class="text-dim small">—</span>';
+
+  box.innerHTML = `
+    <div class="csb-order">${node.order}</div>
+    <div class="csb-name mono">${escHtml(node.name)}</div>
+    <div class="csb-method"><span class="${methodClass}">${escHtml(node.method)}</span></div>
+    <div class="csb-path mono" title="${escHtml(node.resolved_path || node.path)}">${escHtml(node.resolved_path || node.path)}</div>
+    <div class="csb-code">${statusCode}${node.is_async && node.poll_attempts ? `<span class="text-dim small ms-1">${node.poll_attempts} polls</span>` : ''}</div>
+  `;
+
+  box.addEventListener('click', () => openDetail(idx));
+  document.getElementById('chainSurface').appendChild(box);
+  return box;
+}
+
+/* ── Detail panel ── */
+function openDetail(idx) {
+  document.querySelectorAll('.chain-step-box').forEach(b => b.classList.remove('csb-selected'));
+  document.getElementById(`step-box-${idx}`).classList.add('csb-selected');
+
   const n = NODES[idx];
-  const detail = document.getElementById('nodeDetail');
-  const title  = document.getElementById('detailTitle');
-  title.innerHTML = `<span class="mono">${escHtml(n.name)}</span>
-    <span class="verb-badge verb-${escHtml(n.method.toLowerCase())} ms-2">${escHtml(n.method)}</span>`;
+  document.getElementById('detailTitle').innerHTML =
+    `<span class="mono fw-600">${escHtml(n.name)}</span>
+     <span class="verb-badge verb-${n.method.toLowerCase()} ms-2">${escHtml(n.method)}</span>`;
 
-  let html = `<div class="row g-3">`;
+  let html = '<div class="row g-3">';
 
-  // Request section
+  /* Request */
   html += `<div class="col-md-6">
     <div class="text-dim small text-uppercase mb-2" style="letter-spacing:.06em">Request</div>
     <div class="mb-2"><span class="text-dim small">Path:</span> <span class="mono small">${escHtml(n.resolved_path || n.path)}</span></div>`;
-  if (n.resolved_body) {
-    html += `<div class="text-dim small mb-1">Body:</div>${prettyJson(n.resolved_body)}`;
-  }
-  html += `</div>`;
+  if (n.resolved_body) html += `<div class="text-dim small mb-1">Body:</div>${prettyJson(n.resolved_body)}`;
+  html += '</div>';
 
-  // Response section
-  html += `<div class="col-md-6">
-    <div class="text-dim small text-uppercase mb-2" style="letter-spacing:.06em">Response</div>`;
+  /* Response */
+  html += '<div class="col-md-6"><div class="text-dim small text-uppercase mb-2" style="letter-spacing:.06em">Response</div>';
   if (n.error) {
-    html += `<div class="alert alert-danger py-2 small">${escHtml(n.error)}</div>`;
+    html += `<div class="alert alert-danger py-2 small mb-2">${escHtml(n.error)}</div>`;
   } else if (n.status_code != null) {
-    const chipClass = n.status_code < 400 ? 'sla-ok' : 'sla-breached';
-    html += `<div class="mb-2"><span class="sla-chip ${chipClass}">${n.status_code}</span></div>`;
+    const cls = n.status_code < 400 ? 'sla-ok' : 'sla-breached';
+    html += `<div class="mb-2"><span class="sla-chip ${cls}">${n.status_code}</span></div>`;
     html += prettyJson(n.response_json);
   } else {
-    html += `<span class="text-dim small">Not reached.</span>`;
+    html += '<span class="text-dim small">Not reached.</span>';
   }
-  html += `</div>`;
+  html += '</div>';
 
-  // Captured variables
+  /* Captured variables */
   const caps = n.captured_variables;
-  if (caps && Object.keys(caps).length > 0) {
+  if (caps && Object.keys(caps).length) {
     html += `<div class="col-12">
       <div class="text-dim small text-uppercase mb-2" style="letter-spacing:.06em">Captured variables</div>
       <div class="d-flex flex-wrap gap-2">`;
-    for (const [k, v] of Object.entries(caps)) {
+    for (const [k, v] of Object.entries(caps))
       html += `<span class="status-chip ok mono">${escHtml(k)} = ${escHtml(JSON.stringify(v))}</span>`;
-    }
-    html += `</div></div>`;
+    html += '</div></div>';
   }
 
-  // Async info
-  if (n.is_async && n.poll_attempts != null) {
+  /* Async */
+  if (n.is_async && n.poll_attempts != null)
     html += `<div class="col-12"><div class="text-dim small">Polled ${n.poll_attempts} time${n.poll_attempts !== 1 ? 's' : ''} before completing.</div></div>`;
-  }
 
-  html += `</div>`;
+  html += '</div>';
   document.getElementById('detailContent').innerHTML = html;
-  detail.style.display = '';
-  detail.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  const panel = document.getElementById('stepDetail');
+  panel.style.display = '';
+  panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 function closeDetail() {
-  document.getElementById('nodeDetail').style.display = 'none';
-  document.querySelectorAll('.chain-node').forEach(n => n.classList.remove('chain-node-selected'));
-  selectedIdx = null;
+  document.getElementById('stepDetail').style.display = 'none';
+  document.querySelectorAll('.chain-step-box').forEach(b => b.classList.remove('csb-selected'));
+}
+
+/* ── Init ── */
+document.addEventListener('DOMContentLoaded', () => {
+  const surf = document.getElementById('chainSurface');
+  const vp   = document.getElementById('chainViewport');
+
+  /* Size the surface wide enough to hold all boxes */
+  const totalW = 40 + NODES.length * (BOX_W + BOX_GAP) + 40;
+  surf.style.width  = Math.max(totalW, vp.clientWidth)  + 'px';
+  surf.style.height = Math.max(300,    vp.clientHeight) + 'px';
+
+  /* Build boxes */
+  NODES.forEach((n, i) => buildBox(n, i));
+
+  /* jsPlumb connectors */
+  jsp = jsPlumb.getInstance({ Container: 'chainSurface' });
+  jsp.batch(() => {
+    NODES.forEach((n, i) => {
+      if (i === NODES.length - 1) return;
+      const color = STATUS_COLOR[n.node_status];
+      jsp.connect({
+        source: document.getElementById(`step-box-${i}`),
+        target: document.getElementById(`step-box-${i + 1}`),
+        anchors: ['Right', 'Left'],
+        connector: ['Bezier', { curviness: 40 }],
+        paintStyle: { stroke: color, strokeWidth: 2 },
+        endpointStyle: { fill: color, radius: 4 },
+        overlays: [['Arrow', { width: 10, length: 10, location: 1 }]],
+      });
+    });
+  });
+
+  fitView();
+});
+
+async function retryFromFailure() {
+  const btn = document.getElementById('retryBtn');
+  btn.disabled = true;
+  btn.textContent = 'Starting…';
+  const resp = await fetch(`/api/chains/{{ chain.pk }}/retry-run/{{ run.pk }}/`, { method: 'POST' });
+  const body = await resp.json();
+  if (!resp.ok) {
+    alert(body.error || 'Retry failed.');
+    btn.disabled = false;
+    btn.textContent = 'Retry from failure';
+    return;
+  }
+  window.location.href = `/chains/{{ chain.pk }}/runs/${body.id}/`;
 }
 </script>
 {% endblock %}

@@ -1,22 +1,52 @@
 {% extends "base.html" %}
 {% load static %}
-{% block title %}Run #{{ run.pk }} · Pipeline{% endblock %}
+{% block title %}Run #{{ run.pk }} · {{ run.mapping.name }}{% endblock %}
+
 {% block content %}
-  <div class="d-flex align-items-center gap-2">
-    <div class="page-title mb-0">Run #{{ run.pk }} — {{ run.mapping.name }}</div>
-    <span class="status-chip {% if run.status == 'success' %}ok{% elif run.status == 'failed' %}err{% else %}warn{% endif %}" id="run-status">{{ run.status }}</span>
+  <div class="d-flex align-items-center gap-2 mb-1 flex-wrap">
+    <a href="{% url 'jobs:run_detail' run.pk %}" class="text-dim small">← Run #{{ run.pk }} · {{ run.mapping.name }}</a>
   </div>
-  <div class="page-subtitle mono">Live pipeline — each edge is one entity pair, colored by that step's status.</div>
 
-  <div id="snapshotSurface" class="canvas-surface"></div>
+  <div class="d-flex justify-content-between align-items-center page-actions">
+    <div>
+      <div class="page-title mb-1">
+        Pipeline canvas
+        <span class="status-chip {% if run.status == 'success' %}ok{% elif run.status == 'failed' %}err{% else %}warn{% endif %} ms-2" id="run-status-chip">{{ run.status }}</span>
+      </div>
+      <div class="text-dim small mono">
+        {{ run.mapping.name }}
+        · {{ run.started_at|date:"Y-m-d H:i:s" }}
+        {% if run.finished_at %}· finished {{ run.finished_at|date:"H:i:s" }}{% endif %}
+      </div>
+    </div>
+    <div class="d-flex gap-2">
+      <a href="{% url 'jobs:run_detail' run.pk %}" class="btn btn-sm btn-outline-secondary">Full log</a>
+      <a href="{% url 'jobs:run_list' %}" class="btn btn-sm btn-outline-secondary">← Runs</a>
+    </div>
+  </div>
 
-  {{ canvas_data|json_script:"snapshot-data" }}
+  <!-- Canvas -->
+  <div class="canvas-viewport mt-3" id="snapshotViewport">
+    <div class="canvas-surface" id="snapshotSurface"></div>
+    <div class="canvas-zoom-controls">
+      <button class="btn btn-sm" onclick="zoomOut()">−</button>
+      <span class="canvas-zoom-level" id="zoomLevel">100%</span>
+      <button class="btn btn-sm" onclick="zoomIn()">+</button>
+      <button class="btn btn-sm" onclick="fitView()">⊡</button>
+    </div>
+  </div>
+
+  <!-- Step detail panel -->
+  <div class="panel mt-3" id="stepDetail" style="display:none">
+    <div class="d-flex align-items-center justify-content-between mb-3">
+      <h6 class="mb-0" id="detailTitle">Step detail</h6>
+      <button class="btn-close btn-sm" onclick="closeDetail()"></button>
+    </div>
+    <div id="detailContent"></div>
+  </div>
+
+  {{ canvas_data|json_script:"canvas-data" }}
   {{ initial_steps|json_script:"initial-steps" }}
-
-  <div class="d-flex gap-2 mt-3">
-    <a href="{% url 'jobs:run_detail' run.pk %}" class="btn btn-outline-secondary">View full log</a>
-    <a href="{% url 'jobs:run_list' %}" class="btn btn-outline-secondary">← back to runs</a>
-  </div>
 {% endblock %}
 
 {% block extra_scripts %}
@@ -25,15 +55,18 @@
 <script src="{% static 'js/run_snapshot.js' %}"></script>
 <script>
 document.addEventListener('DOMContentLoaded', () => {
-  initSnapshot(JSON.parse(document.getElementById('snapshot-data').textContent));
+  const canvasData = JSON.parse(document.getElementById('canvas-data').textContent);
+  initSnapshot(canvasData);
   JSON.parse(document.getElementById('initial-steps').textContent).forEach(updateStepStatus);
+  fitView();
 
   const runStatus = "{{ run.status }}";
   if (runStatus === "pending" || runStatus === "running") {
     pollRuns([{{ run.pk }}], {
       onUpdate: run => {
-        document.getElementById('run-status').textContent = run.status;
-        document.getElementById('run-status').className = 'status-chip ' + statusChipClass(run.status);
+        const chip = document.getElementById('run-status-chip');
+        chip.textContent = run.status;
+        chip.className = 'status-chip ms-2 ' + statusChipClass(run.status);
         run.step_statuses.forEach(updateStepStatus);
       },
     });

@@ -106,9 +106,12 @@ def _assign_nested(out: dict, dotted_name: str, value) -> None:
     container[parts[-1]] = value
 
 
-def run_migration(run: MigrationRun) -> MigrationRun:
+def run_migration(run: MigrationRun, entity_mapping_ids=None) -> MigrationRun:
     """Executes `run` in place. `run` must already exist (status=running) so
-    its id is known to the caller before this function's progress updates land."""
+    its id is known to the caller before this function's progress updates land.
+    Pass `entity_mapping_ids` (a list/set of ids) to restrict execution to
+    those entity mappings only — used by the retry action to skip already-
+    successful mappings and only re-run the ones that failed."""
     mapping = run.mapping
     source_client = ConnectionClient(mapping.source_connection, run=run)
     target_clients = {}       # connection_id -> ConnectionClient
@@ -182,6 +185,8 @@ def run_migration(run: MigrationRun) -> MigrationRun:
         entity_mappings = mapping.entity_mappings.select_related(
             "source_entity", "target_entity", "target_entity__connection",
         )
+        if entity_mapping_ids is not None:
+            entity_mappings = entity_mappings.filter(id__in=entity_mapping_ids)
         if not entity_mappings:
             _log(run, "No entity mappings configured — nothing to migrate.", level=MigrationLog.LEVEL_WARNING)
 
@@ -295,12 +300,13 @@ def run_migration(run: MigrationRun) -> MigrationRun:
     return run
 
 
-def run_migration_in_background(run_id: int):
+def run_migration_in_background(run_id: int, entity_mapping_ids=None):
     """Entry point for a background thread: fetches its own copy of the run
-    and always releases the thread's DB connection when done."""
+    and always releases the thread's DB connection when done.
+    `entity_mapping_ids` is forwarded to run_migration when retrying failed mappings."""
     try:
         run = MigrationRun.objects.select_related("mapping", "mapping__source_connection").get(pk=run_id)
-        run_migration(run)
+        run_migration(run, entity_mapping_ids=entity_mapping_ids)
     finally:
         connections.close_all()
 

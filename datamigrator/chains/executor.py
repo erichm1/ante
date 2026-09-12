@@ -276,3 +276,66 @@ def run_chain(chain_run: CallChainRun) -> CallChainRun:
     )
     chain_run.save()
     return chain_run
+
+
+def run_chain_retry(chain_run: CallChainRun, prior_context: dict, start_order: int) -> CallChainRun:
+    """Re-run a chain starting from `start_order`, with `prior_context`
+    pre-populated from the prior run's successful steps. Steps before
+    `start_order` are skipped — their captured values are already in context.
+    Used by the retry action so a transient failure doesn't force re-sending
+    every earlier step's side-effects (created records, sent webhooks, etc.)."""
+    chain = chain_run.chain
+    client = ConnectionClient(chain.connection)
+    context = dict(prior_context)
+    all_ok = True
+
+    for step in chain.steps.order_by("order"):
+        if step.order < start_order:
+            continue
+        resolved_path = ""
+        resolved_body = None
+        try:
+            resolved_path = resolve_path(step.path, context)
+            resolved_body = resolve_body(step.body, context)
+
+            kwargs = {} if resolved_body is None else {"json": resolved_body}
+            response = client.request(step.method, resolved_path, **kwargs)
+            response.raise_for_status()
+            try:
+                parsed = response.json() if response.content else None
+            except ValueError:
+                parsed = None
+
+            context[step.name] = parsed
+            poll_attempts = None
+            if step.is_async:
+                parsed, poll_attempts = run_async_step(client, step, context)
+                context[step.name] = parsed
+
+            captured = apply_captures(step, parsed, context)
+            CallChainStepResult.objects.create(
+                run=chain_run, step=step, order=step.order, name=step.name, method=step.method,
+                resolved_path=resolved_path,
+                resolved_body=json.dumps(resolved_body) if resolved_body is not None else "",
+                status_code=response.status_code, response_json=parsed, captured_variables=captured,
+                poll_attempts=poll_attempts,
+            )
+        except Exception as exc:
+            CallChainStepResult.objects.create(
+                run=chain_run, step=step, order=step.order, name=step.name, method=step.method,
+                resolved_path=resolved_path,
+                resolved_body=json.dumps(resolved_body) if resolved_body is not None else "",
+                error=str(exc)[:2000],
+            )
+            all_ok = False
+            break
+
+    chain_run.status = CallChainRun.STATUS_SUCCESS if all_ok else CallChainRun.STATUS_FAILED
+    chain_run.finished_at = timezone.now()
+    chain_run.result_file.save(
+        f"chain_{chain.id}_run_{chain_run.id}.json",
+        ContentFile(json.dumps(context, indent=2, default=str)),
+        save=False,
+    )
+    chain_run.save()
+    return chain_run

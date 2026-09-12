@@ -106,9 +106,14 @@
     {% endif %}
   </div>
 
-  <a href="{% url 'jobs:run_list' %}" class="btn btn-outline-secondary mt-3">← back to runs</a>
-  <a href="{% url 'jobs:run_snapshot' run.pk %}" class="btn btn-outline-secondary mt-3">View pipeline</a>
-  <a href="{% url 'mappings:detail' run.mapping.pk %}?tab=canvas" class="btn btn-outline-secondary mt-3">back to mapping canvas</a>
+  <div class="d-flex gap-2 flex-wrap mt-3">
+    <a href="{% url 'jobs:run_list' %}" class="btn btn-outline-secondary">← back to runs</a>
+    <a href="{% url 'jobs:run_snapshot' run.pk %}" class="btn btn-outline-secondary">View pipeline</a>
+    <a href="{% url 'mappings:detail' run.mapping.pk %}?tab=canvas" class="btn btn-outline-secondary">back to mapping canvas</a>
+    {% if run.status == "failed" %}
+      <button class="btn btn-outline-secondary" id="retryBtn" onclick="retryFailedMappings()">Retry failed only</button>
+    {% endif %}
+  </div>
 {% endblock %}
 
 {% block extra_scripts %}
@@ -152,6 +157,21 @@ if (RUN_STATUS === "pending" || RUN_STATUS === "running") {
     onUpdate: updateDetail,
     onSettle: () => document.getElementById('liveIndicator')?.remove(),
   });
+}
+
+async function retryFailedMappings() {
+  const btn = document.getElementById('retryBtn');
+  btn.disabled = true;
+  btn.textContent = 'Starting…';
+  const resp = await fetch(`/api/runs/${RUN_ID}/retry/`, { method: 'POST' });
+  const body = await resp.json();
+  if (!resp.ok) {
+    alert(body.error || 'Retry failed.');
+    btn.disabled = false;
+    btn.textContent = 'Retry failed only';
+    return;
+  }
+  window.location.href = `/jobs/runs/${body.id}/`;
 }
 </script>
 {% endblock %}

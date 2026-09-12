@@ -93,6 +93,38 @@ class MigrationRunViewSet(viewsets.ModelViewSet):
             )
         return Response(MigrationRunSerializer(run).data, status=status.HTTP_201_CREATED)
 
+    @action(detail=True, methods=["post"], url_path="retry")
+    def retry(self, request, pk=None):
+        """Creates a new run for the same mapping, executing only the entity
+        mappings that failed in the original run. Lets the user fix a
+        connection problem and re-push just the records that didn't land,
+        instead of re-processing everything and risk double-writing successes."""
+        original = self.get_object()
+        if original.status != MigrationRun.STATUS_FAILED:
+            return Response({"error": "Only failed runs can be retried."}, status=status.HTTP_400_BAD_REQUEST)
+
+        failed_em_ids = list(
+            original.step_statuses.filter(status="failed").values_list("entity_mapping_id", flat=True)
+        )
+        if not failed_em_ids:
+            return Response(
+                {"error": "No failed entity mappings found — nothing to retry."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        new_run = MigrationRun.objects.create(
+            mapping=original.mapping,
+            status=MigrationRun.STATUS_RUNNING,
+            rate_limit_per_second=original.rate_limit_per_second,
+        )
+        threading.Thread(
+            target=engine.run_migration_in_background,
+            args=(new_run.id,),
+            kwargs={"entity_mapping_ids": failed_em_ids},
+            daemon=True,
+        ).start()
+        return Response(MigrationRunSerializer(new_run).data, status=status.HTTP_201_CREATED)
+
     @action(detail=False, methods=["post"], url_path="trigger-batch")
     def trigger_batch(self, request):
         """Batch variant of trigger(): the same mapping run once per uploaded

@@ -27,6 +27,11 @@
     </div>
     <div class="d-flex gap-2 flex-wrap flex-shrink-0">
       <button class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#editIncidentModal">Edit</button>
+      {% if not incident.is_resolved %}
+        {% if incident.severity != "critical" %}
+          <button class="btn btn-outline-secondary" id="escalateBtn" onclick="escalateIncident()">Escalate ↑</button>
+        {% endif %}
+      {% endif %}
       {% if incident.is_resolved %}
         <a href="{% url 'incidents:postmortem' incident.pk %}" class="btn btn-outline-secondary">Post-mortem{% if postmortem %} ✓{% endif %}</a>
         <button class="btn btn-outline-secondary" id="reopenBtn" onclick="reopenIncident()">Reopen</button>
@@ -416,6 +421,48 @@ async function setStatus(s) {
 async function setSeverity(s) {
   await patch({ severity: s });
   updateSevChip(s);
+}
+
+/* ── Escalate ────────────────────────────────────────────────────── */
+const SEV_ORDER = ['low', 'medium', 'high', 'critical'];
+
+async function escalateIncident() {
+  const chip = document.getElementById('inc-sev-chip');
+  const currentSev = chip.className.replace('inc-sev-chip inc-sev-', '').trim();
+  const idx = SEV_ORDER.indexOf(currentSev);
+  if (idx < 0 || idx >= SEV_ORDER.length - 1) return;
+  const newSev = SEV_ORDER[idx + 1];
+  const msg = `Escalate severity from ${SEV_LABEL[currentSev]} to ${SEV_LABEL[newSev]}?`;
+  if (!(await confirmModal(msg))) return;
+
+  await patch({ severity: newSev });
+  updateSevChip(newSev);
+
+  const noteBody = `Severity escalated from ${SEV_LABEL[currentSev]} to ${SEV_LABEL[newSev]}.`;
+  const note = await post('notes', { body: noteBody }).catch(() => null);
+  if (note) {
+    document.getElementById('noNotesMsg')?.remove();
+    const ts = new Date(note.created_at).toLocaleString();
+    const resolved = document.querySelector('.inc-event-resolved');
+    const html = `
+      <div class="inc-event inc-event-escalation" id="note-${note.id}">
+        <span class="inc-event-dot inc-event-dot-escalation"></span>
+        <div class="inc-event-body">
+          <div class="inc-note-text fw-500">${escHtml(noteBody)}</div>
+          <div class="d-flex align-items-center gap-3 mt-1">
+            <span class="mono small text-dim">${ts}</span>
+            <button class="btn btn-sm btn-link text-dim p-0" style="font-size:0.75rem" onclick="deleteNote(${note.id})">Delete</button>
+          </div>
+        </div>
+      </div>`;
+    if (resolved) resolved.insertAdjacentHTML('beforebegin', html);
+    else document.getElementById('incTimeline').insertAdjacentHTML('beforeend', html);
+  }
+
+  /* hide escalate button if now critical */
+  if (newSev === 'critical') {
+    document.getElementById('escalateBtn')?.remove();
+  }
 }
 
 /* ── Resolve / Reopen ────────────────────────────────────────────── */

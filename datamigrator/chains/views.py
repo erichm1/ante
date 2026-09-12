@@ -181,6 +181,35 @@ class CallChainViewSet(viewsets.ModelViewSet):
             status=status.HTTP_200_OK,
         )
 
+    @action(detail=True, methods=["post"], url_path=r"retry-run/(?P<run_pk>[^/.]+)")
+    def retry_run(self, request, pk=None, run_pk=None):
+        """Re-runs a failed chain run starting from the first failed step,
+        pre-loading the context captured by every successful step before it.
+        Only steps that errored are re-executed — side-effects from prior
+        successful steps (created records, sent webhooks) are not repeated."""
+        chain = self.get_object()
+        prior_run = get_object_or_404(CallChainRun, pk=run_pk, chain=chain)
+        if prior_run.status != CallChainRun.STATUS_FAILED:
+            return Response({"error": "Only failed runs can be retried."}, status=status.HTTP_400_BAD_REQUEST)
+
+        prior_context = {}
+        start_order = 0
+        for result in prior_run.step_results.order_by("order"):
+            if result.error:
+                start_order = result.order
+                break
+            if result.response_json is not None:
+                prior_context[result.name] = result.response_json
+            if result.captured_variables:
+                prior_context.update(result.captured_variables)
+
+        new_run = CallChainRun.objects.create(chain=chain, status=CallChainRun.STATUS_FAILED)
+        executor.run_chain_retry(new_run, prior_context, start_order)
+        return Response(
+            CallChainRunSerializer(new_run, context={"request": request}).data,
+            status=status.HTTP_200_OK,
+        )
+
 
 class CallChainStepViewSet(viewsets.ModelViewSet):
     queryset = CallChainStep.objects.select_related("chain")
@@ -265,26 +294,34 @@ def chain_run_detail(request, chain_pk, run_pk):
     steps = list(chain.steps.all())
     step_results = {r.name: r for r in run.step_results.all()}
     nodes = []
+    nodes_data = []
     for step in steps:
         result = step_results.get(step.name)
         if result:
-            if result.error:
-                node_status = "error"
-            elif result.status_code and result.status_code < 400:
-                node_status = "success"
-            else:
-                node_status = "error"
+            node_status = "error" if (result.error or not result.status_code or result.status_code >= 400) else "success"
         else:
             node_status = "pending"
-        nodes.append({
-            "step": step,
-            "result": result,
-            "node_status": node_status,
+        nodes.append({"step": step, "result": result, "node_status": node_status})
+        nodes_data.append({
+            "order":              step.order,
+            "name":               step.name,
+            "method":             step.method,
+            "path":               step.path,
+            "is_async":           step.is_async,
+            "node_status":        node_status,
+            "status_code":        result.status_code if result else None,
+            "resolved_path":      result.resolved_path if result else "",
+            "resolved_body":      result.resolved_body if result else None,
+            "response_json":      result.response_json if result else None,
+            "captured_variables": result.captured_variables if result else {},
+            "poll_attempts":      result.poll_attempts if result else None,
+            "error":              result.error if result else None,
         })
     return render(request, "chains/run_detail.html", {
-        "chain": chain,
-        "run": run,
-        "nodes": nodes,
+        "chain":      chain,
+        "run":        run,
+        "nodes":      nodes,
+        "nodes_data": nodes_data,
     })
 
 
