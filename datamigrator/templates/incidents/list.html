@@ -1,0 +1,222 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Incidents{% endblock %}
+{% block content %}
+  <div class="d-flex justify-content-between align-items-start page-actions">
+    <div>
+      <div class="page-title" data-t="incidents.title">Incidents</div>
+      <div class="page-subtitle" data-t="incidents.subtitle">Track outages and issues affecting your integrations.</div>
+    </div>
+    <button class="btn btn-signal" data-bs-toggle="modal" data-bs-target="#newIncidentModal" data-t="incidents.new">New incident</button>
+  </div>
+
+  <form method="get" class="row g-2 align-items-end mb-3">
+    <div class="col-md-4">
+      <label class="form-label small mb-1" data-t="lbl.search">Search</label>
+      <input type="text" name="q" class="form-control form-control-sm" placeholder="Incident title" value="{{ filters.q }}">
+    </div>
+    <div class="col-md-3">
+      <label class="form-label small mb-1" data-t="th.status">Status</label>
+      <select name="status" class="form-select form-select-sm">
+        <option value="">Any</option>
+        {% for value, label in status_choices %}
+          <option value="{{ value }}" {% if filters.status == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label small mb-1" data-t="incidents.th.severity">Severity</label>
+      <select name="severity" class="form-select form-select-sm">
+        <option value="">Any</option>
+        {% for value, label in severity_choices %}
+          <option value="{{ value }}" {% if filters.severity == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-2 d-flex align-items-end gap-2">
+      <button type="submit" class="btn btn-sm btn-signal" data-t="btn.filter">Filter</button>
+      {% if filters.q or filters.status or filters.severity %}
+        <a href="{% url 'incidents:list' %}" class="small text-nowrap">Clear ×</a>
+      {% endif %}
+    </div>
+    <div class="col-12 d-flex justify-content-end">
+      <div class="d-flex align-items-center gap-2">
+        <label class="text-dim small mb-0" for="pageSizeSelect" data-t="lbl.per_page">Per page</label>
+        <select name="page_size" class="form-select form-select-sm" id="pageSizeSelect" style="width:auto" onchange="gotoWithParam('page_size', this.value)">
+          {% for size in page_size_choices %}
+            <option value="{{ size }}" {% if size == page_size %}selected{% endif %}>{{ size }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+  </form>
+
+  <div class="panel">
+    {% if page_obj %}
+      <table class="table align-middle mb-0">
+        <thead>
+          <tr>
+            <th data-t="incidents.th.severity">Severity</th>
+            <th data-t="th.name">Title</th>
+            <th data-t="th.status">Status</th>
+            <th data-t="th.connection">Connection</th>
+            <th>Tags</th>
+            <th>SLA</th>
+            <th data-t="incidents.th.opened">Opened</th>
+            <th data-t="incidents.th.resolved">Resolved</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for inc in page_obj %}
+            <tr>
+              <td>
+                {% if inc.severity == "critical" %}
+                  <span class="status-chip err" data-t="incidents.sev.critical">Critical</span>
+                {% elif inc.severity == "high" %}
+                  <span class="status-chip warn" data-t="incidents.sev.high">High</span>
+                {% elif inc.severity == "medium" %}
+                  <span class="status-chip ok" data-t="incidents.sev.medium">Medium</span>
+                {% else %}
+                  <span class="status-chip" data-t="incidents.sev.low">Low</span>
+                {% endif %}
+              </td>
+              <td>
+                <a href="{% url 'incidents:detail' inc.pk %}" class="fw-500">{{ inc.title }}</a>
+              </td>
+              <td>
+                {% if inc.status == "open" %}
+                  <span class="status-chip err">open</span>
+                {% elif inc.status == "investigating" %}
+                  <span class="status-chip warn">investigating</span>
+                {% elif inc.status == "identified" %}
+                  <span class="status-chip warn">identified</span>
+                {% else %}
+                  <span class="status-chip ok">resolved</span>
+                {% endif %}
+              </td>
+              <td class="small">
+                {% if inc.connection %}
+                  <a href="{% url 'connections:detail' inc.connection.pk %}">{{ inc.connection.name }}</a>
+                {% else %}
+                  <span class="text-dim">—</span>
+                {% endif %}
+              </td>
+              <td>
+                <div class="d-flex flex-wrap gap-1">
+                  {% if inc.status == "resolved" %}
+                    <span class="inc-tag inc-tag-resolved">Resolved</span>
+                  {% endif %}
+                  {% with pm=inc.postmortem %}
+                    {% if pm %}
+                      <span class="inc-tag inc-tag-pm">Post-mortem</span>
+                    {% endif %}
+                  {% endwith %}
+                  {% if inc.affected_services %}
+                    <span class="inc-tag inc-tag-svc">{{ inc.affected_services|length }} service{{ inc.affected_services|length|pluralize }}</span>
+                  {% endif %}
+                </div>
+              </td>
+              <td>
+                {% with s=inc.sla_resolution_status %}
+                  {% if s == "breached" %}<span class="sla-chip sla-breached">Breached</span>
+                  {% elif s == "warning" %}<span class="sla-chip sla-warning">Warning</span>
+                  {% elif s == "ok" %}<span class="sla-chip sla-ok">OK</span>
+                  {% else %}<span class="text-dim small">—</span>{% endif %}
+                {% endwith %}
+              </td>
+              <td class="mono small">{{ inc.created_at|date:"Y-m-d H:i" }}</td>
+              <td class="mono small">{{ inc.resolved_at|date:"Y-m-d H:i"|default:"—" }}</td>
+              <td class="text-end">
+                <a href="{% url 'incidents:detail' inc.pk %}" class="btn btn-sm btn-outline-secondary">Open</a>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% include "jobs/_pagination.html" with item_label="incidents" %}
+    {% else %}
+      <p class="text-dim mb-0">
+        {% if filters.q or filters.status or filters.severity %}
+          No incidents match these filters.
+        {% else %}
+          No incidents yet — log one when something breaks.
+        {% endif %}
+      </p>
+    {% endif %}
+  </div>
+
+  <div class="modal fade" id="newIncidentModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" data-t="incidents.new">New incident</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div id="createIncidentError" class="alert alert-danger d-none"></div>
+          <div class="mb-3">
+            <label class="form-label" data-t="th.name">Title</label>
+            <input class="form-control" id="ni_title" placeholder="e.g. Payment API returning 503s">
+          </div>
+          <div class="row g-2 mb-3">
+            <div class="col-6">
+              <label class="form-label" data-t="incidents.th.severity">Severity</label>
+              <select class="form-select" id="ni_severity">
+                {% for value, label in severity_choices %}
+                  <option value="{{ value }}" {% if value == "medium" %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-6">
+              <label class="form-label" data-t="th.connection">Connection <span class="text-dim">(optional)</span></label>
+              <select class="form-select" id="ni_connection">
+                <option value="">None</option>
+                {% for c in connections %}<option value="{{ c.pk }}">{{ c.name }}</option>{% endfor %}
+              </select>
+            </div>
+          </div>
+          <div class="mb-1">
+            <label class="form-label" data-t="lbl.description">Description <span class="text-dim">(optional)</span></label>
+            <textarea class="form-control" id="ni_description" rows="3" placeholder="What is failing, what is the impact?"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline-secondary" data-bs-dismiss="modal" data-t="btn.cancel">Cancel</button>
+          <button class="btn btn-signal" onclick="createIncident()">Create incident</button>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{% static 'js/pagination.js' %}"></script>
+<script>
+async function createIncident() {
+  const err = document.getElementById('createIncidentError');
+  err.classList.add('d-none');
+  const title = document.getElementById('ni_title').value.trim();
+  if (!title) { err.textContent = 'Title is required.'; err.classList.remove('d-none'); return; }
+  const payload = {
+    title,
+    severity: document.getElementById('ni_severity').value,
+    description: document.getElementById('ni_description').value,
+  };
+  const conn = document.getElementById('ni_connection').value;
+  if (conn) payload.connection = conn;
+
+  const resp = await fetch('/api/incidents/', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (resp.ok) {
+    const body = await resp.json();
+    window.location.href = `/incidents/${body.id}/`;
+  } else {
+    err.textContent = JSON.stringify(await resp.json());
+    err.classList.remove('d-none');
+  }
+}
+</script>
+{% endblock %}

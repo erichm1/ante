@@ -1,0 +1,191 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Run #{{ run.pk }} · {{ chain.name }}{% endblock %}
+{% block content %}
+
+  <div class="d-flex align-items-center gap-2 mb-1 flex-wrap">
+    <a href="{% url 'chains:detail' chain.pk %}" class="text-dim small">← {{ chain.name }}</a>
+  </div>
+
+  <div class="d-flex justify-content-between align-items-start page-actions">
+    <div>
+      <div class="page-title mb-1">Run #{{ run.pk }}
+        <span class="status-chip {% if run.status == 'success' %}ok{% else %}err{% endif %} ms-2">{{ run.status }}</span>
+      </div>
+      <div class="text-dim small mono">
+        {{ run.started_at|date:"Y-m-d H:i:s" }}
+        {% if run.finished_at %}
+          · finished {{ run.finished_at|date:"H:i:s" }}
+        {% endif %}
+        · {{ chain.connection.name }}
+      </div>
+    </div>
+    {% if run.result_file %}
+      <a href="{{ run.result_file.url }}" target="_blank" class="btn btn-sm btn-outline-secondary">Download JSON</a>
+    {% endif %}
+  </div>
+
+  <!-- Flow canvas -->
+  <div class="panel mt-3">
+    <h6 class="mb-3 text-dim small text-uppercase" style="letter-spacing:.06em">Execution flow</h6>
+    <div class="chain-canvas" id="chainCanvas">
+      {% for node in nodes %}
+        <div class="chain-node chain-node-{{ node.node_status }}" id="node-{{ forloop.counter0 }}"
+             onclick="selectNode({{ forloop.counter0 }})" style="cursor:pointer">
+          <div class="chain-node-order">{{ node.step.order }}</div>
+          <div class="chain-node-name mono">{{ node.step.name }}</div>
+          <div class="chain-node-method">
+            <span class="verb-badge verb-{{ node.step.method|lower }}">{{ node.step.method }}</span>
+          </div>
+          <div class="chain-node-path mono small text-dim" title="{{ node.step.path }}">{{ node.step.path }}</div>
+          {% if node.result %}
+            <div class="chain-node-status mt-1">
+              {% if node.node_status == "success" %}
+                <span class="sla-chip sla-ok">{{ node.result.status_code }}</span>
+              {% else %}
+                <span class="sla-chip sla-breached">{{ node.result.status_code|default:"error" }}</span>
+              {% endif %}
+              {% if node.step.is_async and node.result.poll_attempts %}
+                <span class="text-dim small">{{ node.result.poll_attempts }} polls</span>
+              {% endif %}
+            </div>
+          {% else %}
+            <div class="chain-node-status mt-1">
+              <span class="text-dim small">not reached</span>
+            </div>
+          {% endif %}
+        </div>
+        {% if not forloop.last %}
+          <div class="chain-arrow {% if node.node_status == 'success' %}chain-arrow-ok{% elif node.node_status == 'error' %}chain-arrow-err{% endif %}">→</div>
+        {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Detail panel -->
+  <div class="panel mt-3" id="nodeDetail" style="display:none">
+    <div class="d-flex align-items-center justify-content-between mb-3">
+      <h6 class="mb-0" id="detailTitle">Step detail</h6>
+      <button class="btn btn-sm btn-outline-secondary" onclick="closeDetail()">×</button>
+    </div>
+    <div id="detailContent"></div>
+  </div>
+
+  <a href="{% url 'chains:detail' chain.pk %}" class="btn btn-outline-secondary mt-2">← back to chain</a>
+
+  <!-- Embed step data for JS -->
+  <script id="nodes-data" type="application/json">
+  [
+    {% for node in nodes %}
+    {
+      "order": {{ node.step.order }},
+      "name": "{{ node.step.name|escapejs }}",
+      "method": "{{ node.step.method|escapejs }}",
+      "path": "{{ node.step.path|escapejs }}",
+      "body": {{ node.step.body|default:"null"|safe }},
+      "status": "{{ node.node_status }}",
+      "is_async": {{ node.step.is_async|yesno:"true,false" }},
+      {% if node.result %}
+      "status_code": {{ node.result.status_code|default:"null" }},
+      "resolved_path": "{{ node.result.resolved_path|escapejs }}",
+      "resolved_body": {{ node.result.resolved_body|default:"null"|safe }},
+      "response_json": {% if node.result.response_json != None %}{{ node.result.response_json|safe }}{% else %}null{% endif %},
+      "captured_variables": {% if node.result.captured_variables %}{{ node.result.captured_variables|safe }}{% else %}{}{% endif %},
+      "poll_attempts": {{ node.result.poll_attempts|default:"null" }},
+      "error": {{ node.result.error|default:"null"|safe }}
+      {% else %}
+      "status_code": null, "resolved_path": "", "resolved_body": null,
+      "response_json": null, "captured_variables": {}, "poll_attempts": null, "error": null
+      {% endif %}
+    }{% if not forloop.last %},{% endif %}
+    {% endfor %}
+  ]
+  </script>
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+const NODES = JSON.parse(document.getElementById('nodes-data').textContent);
+let selectedIdx = null;
+
+function escHtml(s) {
+  if (s == null) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function prettyJson(v) {
+  if (v == null) return '<span class="text-dim">—</span>';
+  try {
+    return '<pre class="mono small p-2 rounded chain-json-pre">' + escHtml(JSON.stringify(v, null, 2)) + '</pre>';
+  } catch(e) {
+    return escHtml(String(v));
+  }
+}
+
+function selectNode(idx) {
+  // Deselect previous
+  document.querySelectorAll('.chain-node').forEach(n => n.classList.remove('chain-node-selected'));
+  document.getElementById(`node-${idx}`).classList.add('chain-node-selected');
+  selectedIdx = idx;
+  const n = NODES[idx];
+  const detail = document.getElementById('nodeDetail');
+  const title  = document.getElementById('detailTitle');
+  title.innerHTML = `<span class="mono">${escHtml(n.name)}</span>
+    <span class="verb-badge verb-${escHtml(n.method.toLowerCase())} ms-2">${escHtml(n.method)}</span>`;
+
+  let html = `<div class="row g-3">`;
+
+  // Request section
+  html += `<div class="col-md-6">
+    <div class="text-dim small text-uppercase mb-2" style="letter-spacing:.06em">Request</div>
+    <div class="mb-2"><span class="text-dim small">Path:</span> <span class="mono small">${escHtml(n.resolved_path || n.path)}</span></div>`;
+  if (n.resolved_body) {
+    html += `<div class="text-dim small mb-1">Body:</div>${prettyJson(n.resolved_body)}`;
+  }
+  html += `</div>`;
+
+  // Response section
+  html += `<div class="col-md-6">
+    <div class="text-dim small text-uppercase mb-2" style="letter-spacing:.06em">Response</div>`;
+  if (n.error) {
+    html += `<div class="alert alert-danger py-2 small">${escHtml(n.error)}</div>`;
+  } else if (n.status_code != null) {
+    const chipClass = n.status_code < 400 ? 'sla-ok' : 'sla-breached';
+    html += `<div class="mb-2"><span class="sla-chip ${chipClass}">${n.status_code}</span></div>`;
+    html += prettyJson(n.response_json);
+  } else {
+    html += `<span class="text-dim small">Not reached.</span>`;
+  }
+  html += `</div>`;
+
+  // Captured variables
+  const caps = n.captured_variables;
+  if (caps && Object.keys(caps).length > 0) {
+    html += `<div class="col-12">
+      <div class="text-dim small text-uppercase mb-2" style="letter-spacing:.06em">Captured variables</div>
+      <div class="d-flex flex-wrap gap-2">`;
+    for (const [k, v] of Object.entries(caps)) {
+      html += `<span class="status-chip ok mono">${escHtml(k)} = ${escHtml(JSON.stringify(v))}</span>`;
+    }
+    html += `</div></div>`;
+  }
+
+  // Async info
+  if (n.is_async && n.poll_attempts != null) {
+    html += `<div class="col-12"><div class="text-dim small">Polled ${n.poll_attempts} time${n.poll_attempts !== 1 ? 's' : ''} before completing.</div></div>`;
+  }
+
+  html += `</div>`;
+  document.getElementById('detailContent').innerHTML = html;
+  detail.style.display = '';
+  detail.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function closeDetail() {
+  document.getElementById('nodeDetail').style.display = 'none';
+  document.querySelectorAll('.chain-node').forEach(n => n.classList.remove('chain-node-selected'));
+  selectedIdx = null;
+}
+</script>
+{% endblock %}

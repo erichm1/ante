@@ -2,6 +2,27 @@
 {% load static %}
 {% block title %}Home{% endblock %}
 {% block content %}
+  {% if open_incidents %}
+  <div class="inc-banner" id="incBanner" role="alert">
+    <i class="bi-exclamation-triangle-fill inc-banner-icon"></i>
+    <div class="inc-banner-body">
+      <div class="inc-banner-title">Active incident{{ open_incidents|length|pluralize }} affecting your connections</div>
+      <ul class="inc-banner-list">
+        {% for inc in open_incidents %}
+          <li>
+            <span class="fw-500">{{ inc.title }}</span>
+            {% if inc.connection %}<span class="text-dim"> · {{ inc.connection.name }}</span>{% endif %}
+            <span class="text-dim"> · {{ inc.get_status_display }}</span>
+          </li>
+        {% endfor %}
+      </ul>
+    </div>
+    <button class="inc-banner-close" onclick="document.getElementById('incBanner').remove()" aria-label="Dismiss">
+      <i class="bi-x-lg"></i>
+    </button>
+  </div>
+  {% endif %}
+
   <div class="page-title" data-t="home.title">Home</div>
   <div class="page-subtitle" data-t="home.subtitle">Live overview of every migration run.</div>
 
@@ -28,6 +49,83 @@
       <div class="panel text-center stat-tile">
         <div class="text-dim small" data-t="home.stat.failed">Failed</div>
         <div class="mono stat-value" style="color: var(--danger);" id="stat-failed">—</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tickets + Incidents row -->
+  <div class="row g-3 mb-0">
+    <!-- My open tickets -->
+    <div class="col-md-6">
+      <div class="panel h-100">
+        <div class="d-flex align-items-center justify-content-between mb-3">
+          <h6 class="mb-0">My tickets</h6>
+          <div class="d-flex align-items-center gap-2">
+            {% if my_ticket_counts.open or my_ticket_counts.in_progress %}
+              {% if my_ticket_counts.open %}
+                <span class="status-chip err">{{ my_ticket_counts.open }} open</span>
+              {% endif %}
+              {% if my_ticket_counts.in_progress %}
+                <span class="status-chip warn">{{ my_ticket_counts.in_progress }} in progress</span>
+              {% endif %}
+            {% endif %}
+            <a href="{% url 'tickets:list' %}" class="btn btn-sm btn-outline-secondary">View all</a>
+          </div>
+        </div>
+        {% if my_tickets %}
+          <div class="home-item-list">
+            {% for tk in my_tickets %}
+              <a href="{% url 'tickets:detail' tk.pk %}" class="home-item-row">
+                <div class="home-item-name">{{ tk.title }}</div>
+                <div class="home-item-meta">
+                  {% if tk.priority == "critical" %}<span class="status-chip err" style="font-size:0.7rem;padding:1px 7px">Critical</span>
+                  {% elif tk.priority == "high" %}<span class="status-chip warn" style="font-size:0.7rem;padding:1px 7px">High</span>
+                  {% elif tk.priority == "medium" %}<span class="status-chip ok" style="font-size:0.7rem;padding:1px 7px">Medium</span>
+                  {% else %}<span class="status-chip" style="font-size:0.7rem;padding:1px 7px">Low</span>{% endif %}
+                  {% if tk.incident %}
+                    <span class="text-dim" style="font-size:0.75rem">· {{ tk.incident.title }}</span>
+                  {% endif %}
+                </div>
+              </a>
+            {% endfor %}
+          </div>
+        {% else %}
+          <p class="text-dim small mb-0">No open tickets — you're all clear.</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Active incidents -->
+    <div class="col-md-6">
+      <div class="panel h-100">
+        <div class="d-flex align-items-center justify-content-between mb-3">
+          <h6 class="mb-0">Active incidents</h6>
+          {% if request.user.is_staff %}
+            <a href="{% url 'incidents:list' %}" class="btn btn-sm btn-outline-secondary">View all</a>
+          {% endif %}
+        </div>
+        {% if open_incidents %}
+          <div class="home-item-list">
+            {% for inc in open_incidents %}
+              <div class="home-item-row {% if request.user.is_staff %}home-item-link{% endif %}"
+                {% if request.user.is_staff %}onclick="window.location='/incidents/{{ inc.pk }}/'"{% endif %}>
+                <div class="home-item-name">{{ inc.title }}</div>
+                <div class="home-item-meta">
+                  {% if inc.severity == "critical" %}<span class="status-chip err" style="font-size:0.7rem;padding:1px 7px">Critical</span>
+                  {% elif inc.severity == "high" %}<span class="status-chip warn" style="font-size:0.7rem;padding:1px 7px">High</span>
+                  {% elif inc.severity == "medium" %}<span class="status-chip ok" style="font-size:0.7rem;padding:1px 7px">Medium</span>
+                  {% else %}<span class="status-chip" style="font-size:0.7rem;padding:1px 7px">Low</span>{% endif %}
+                  <span class="text-dim" style="font-size:0.75rem">· {{ inc.get_status_display }}</span>
+                  {% if inc.connection %}
+                    <span class="text-dim" style="font-size:0.75rem">· {{ inc.connection.name }}</span>
+                  {% endif %}
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <p class="text-dim small mb-0">No active incidents right now.</p>
+        {% endif %}
       </div>
     </div>
   </div>
@@ -63,6 +161,195 @@
         </div>
         <div id="topEndpointsBox">
           <p class="text-dim small mb-0">Loading…</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Automation rules -->
+  <div class="row g-3 mt-0">
+    <div class="col-12">
+      <div class="panel">
+        <div class="d-flex align-items-center justify-content-between mb-3">
+          <div>
+            <h6 class="mb-0">Automation rules</h6>
+            <div class="text-dim small mt-1">Auto-create incidents when thresholds are breached.</div>
+          </div>
+          <div class="d-flex gap-2">
+            <button class="btn btn-sm btn-outline-secondary" id="checkRulesBtn" onclick="checkRulesNow()">Check now</button>
+            <button class="btn btn-sm btn-signal" data-bs-toggle="modal" data-bs-target="#newRuleModal">+ Rule</button>
+          </div>
+        </div>
+        <div id="checkRulesResult" class="alert d-none mb-3"></div>
+        {% if my_rules %}
+          <div class="table-responsive">
+            <table class="table align-middle mb-0 small">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Trigger</th>
+                  <th>Threshold</th>
+                  <th>Window</th>
+                  <th>Severity</th>
+                  <th>Connection</th>
+                  <th>Enabled</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for rule in my_rules %}
+                <tr id="rule-row-{{ rule.pk }}">
+                  <td class="fw-500">{{ rule.name }}</td>
+                  <td class="text-dim">{{ rule.get_trigger_type_display }}</td>
+                  <td class="mono">{{ rule.threshold }}%</td>
+                  <td class="mono">{{ rule.window_hours }}h</td>
+                  <td>
+                    {% if rule.severity == "critical" %}<span class="status-chip err">Critical</span>
+                    {% elif rule.severity == "high" %}<span class="status-chip warn">High</span>
+                    {% elif rule.severity == "medium" %}<span class="status-chip ok">Medium</span>
+                    {% else %}<span class="status-chip">Low</span>{% endif %}
+                  </td>
+                  <td>{{ rule.connection.name|default:"—" }}</td>
+                  <td>
+                    <div class="form-check form-switch mb-0" style="min-height:0">
+                      <input class="form-check-input" type="checkbox" {% if rule.enabled %}checked{% endif %}
+                        onchange="toggleRule({{ rule.pk }}, this.checked)" style="cursor:pointer">
+                    </div>
+                  </td>
+                  <td class="text-end">
+                    <button class="btn btn-sm btn-outline-secondary me-1"
+                      onclick="openEditRule({{ rule.pk }},'{{ rule.name|escapejs }}','{{ rule.trigger_type }}',{{ rule.threshold }},{{ rule.window_hours }},'{{ rule.severity }}',{{ rule.connection.pk|default:'null' }},'{{ rule.auto_title|escapejs }}',{{ rule.enabled|yesno:'true,false' }})">Edit</button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="deleteRule({{ rule.pk }})">Delete</button>
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <p class="text-dim small mb-0">No rules yet — add one to start auto-creating incidents.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- New rule modal -->
+  <div class="modal fade" id="newRuleModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">New automation rule</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div id="newRuleError" class="alert alert-danger d-none"></div>
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label">Rule name</label>
+              <input class="form-control" id="nr_name" placeholder="e.g. High fail rate alert">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Trigger type</label>
+              <select class="form-select" id="nr_trigger">
+                {% for value, label in trigger_choices %}
+                  <option value="{{ value }}">{{ label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Threshold (%)</label>
+              <input class="form-control" id="nr_threshold" type="number" min="0" max="100" step="1" value="20">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Window (hours)</label>
+              <input class="form-control" id="nr_window" type="number" min="1" max="168" step="1" value="1">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Incident severity</label>
+              <select class="form-select" id="nr_severity">
+                {% for value, label in severity_choices %}
+                  <option value="{{ value }}" {% if value == "high" %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Connection <span class="text-dim">(optional)</span></label>
+              <select class="form-select" id="nr_connection">
+                <option value="">Any / all</option>
+                {% for c in connections %}<option value="{{ c.pk }}">{{ c.name }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Auto-title template</label>
+              <input class="form-control" id="nr_title" placeholder="e.g. High fail rate on {connection}">
+              <div class="text-dim small mt-1">Use <code>{connection}</code> or <code>{threshold}</code>.</div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button class="btn btn-signal" onclick="createRule()">Create rule</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit rule modal -->
+  <div class="modal fade" id="editRuleModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Edit rule</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div id="editRuleError" class="alert alert-danger d-none"></div>
+          <input type="hidden" id="er_id">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label">Rule name</label>
+              <input class="form-control" id="er_name">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Trigger type</label>
+              <select class="form-select" id="er_trigger">
+                {% for value, label in trigger_choices %}
+                  <option value="{{ value }}">{{ label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Threshold (%)</label>
+              <input class="form-control" id="er_threshold" type="number" min="0" max="100" step="1">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Window (hours)</label>
+              <input class="form-control" id="er_window" type="number" min="1" max="168" step="1">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Incident severity</label>
+              <select class="form-select" id="er_severity">
+                {% for value, label in severity_choices %}
+                  <option value="{{ value }}">{{ label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Connection <span class="text-dim">(optional)</span></label>
+              <select class="form-select" id="er_connection">
+                <option value="">Any / all</option>
+                {% for c in connections %}<option value="{{ c.pk }}">{{ c.name }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Auto-title template</label>
+              <input class="form-control" id="er_title">
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button class="btn btn-signal" onclick="saveRule()">Save</button>
         </div>
       </div>
     </div>
@@ -145,5 +432,119 @@ async function refreshStats() {
 
 refreshStats();
 setInterval(refreshStats, 3000);
+
+/* ── Automation rules ─── */
+async function checkRulesNow() {
+  const btn = document.getElementById('checkRulesBtn');
+  const box = document.getElementById('checkRulesResult');
+  btn.disabled = true;
+  btn.textContent = 'Checking…';
+  try {
+    const resp = await fetch('/home/check-rules/', { method: 'POST', headers: { 'X-CSRFToken': getCsrf() } });
+    const data = await resp.json();
+    box.className = `alert ${data.created ? 'alert-warning' : 'alert-success'} mb-3`;
+    box.textContent = data.created
+      ? `${data.created} incident${data.created > 1 ? 's' : ''} auto-created from rules.`
+      : 'No new incidents triggered — all rules within thresholds.';
+    box.classList.remove('d-none');
+    setTimeout(() => box.classList.add('d-none'), 8000);
+  } catch(e) {
+    box.className = 'alert alert-danger mb-3';
+    box.textContent = 'Failed to check rules — try again.';
+    box.classList.remove('d-none');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Check now';
+  }
+}
+
+function getCsrf() {
+  const m = document.cookie.match(/csrftoken=([^;]+)/);
+  return m ? m[1] : '';
+}
+
+async function createRule() {
+  const err = document.getElementById('newRuleError');
+  err.classList.add('d-none');
+  const name = document.getElementById('nr_name').value.trim();
+  if (!name) { err.textContent = 'Name is required.'; err.classList.remove('d-none'); return; }
+  const payload = {
+    name,
+    trigger_type: document.getElementById('nr_trigger').value,
+    threshold:    parseFloat(document.getElementById('nr_threshold').value),
+    window_hours: parseInt(document.getElementById('nr_window').value),
+    severity:     document.getElementById('nr_severity').value,
+    auto_title:   document.getElementById('nr_title').value.trim(),
+    enabled:      true,
+  };
+  const conn = document.getElementById('nr_connection').value;
+  if (conn) payload.connection = conn;
+  const resp = await fetch('/home/rules/', {
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
+    body: JSON.stringify(payload),
+  });
+  if (resp.ok) {
+    location.reload();
+  } else {
+    err.textContent = JSON.stringify(await resp.json());
+    err.classList.remove('d-none');
+  }
+}
+
+function openEditRule(id, name, trigger, threshold, window_h, severity, connId, autoTitle, enabled) {
+  document.getElementById('er_id').value = id;
+  document.getElementById('er_name').value = name;
+  document.getElementById('er_trigger').value = trigger;
+  document.getElementById('er_threshold').value = threshold;
+  document.getElementById('er_window').value = window_h;
+  document.getElementById('er_severity').value = severity;
+  document.getElementById('er_connection').value = connId || '';
+  document.getElementById('er_title').value = autoTitle;
+  new bootstrap.Modal(document.getElementById('editRuleModal')).show();
+}
+
+async function saveRule() {
+  const id = document.getElementById('er_id').value;
+  const err = document.getElementById('editRuleError');
+  err.classList.add('d-none');
+  const payload = {
+    name:         document.getElementById('er_name').value.trim(),
+    trigger_type: document.getElementById('er_trigger').value,
+    threshold:    parseFloat(document.getElementById('er_threshold').value),
+    window_hours: parseInt(document.getElementById('er_window').value),
+    severity:     document.getElementById('er_severity').value,
+    auto_title:   document.getElementById('er_title').value.trim(),
+  };
+  const conn = document.getElementById('er_connection').value;
+  payload.connection = conn || null;
+  const resp = await fetch(`/home/rules/${id}/`, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
+    body: JSON.stringify(payload),
+  });
+  if (resp.ok) {
+    location.reload();
+  } else {
+    err.textContent = JSON.stringify(await resp.json());
+    err.classList.remove('d-none');
+  }
+}
+
+async function toggleRule(id, enabled) {
+  await fetch(`/home/rules/${id}/`, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
+    body: JSON.stringify({ enabled }),
+  });
+}
+
+async function deleteRule(id) {
+  if (!confirm('Delete this rule?')) return;
+  const resp = await fetch(`/home/rules/${id}/`, {
+    method: 'DELETE', headers: { 'X-CSRFToken': getCsrf() },
+  });
+  if (resp.ok) {
+    const row = document.getElementById(`rule-row-${id}`);
+    if (row) row.remove();
+  }
+}
 </script>
 {% endblock %}

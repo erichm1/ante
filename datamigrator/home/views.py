@@ -7,7 +7,9 @@ from django.shortcuts import render
 from django.utils import timezone
 
 from connections.models import ApiCallLog, Connection
+from incidents.models import Incident, IncidentRule
 from jobs.models import MigrationRun
+from tickets.models import Ticket
 
 import connections.scheduler as connections_scheduler
 import jobs.scheduler as jobs_scheduler
@@ -19,7 +21,145 @@ RECENT_ERRORS_HOURS = 1    # API-error-rate window
 
 
 def index(request):
-    return render(request, "home/index.html")
+    open_incidents = list(
+        Incident.objects.exclude(status=Incident.STATUS_RESOLVED)
+            .select_related("connection")
+            .order_by("-created_at")[:5]
+    )
+
+    my_tickets = list(
+        Ticket.objects.filter(created_by=request.user)
+            .exclude(status__in=["resolved", "closed"])
+            .select_related("incident")
+            .order_by("-created_at")[:8]
+    )
+    my_ticket_counts = {
+        "open":        Ticket.objects.filter(created_by=request.user, status="open").count(),
+        "in_progress": Ticket.objects.filter(created_by=request.user, status="in_progress").count(),
+    }
+
+    my_rules = list(request.user.incident_rules.select_related("connection").order_by("-created_at"))
+
+    return render(request, "home/index.html", {
+        "open_incidents":    open_incidents,
+        "my_tickets":        my_tickets,
+        "my_ticket_counts":  my_ticket_counts,
+        "my_rules":          my_rules,
+        "trigger_choices":   IncidentRule.TRIGGER_CHOICES,
+        "severity_choices":  Incident.SEVERITY_CHOICES,
+        "connections":       Connection.objects.order_by("name"),
+    })
+
+
+def _evaluate_rules(user):
+    """Evaluate all enabled incident rules for user. Returns list of created Incident objects."""
+    from datetime import timedelta
+    import json
+
+    now = timezone.now()
+    created = []
+
+    for rule in IncidentRule.objects.filter(user=user, enabled=True):
+        rule.last_checked_at = now
+        triggered = False
+        metric_value = 0.0
+
+        window_start = now - timedelta(hours=rule.window_hours)
+
+        if rule.trigger_type == IncidentRule.TRIGGER_RUN_FAIL:
+            qs = MigrationRun.objects.filter(created_at__gte=window_start)
+            total = qs.count()
+            if total > 0:
+                failed = qs.filter(status=MigrationRun.STATUS_FAILED).count()
+                metric_value = (failed / total) * 100
+                triggered = metric_value >= rule.threshold
+
+        elif rule.trigger_type in (IncidentRule.TRIGGER_CONN_ERR, IncidentRule.TRIGGER_API_ERROR):
+            qs = ApiCallLog.objects.filter(created_at__gte=window_start)
+            if rule.connection_id:
+                qs = qs.filter(connection_id=rule.connection_id)
+            total = qs.count()
+            if total > 0:
+                errors = qs.filter(status_code__gte=400).count()
+                metric_value = (errors / total) * 100
+                triggered = metric_value >= rule.threshold
+
+        if triggered:
+            title = rule.auto_title or f"[Auto] {rule.get_trigger_type_display()} — {rule.name}"
+            already_open = Incident.objects.filter(
+                title=title,
+                status__in=[Incident.STATUS_OPEN, Incident.STATUS_INVESTIGATING, Incident.STATUS_IDENTIFIED],
+            ).exists()
+            if not already_open:
+                inc = Incident.objects.create(
+                    title=title,
+                    description=(
+                        f"Auto-created by rule \"{rule.name}\".\n"
+                        f"Metric: {metric_value:.1f}% (threshold: {rule.threshold}%)\n"
+                        f"Window: last {rule.window_hours}h"
+                    ),
+                    severity=rule.severity,
+                    connection=rule.connection,
+                )
+                rule.last_triggered_at = now
+                created.append(inc)
+
+        rule.save(update_fields=["last_checked_at", "last_triggered_at"])
+
+    return created
+
+
+def check_rules(request):
+    if request.method != "POST":
+        return JsonResponse({"error": "POST required."}, status=405)
+    created = _evaluate_rules(request.user)
+    return JsonResponse({"created": len(created), "incidents": [{"id": i.pk, "title": i.title} for i in created]})
+
+
+def rules_api(request):
+    from incidents.serializers import IncidentRuleSerializer
+    import json
+
+    if request.method == "GET":
+        rules = IncidentRule.objects.filter(user=request.user).select_related("connection")
+        data = IncidentRuleSerializer(rules, many=True, context={"request": request}).data
+        return JsonResponse({"results": list(data)})
+
+    if request.method == "POST":
+        body = json.loads(request.body)
+        ser = IncidentRuleSerializer(data=body, context={"request": request})
+        if ser.is_valid():
+            ser.save()
+            return JsonResponse(ser.data, status=201)
+        return JsonResponse(ser.errors, status=400)
+
+    return JsonResponse({"error": "Method not allowed."}, status=405)
+
+
+def rule_detail_api(request, pk):
+    from incidents.serializers import IncidentRuleSerializer
+    import json
+
+    rule = IncidentRule.objects.filter(user=request.user, pk=pk).first()
+    if not rule:
+        return JsonResponse({"error": "Not found."}, status=404)
+
+    if request.method == "GET":
+        return JsonResponse(IncidentRuleSerializer(rule, context={"request": request}).data)
+
+    if request.method in ("PATCH", "PUT"):
+        body = json.loads(request.body)
+        ser = IncidentRuleSerializer(rule, data=body, partial=True, context={"request": request})
+        if ser.is_valid():
+            ser.save()
+            return JsonResponse(ser.data)
+        return JsonResponse(ser.errors, status=400)
+
+    if request.method == "DELETE":
+        rule.delete()
+        return JsonResponse({}, status=204)
+
+    return JsonResponse({"error": "Method not allowed."}, status=405)
 
 
 def _top_endpoints(limit=5):

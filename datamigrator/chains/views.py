@@ -9,7 +9,7 @@ from rest_framework.response import Response
 from connections.models import Connection
 
 from . import executor
-from .models import CallChain, CallChainRun, CallChainStep
+from .models import CallChain, CallChainRun, CallChainStep, CallChainStepResult
 from .serializers import CallChainRunSerializer, CallChainSerializer, CallChainStepSerializer
 
 STEP_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_-]*$")  # matches executor.VAR_RE's step-name segment exactly
@@ -253,6 +253,38 @@ def chain_list(request):
     chains = CallChain.objects.select_related("connection").prefetch_related("steps")
     return render(request, "chains/list.html", {
         "chains": chains, "connections": Connection.objects.order_by("name"),
+    })
+
+
+def chain_run_detail(request, chain_pk, run_pk):
+    chain = get_object_or_404(CallChain.objects.select_related("connection"), pk=chain_pk)
+    run = get_object_or_404(
+        CallChainRun.objects.prefetch_related("step_results"),
+        pk=run_pk, chain=chain,
+    )
+    steps = list(chain.steps.all())
+    step_results = {r.name: r for r in run.step_results.all()}
+    nodes = []
+    for step in steps:
+        result = step_results.get(step.name)
+        if result:
+            if result.error:
+                node_status = "error"
+            elif result.status_code and result.status_code < 400:
+                node_status = "success"
+            else:
+                node_status = "error"
+        else:
+            node_status = "pending"
+        nodes.append({
+            "step": step,
+            "result": result,
+            "node_status": node_status,
+        })
+    return render(request, "chains/run_detail.html", {
+        "chain": chain,
+        "run": run,
+        "nodes": nodes,
     })
 
 

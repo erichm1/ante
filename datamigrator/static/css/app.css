@@ -1002,3 +1002,393 @@ tr.dnd-over td { background: var(--trace-soft); }
 .lang-opt .lo-name { flex: 1; }
 .lang-opt .lo-native { font-size: 0.67rem; opacity: 0.50; flex-shrink: 0; }
 /* ── /language selector ──────────────────────────────────────────────────── */
+
+/* ── Incidents ────────────────────────────────────────────────────────────── */
+
+/* Severity chips */
+.inc-sev-chip, .inc-status-chip {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.72rem;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid currentColor;
+  white-space: nowrap;
+}
+
+.inc-sev-chip.inc-sev-critical { color: var(--danger);  border-color: var(--chip-err-bd); background: var(--chip-err-bg); }
+.inc-sev-chip.inc-sev-high     { color: var(--signal);  border-color: var(--chip-warn-bd); background: var(--chip-warn-bg); }
+.inc-sev-chip.inc-sev-medium   { color: var(--trace);   border-color: var(--trace-soft); background: var(--trace-soft); }
+.inc-sev-chip.inc-sev-low      { color: var(--text-dim); border-color: var(--paper-line); background: transparent; }
+
+.inc-status-chip.inc-status-open          { color: var(--danger);  border-color: var(--chip-err-bd); background: var(--chip-err-bg); }
+.inc-status-chip.inc-status-investigating { color: var(--signal);  border-color: var(--chip-warn-bd); background: var(--chip-warn-bg); }
+.inc-status-chip.inc-status-identified   { color: var(--signal);  border-color: var(--chip-warn-bd); background: var(--chip-warn-bg); }
+.inc-status-chip.inc-status-resolved     { color: var(--trace);   border-color: var(--trace-soft); background: var(--trace-soft); }
+
+/* Timeline */
+.inc-timeline { display: flex; flex-direction: column; gap: 0; }
+
+.inc-event {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 0;
+  border-left: 2px solid var(--paper-line);
+  padding-left: 20px;
+  position: relative;
+}
+.inc-event:last-child { border-left-color: transparent; }
+
+.inc-event-dot {
+  position: absolute;
+  left: -6px;
+  top: 14px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--paper-line);
+  border: 2px solid var(--paper);
+  flex-shrink: 0;
+}
+.inc-event-dot-note     { background: var(--trace); }
+.inc-event-dot-resolved { background: var(--trace); }
+
+.inc-event-body { flex: 1; min-width: 0; }
+
+.inc-event-system .inc-event-dot { background: var(--text-dim); }
+
+.inc-note-text {
+  font-size: 0.9rem;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ── /incidents ───────────────────────────────────────────────────────────── */
+
+/* ── /tickets ─────────────────────────────────────────────────────────────── */
+
+.tk-status-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  border: 1px solid var(--paper-line);
+  background: transparent;
+  color: var(--text-dim);
+}
+.tk-status-chip.tk-status-open        { color: var(--danger);  border-color: var(--chip-err-bd);  background: var(--chip-err-bg); }
+.tk-status-chip.tk-status-in_progress { color: var(--signal);  border-color: var(--chip-warn-bd); background: var(--chip-warn-bg); }
+.tk-status-chip.tk-status-resolved    { color: var(--trace);   border-color: var(--trace-soft);   background: var(--trace-soft); }
+.tk-status-chip.tk-status-closed      { color: var(--text-dim); border-color: var(--paper-line);  background: transparent; }
+
+/* ── Home incident banner ─────────────────────────────────────────────────── */
+
+.inc-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 18px;
+  border-radius: 10px;
+  border-left: 4px solid var(--danger);
+  background: var(--chip-err-bg);
+  margin-bottom: 20px;
+  position: relative;
+  animation: incBannerFadeOut 0.6s ease forwards;
+  animation-delay: 8s;
+}
+.inc-banner-icon { color: var(--danger); font-size: 1.1rem; margin-top: 1px; flex-shrink: 0; }
+.inc-banner-body { flex: 1; min-width: 0; }
+.inc-banner-title { font-weight: 600; color: var(--text); margin-bottom: 2px; font-size: 0.9rem; }
+.inc-banner-list  { list-style: none; padding: 0; margin: 0; }
+.inc-banner-list li { font-size: 0.82rem; color: var(--text-dim); }
+.inc-banner-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-dim);
+  padding: 0;
+  font-size: 1rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.inc-banner-close:hover { color: var(--text); }
+
+@keyframes incBannerFadeOut {
+  from { opacity: 1; max-height: 200px; }
+  to   { opacity: 0; max-height: 0; padding-top: 0; padding-bottom: 0; margin-bottom: 0; overflow: hidden; }
+}
+
+/* ── Home panels: item list rows ─────────────────────────────────────────── */
+
+.home-item-list { display: flex; flex-direction: column; gap: 0; }
+
+.home-item-row {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--paper-line);
+  text-decoration: none;
+  color: var(--text);
+  transition: background 0.12s;
+}
+.home-item-row:last-child { border-bottom: none; }
+
+a.home-item-row:hover { color: var(--text); background: var(--ink-soft); border-radius: 6px; padding-left: 6px; padding-right: 6px; margin: 0 -6px; }
+.home-item-link { cursor: pointer; }
+.home-item-link:hover { background: var(--ink-soft); border-radius: 6px; padding-left: 6px; padding-right: 6px; margin: 0 -6px; }
+
+.home-item-name { font-size: 0.875rem; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.home-item-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
+
+/* ── SLA chips ────────────────────────────────────────────────────────────── */
+
+.sla-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 9px;
+  border-radius: 20px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  border: 1px solid transparent;
+}
+.sla-chip.sla-ok {
+  color: var(--trace);
+  border-color: var(--trace-soft);
+  background: var(--trace-soft);
+}
+.sla-chip.sla-warning {
+  color: var(--signal);
+  border-color: var(--chip-warn-bd);
+  background: var(--chip-warn-bg);
+}
+.sla-chip.sla-breached {
+  color: var(--danger);
+  border-color: var(--chip-err-bd);
+  background: var(--chip-err-bg);
+}
+
+/* ── Service chips ────────────────────────────────────────────────────────── */
+
+.svc-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 9px;
+  border-radius: 20px;
+  font-size: 0.72rem;
+  font-weight: 500;
+  border: 1px solid var(--paper-line);
+  background: var(--ink-soft);
+  color: var(--text-dim);
+  gap: 4px;
+}
+
+.svc-checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  border: 1px solid var(--paper-line);
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+  user-select: none;
+}
+.svc-checkbox-label:has(input:checked) {
+  border-color: var(--signal);
+  background: var(--chip-warn-bg);
+  color: var(--signal);
+}
+.svc-checkbox-label input { display: none; }
+
+/* ── Attachment rows ──────────────────────────────────────────────────────── */
+
+.attach-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--paper-line);
+}
+.attach-row:last-child { border-bottom: none; }
+
+.attach-icon {
+  font-size: 1.1rem;
+  color: var(--text-dim);
+  flex-shrink: 0;
+  width: 24px;
+  text-align: center;
+}
+.attach-name {
+  flex: 1;
+  font-size: 0.85rem;
+  font-weight: 500;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.attach-size {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.attach-del {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 0 2px;
+  font-size: 1rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.attach-del:hover { color: var(--danger); }
+
+/* ── Post-mortem form ─────────────────────────────────────────────────────── */
+
+.pm-section-label {
+  display: block;
+  font-weight: 600;
+  font-size: 0.9rem;
+  margin-bottom: 4px;
+  color: var(--text);
+}
+.pm-textarea {
+  resize: vertical;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  background: var(--ink-soft);
+  border-color: var(--paper-line);
+  color: var(--text);
+}
+.pm-textarea.mono {
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+}
+.pm-textarea:focus {
+  background: var(--paper);
+  border-color: var(--signal);
+  box-shadow: 0 0 0 3px rgba(var(--signal-rgb, 59,130,246), 0.12);
+}
+
+/* ── Chain run canvas ─────────────────────────────────────────────────────── */
+
+.chain-canvas {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  overflow-x: auto;
+  padding: 12px 4px 16px;
+  flex-wrap: nowrap;
+}
+
+.chain-node {
+  flex-shrink: 0;
+  width: 180px;
+  padding: 14px 16px;
+  border-radius: 10px;
+  border: 2px solid var(--paper-line);
+  background: var(--paper);
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.1s;
+  position: relative;
+}
+.chain-node:hover {
+  border-color: var(--signal);
+  box-shadow: 0 0 0 3px rgba(59,130,246,.1);
+  transform: translateY(-1px);
+}
+.chain-node-selected {
+  border-color: var(--signal) !important;
+  box-shadow: 0 0 0 3px rgba(59,130,246,.18) !important;
+}
+
+.chain-node-success  { border-color: var(--trace); }
+.chain-node-error    { border-color: var(--danger); }
+.chain-node-pending  { border-color: var(--paper-line); opacity: 0.6; }
+
+.chain-node-success:hover  { border-color: var(--trace); }
+.chain-node-error:hover    { border-color: var(--danger); }
+
+.chain-node-order {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: .08em;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+.chain-node-name {
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-bottom: 6px;
+  word-break: break-all;
+}
+.chain-node-method { margin-bottom: 4px; }
+.chain-node-path {
+  font-size: 0.72rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 148px;
+}
+.chain-node-status { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+
+.chain-arrow {
+  flex-shrink: 0;
+  font-size: 1.4rem;
+  color: var(--paper-line);
+  padding: 0 6px;
+  line-height: 1;
+  user-select: none;
+  margin-top: -4px;
+}
+.chain-arrow-ok  { color: var(--trace); }
+.chain-arrow-err { color: var(--danger); }
+
+.chain-json-pre {
+  background: var(--ink-soft);
+  border: 1px solid var(--paper-line);
+  max-height: 280px;
+  overflow-y: auto;
+  font-size: 0.78rem;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* ── Incident list tags ───────────────────────────────────────────────────── */
+
+.inc-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 8px;
+  border-radius: 20px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+.inc-tag-resolved {
+  color: var(--trace);
+  border-color: var(--trace-soft);
+  background: var(--trace-soft);
+}
+.inc-tag-pm {
+  color: var(--signal);
+  border-color: var(--chip-warn-bd);
+  background: var(--chip-warn-bg);
+}
+.inc-tag-svc {
+  color: var(--text-dim);
+  border-color: var(--paper-line);
+  background: var(--ink-soft);
+}

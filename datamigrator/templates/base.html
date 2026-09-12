@@ -64,6 +64,14 @@
           <a href="{% url 'reports:list' %}"
              class="{% if request.resolver_match.app_name == 'reports' %}active{% endif %}"
              data-t-tip="tip.reports" data-sb-tip="Reports — combine data from multiple entities into a single drag-and-drop CSV export, with on-screen preview."><span data-t="nav.reports">Reports</span></a>
+          <a href="{% url 'tickets:list' %}"
+             class="{% if request.resolver_match.app_name == 'tickets' %}active{% endif %}"
+             data-t-tip="tip.tickets" data-sb-tip="Tickets — your personal support tickets, optionally linked to an incident."><span data-t="nav.tickets">Tickets</span></a>
+          {% if request.user.is_staff %}
+          <a href="{% url 'incidents:list' %}"
+             class="{% if request.resolver_match.app_name == 'incidents' %}active{% endif %}"
+             data-t-tip="tip.incidents" data-sb-tip="Incidents — track outages and issues affecting your integrations, with a running timeline of notes."><span data-t="nav.incidents">Incidents</span></a>
+          {% endif %}
           <a href="{% url 'connections:logs' %}"
              class="{% if request.resolver_match.url_name == 'logs' %}active{% endif %}"
              data-t-tip="tip.logs" data-sb-tip="Logs — full history of every outbound API call made across all connections, with status codes and response times."><span data-t="nav.logs">Logs</span></a>

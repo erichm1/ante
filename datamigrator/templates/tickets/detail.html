@@ -1,0 +1,429 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}{{ ticket.title }} · Ticket{% endblock %}
+{% block content %}
+
+  <div class="d-flex justify-content-between align-items-start page-actions mb-3">
+    <div class="min-w-0">
+      <div class="d-flex align-items-center gap-2 flex-wrap mb-1">
+        <div class="page-title mb-0" id="tk-title">{{ ticket.title }}</div>
+        <span class="inc-sev-chip inc-sev-{{ ticket.priority }}" id="tk-pri-chip">{{ ticket.get_priority_display }}</span>
+        <span class="tk-status-chip tk-status-{{ ticket.status }}" id="tk-status-chip">{{ ticket.get_status_display }}</span>
+      </div>
+      <div class="text-dim small" id="tk-meta">
+        Opened {{ ticket.created_at|date:"Y-m-d H:i" }}
+        {% if ticket.incident %}
+          &nbsp;·&nbsp; Linked to incident:
+          <span id="tk-incident-name">{{ ticket.incident.title }}</span>
+        {% endif %}
+        {% if ticket.resolved_at %}
+          &nbsp;·&nbsp; Closed {{ ticket.resolved_at|date:"Y-m-d H:i" }}
+        {% endif %}
+      </div>
+      {% if ticket.description %}
+        <p class="mt-2 mb-0" id="tk-description">{{ ticket.description }}</p>
+      {% else %}
+        <p class="mt-2 mb-0 text-dim" id="tk-description"><em>No description.</em></p>
+      {% endif %}
+    </div>
+    <div class="d-flex gap-2 flex-wrap flex-shrink-0">
+      <button class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#editTicketModal">Edit</button>
+      {% if ticket.is_closed %}
+        <button class="btn btn-outline-secondary" id="reopenBtn" onclick="reopenTicket()">Reopen</button>
+      {% else %}
+        <button class="btn btn-signal" id="resolveBtn" onclick="resolveTicket()">Resolve</button>
+        <button class="btn btn-outline-secondary" id="closeBtn" onclick="closeTicket()">Close</button>
+      {% endif %}
+      <button class="btn btn-outline-danger" onclick="deleteTicket()">Delete</button>
+    </div>
+  </div>
+
+  <!-- Status quick-change bar -->
+  <div class="panel py-2 px-3 mb-3 d-flex align-items-center gap-3 flex-wrap">
+    <span class="text-dim small">Status:</span>
+    {% for value, label in status_choices %}
+      <button
+        class="btn btn-sm {% if ticket.status == value %}btn-signal{% else %}btn-outline-secondary{% endif %} tk-status-btn"
+        data-status="{{ value }}"
+        onclick="setStatus('{{ value }}')"
+        id="status-btn-{{ value }}">
+        {{ label }}
+      </button>
+    {% endfor %}
+    <span class="ms-auto text-dim small">Priority:</span>
+    {% for value, label in priority_choices %}
+      <button
+        class="btn btn-sm {% if ticket.priority == value %}btn-secondary{% else %}btn-outline-secondary{% endif %} tk-pri-btn"
+        data-priority="{{ value }}"
+        onclick="setPriority('{{ value }}')"
+        id="pri-btn-{{ value }}">
+        {{ label }}
+      </button>
+    {% endfor %}
+  </div>
+
+  <!-- Timeline -->
+  <div class="panel">
+    <h6 class="mb-3">Timeline</h6>
+
+    <div class="inc-timeline" id="tkTimeline">
+      <div class="inc-event inc-event-system">
+        <span class="inc-event-dot"></span>
+        <div class="inc-event-body">
+          <span class="text-dim small">Ticket opened</span>
+          <span class="mono small text-dim ms-2">{{ ticket.created_at|date:"Y-m-d H:i" }}</span>
+        </div>
+      </div>
+
+      {% for note in notes %}
+        <div class="inc-event" id="note-{{ note.pk }}">
+          <span class="inc-event-dot inc-event-dot-note"></span>
+          <div class="inc-event-body">
+            <div class="inc-note-text">{{ note.body }}</div>
+            <div class="d-flex align-items-center gap-3 mt-1">
+              <span class="mono small text-dim">{{ note.created_at|date:"Y-m-d H:i" }}</span>
+              <button class="btn btn-sm btn-link text-dim p-0" style="font-size:0.75rem" onclick="deleteNote({{ note.pk }})">Delete</button>
+            </div>
+          </div>
+        </div>
+      {% empty %}
+        <p class="text-dim small mb-0" id="noNotesMsg">No notes yet — add an update below.</p>
+      {% endfor %}
+
+      {% if ticket.resolved_at %}
+        <div class="inc-event inc-event-resolved" id="closedEvent">
+          <span class="inc-event-dot inc-event-dot-resolved"></span>
+          <div class="inc-event-body">
+            <span class="text-dim small">Ticket closed</span>
+            <span class="mono small text-dim ms-2">{{ ticket.resolved_at|date:"Y-m-d H:i" }}</span>
+          </div>
+        </div>
+      {% endif %}
+    </div>
+
+    <!-- Add note -->
+    <div class="mt-4 pt-3 border-top">
+      <label class="form-label small">Note</label>
+      <textarea class="form-control mb-2" id="noteBody" rows="3" placeholder="Describe what you found or tried…"></textarea>
+      <div id="noteError" class="alert alert-danger d-none mb-2"></div>
+      <button class="btn btn-signal btn-sm" onclick="addNote()">Add note</button>
+    </div>
+  </div>
+
+  <!-- Attachments -->
+  <div class="panel mt-3" id="tkAttachPanel">
+    <div class="d-flex align-items-center justify-content-between mb-3">
+      <h6 class="mb-0">Attachments <span class="text-dim small" id="tkAttachCount">(0)</span></h6>
+      <label class="btn btn-sm btn-outline-secondary mb-0" style="cursor:pointer">
+        Attach file
+        <input type="file" id="tkFileInput" style="display:none" multiple onchange="uploadTkFiles(this.files)">
+      </label>
+    </div>
+    <div id="tkAttachList">
+      <p class="text-dim small mb-0" id="noTkAttach">Loading…</p>
+    </div>
+    <div id="tkUploadProgress" class="d-none mt-2">
+      <div class="progress" style="height:4px"><div class="progress-bar" id="tkProgressBar" style="width:0%"></div></div>
+    </div>
+  </div>
+
+  <!-- SLA info -->
+  <div class="panel mt-3 py-2 px-3 d-flex align-items-center gap-4 flex-wrap">
+    <div class="d-flex align-items-center gap-2">
+      <span class="text-dim small">Response SLA:</span>
+      <span class="sla-chip sla-{{ ticket.sla_response_status }}">
+        {% if ticket.acknowledged_at %}Acknowledged{% elif ticket.sla_response_status == 'breached' %}Breached{% elif ticket.sla_response_status == 'warning' %}Warning{% else %}On track{% endif %}
+      </span>
+      {% if ticket.sla_response_deadline %}
+        <span class="text-dim small mono">deadline {{ ticket.sla_response_deadline|date:"H:i Y-m-d" }}</span>
+      {% endif %}
+    </div>
+    <div class="d-flex align-items-center gap-2">
+      <span class="text-dim small">Resolution SLA:</span>
+      <span class="sla-chip sla-{{ ticket.sla_resolution_status }}">
+        {% if ticket.is_closed %}Closed{% elif ticket.sla_resolution_status == 'breached' %}Breached{% elif ticket.sla_resolution_status == 'warning' %}Warning{% else %}On track{% endif %}
+      </span>
+      {% if ticket.sla_resolution_deadline %}
+        <span class="text-dim small mono">deadline {{ ticket.sla_resolution_deadline|date:"H:i Y-m-d" }}</span>
+      {% endif %}
+    </div>
+  </div>
+
+  <a href="{% url 'tickets:list' %}" class="btn btn-outline-secondary mt-3">← back to tickets</a>
+
+  <!-- Edit modal -->
+  <div class="modal fade" id="editTicketModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Edit ticket</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div id="editTicketError" class="alert alert-danger d-none"></div>
+          <div class="mb-3">
+            <label class="form-label">Title</label>
+            <input class="form-control" id="et_title" value="{{ ticket.title }}">
+          </div>
+          <div class="row g-2 mb-3">
+            <div class="col-6">
+              <label class="form-label">Priority</label>
+              <select class="form-select" id="et_priority">
+                {% for value, label in priority_choices %}
+                  <option value="{{ value }}" {% if ticket.priority == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-6">
+              <label class="form-label">Incident <span class="text-dim">(optional)</span></label>
+              <select class="form-select" id="et_incident">
+                <option value="">None</option>
+                {% for inc in open_incidents %}
+                  <option value="{{ inc.pk }}" {% if ticket.incident_id == inc.pk %}selected{% endif %}>{{ inc.title }}</option>
+                {% endfor %}
+                {% if ticket.incident and ticket.incident.status == "resolved" %}
+                  <option value="{{ ticket.incident.pk }}" selected>{{ ticket.incident.title }} (resolved)</option>
+                {% endif %}
+              </select>
+            </div>
+          </div>
+          <div class="mb-1">
+            <label class="form-label">Description</label>
+            <textarea class="form-control" id="et_description" rows="4">{{ ticket.description }}</textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button class="btn btn-signal" onclick="saveEdit()" data-t="btn.save">Save</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+const TK_ID = {{ ticket.pk }};
+
+const PRI_CLASS = { critical:'err', high:'warn', medium:'ok', low:'' };
+const PRI_LABEL = { critical:'Critical', high:'High', medium:'Medium', low:'Low' };
+const STAT_CLASS = { open:'err', in_progress:'warn', resolved:'ok', closed:'' };
+const STAT_LABEL = { open:'Open', in_progress:'In progress', resolved:'Resolved', closed:'Closed' };
+
+function updatePriChip(pri) {
+  const chip = document.getElementById('tk-pri-chip');
+  chip.className = 'inc-sev-chip inc-sev-' + pri;
+  chip.textContent = PRI_LABEL[pri] || pri;
+  document.querySelectorAll('.tk-pri-btn').forEach(b => {
+    b.classList.toggle('btn-secondary', b.dataset.priority === pri);
+    b.classList.toggle('btn-outline-secondary', b.dataset.priority !== pri);
+  });
+}
+
+function updateStatusChip(st) {
+  const chip = document.getElementById('tk-status-chip');
+  chip.className = 'tk-status-chip tk-status-' + st;
+  chip.textContent = STAT_LABEL[st] || st;
+  document.querySelectorAll('.tk-status-btn').forEach(b => {
+    b.classList.toggle('btn-signal', b.dataset.status === st);
+    b.classList.toggle('btn-outline-secondary', b.dataset.status !== st);
+  });
+  const resolveBtn = document.getElementById('resolveBtn');
+  const closeBtn   = document.getElementById('closeBtn');
+  const reopenBtn  = document.getElementById('reopenBtn');
+  const closed = st === 'resolved' || st === 'closed';
+  if (resolveBtn) resolveBtn.style.display = closed ? 'none' : '';
+  if (closeBtn)   closeBtn.style.display   = closed ? 'none' : '';
+  if (reopenBtn)  reopenBtn.style.display  = closed ? '' : 'none';
+}
+
+async function patch(data) {
+  const resp = await fetch(`/api/tickets/${TK_ID}/`, {
+    method: 'PATCH', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(data),
+  });
+  return resp.ok ? resp.json() : Promise.reject(await resp.json());
+}
+
+async function post(path, data) {
+  const resp = await fetch(`/api/tickets/${TK_ID}/${path}/`, {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(data || {}),
+  });
+  return resp.ok ? resp.json() : Promise.reject(await resp.json());
+}
+
+async function setStatus(s) {
+  await patch({ status: s });
+  updateStatusChip(s);
+}
+
+async function setPriority(p) {
+  await patch({ priority: p });
+  updatePriChip(p);
+}
+
+function appendClosedEvent(ts) {
+  const existing = document.getElementById('closedEvent');
+  if (existing) return;
+  const label = new Date(ts).toLocaleString();
+  document.getElementById('tkTimeline').insertAdjacentHTML('beforeend', `
+    <div class="inc-event inc-event-resolved" id="closedEvent">
+      <span class="inc-event-dot inc-event-dot-resolved"></span>
+      <div class="inc-event-body">
+        <span class="text-dim small">Ticket closed</span>
+        <span class="mono small text-dim ms-2">${label}</span>
+      </div>
+    </div>`);
+}
+
+async function resolveTicket() {
+  const data = await post('resolve');
+  updateStatusChip(data.status);
+  if (data.resolved_at) appendClosedEvent(data.resolved_at);
+}
+
+async function closeTicket() {
+  const data = await post('close');
+  updateStatusChip(data.status);
+  if (data.resolved_at) appendClosedEvent(data.resolved_at);
+}
+
+async function reopenTicket() {
+  const data = await post('reopen');
+  updateStatusChip(data.status);
+  document.getElementById('closedEvent')?.remove();
+}
+
+async function addNote() {
+  const err  = document.getElementById('noteError');
+  const body = document.getElementById('noteBody').value.trim();
+  err.classList.add('d-none');
+  if (!body) { err.textContent = 'Note cannot be empty.'; err.classList.remove('d-none'); return; }
+
+  const note = await post('notes', { body }).catch(e => {
+    err.textContent = e.error || JSON.stringify(e); err.classList.remove('d-none'); return null;
+  });
+  if (!note) return;
+
+  document.getElementById('noteBody').value = '';
+  document.getElementById('noNotesMsg')?.remove();
+  const ts = new Date(note.created_at).toLocaleString();
+  const closed = document.getElementById('closedEvent');
+  const html = `
+    <div class="inc-event" id="note-${note.id}">
+      <span class="inc-event-dot inc-event-dot-note"></span>
+      <div class="inc-event-body">
+        <div class="inc-note-text"></div>
+        <div class="d-flex align-items-center gap-3 mt-1">
+          <span class="mono small text-dim">${ts}</span>
+          <button class="btn btn-sm btn-link text-dim p-0" style="font-size:0.75rem" onclick="deleteNote(${note.id})">Delete</button>
+        </div>
+      </div>
+    </div>`;
+  if (closed) {
+    closed.insertAdjacentHTML('beforebegin', html);
+  } else {
+    document.getElementById('tkTimeline').insertAdjacentHTML('beforeend', html);
+  }
+  document.querySelector(`#note-${note.id} .inc-note-text`).textContent = note.body;
+}
+
+async function deleteNote(id) {
+  if (!(await confirmModal('Delete this note? This can\'t be undone.'))) return;
+  const resp = await fetch(`/api/ticket-notes/${id}/`, { method: 'DELETE' });
+  if (resp.ok) document.getElementById(`note-${id}`)?.remove();
+}
+
+async function saveEdit() {
+  const err = document.getElementById('editTicketError');
+  err.classList.add('d-none');
+  const title = document.getElementById('et_title').value.trim();
+  if (!title) { err.textContent = 'Title is required.'; err.classList.remove('d-none'); return; }
+  const payload = {
+    title,
+    priority:    document.getElementById('et_priority').value,
+    description: document.getElementById('et_description').value,
+  };
+  const inc = document.getElementById('et_incident').value;
+  payload.incident = inc || null;
+
+  const data = await patch(payload).catch(e => {
+    err.textContent = JSON.stringify(e); err.classList.remove('d-none'); return null;
+  });
+  if (!data) return;
+
+  document.getElementById('tk-title').textContent = data.title;
+  document.getElementById('tk-description').textContent = data.description || '';
+  updatePriChip(data.priority);
+  bootstrap.Modal.getInstance(document.getElementById('editTicketModal')).hide();
+  window.location.reload();
+}
+
+async function deleteTicket() {
+  if (!(await confirmModal(`Delete ticket "${document.getElementById('tk-title').textContent}"? This can't be undone.`))) return;
+  const resp = await fetch(`/api/tickets/${TK_ID}/`, { method: 'DELETE' });
+  if (resp.ok) window.location.href = '{% url "tickets:list" %}';
+}
+
+/* ── Attachments ──────────────────────────────────────────────────── */
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function fmtBytes(n) {
+  if (n < 1024) return n + ' B';
+  if (n < 1048576) return (n/1024).toFixed(1) + ' KB';
+  return (n/1048576).toFixed(1) + ' MB';
+}
+
+async function loadAttachments() {
+  const resp = await fetch(`/api/attachments/?ticket=${TK_ID}`);
+  if (!resp.ok) return;
+  const data = await resp.json();
+  const list = data.results || data;
+  const box = document.getElementById('tkAttachList');
+  if (!list.length) {
+    box.innerHTML = '<p class="text-dim small mb-0" id="noTkAttach">No attachments yet.</p>';
+  } else {
+    box.innerHTML = list.map(a => `
+      <div class="attach-row" id="attach-${a.id}">
+        <i class="bi-paperclip attach-icon"></i>
+        <a href="${a.file_url}" target="_blank" class="attach-name">${escHtml(a.name)}</a>
+        <span class="attach-size text-dim small">${fmtBytes(a.size)}</span>
+        <button class="btn btn-sm btn-link text-dim p-0 ms-auto" onclick="deleteTkAttachment(${a.id})">Delete</button>
+      </div>`).join('');
+  }
+  document.getElementById('tkAttachCount').textContent = `(${list.length})`;
+}
+
+async function uploadTkFiles(files) {
+  const bar  = document.getElementById('tkProgressBar');
+  const prog = document.getElementById('tkUploadProgress');
+  prog.classList.remove('d-none');
+  let uploaded = 0;
+  for (const file of files) {
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('ticket', TK_ID);
+    const resp = await fetch('/api/attachments/', { method: 'POST', body: fd });
+    if (resp.ok) {
+      uploaded++;
+      bar.style.width = `${(uploaded / files.length) * 100}%`;
+    }
+  }
+  prog.classList.add('d-none');
+  bar.style.width = '0%';
+  document.getElementById('tkFileInput').value = '';
+  loadAttachments();
+}
+
+async function deleteTkAttachment(id) {
+  if (!(await confirmModal('Delete this attachment?'))) return;
+  const resp = await fetch(`/api/attachments/${id}/`, { method: 'DELETE' });
+  if (resp.ok) loadAttachments();
+}
+
+loadAttachments();
+</script>
+{% endblock %}

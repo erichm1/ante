@@ -172,7 +172,10 @@
               <td><span class="status-chip {% if run.status == 'success' %}ok{% else %}err{% endif %}">{{ run.status }}</span></td>
               <td class="mono small">{{ run.started_at|date:"Y-m-d H:i:s" }}</td>
               <td class="mono small">{{ run.finished_at|date:"Y-m-d H:i:s"|default:"—" }}</td>
-              <td class="text-end">{% if run.result_file %}<a href="{{ run.result_file.url }}" target="_blank" class="small">JSON →</a>{% endif %}</td>
+              <td class="text-end d-flex align-items-center justify-content-end gap-2">
+                <a href="{% url 'chains:run_detail' chain.pk run.pk %}" class="btn btn-sm btn-outline-secondary">Canvas</a>
+                {% if run.result_file %}<a href="{{ run.result_file.url }}" target="_blank" class="small">JSON →</a>{% endif %}
+              </td>
             </tr>
           {% endfor %}
         </tbody>

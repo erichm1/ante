@@ -35,6 +35,9 @@ INSTALLED_APPS = [
     "plans",
     "chains",
     "reports",
+    "incidents",
+    "tickets",
+    "attachments",
 ]
 
 MIDDLEWARE = [

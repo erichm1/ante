@@ -1,0 +1,726 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}{{ incident.title }} · Incident{% endblock %}
+{% block content %}
+
+  <div class="d-flex justify-content-between align-items-start page-actions mb-3">
+    <div class="min-w-0">
+      <div class="d-flex align-items-center gap-2 flex-wrap mb-1">
+        <div class="page-title mb-0" id="inc-title">{{ incident.title }}</div>
+        <span class="inc-sev-chip inc-sev-{{ incident.severity }}" id="inc-sev-chip">{{ incident.get_severity_display }}</span>
+        <span class="inc-status-chip inc-status-{{ incident.status }}" id="inc-status-chip">{{ incident.get_status_display }}</span>
+      </div>
+      <div class="text-dim small" id="inc-meta">
+        Opened {{ incident.created_at|date:"Y-m-d H:i" }}
+        {% if incident.connection %}
+          &nbsp;·&nbsp; <a href="{% url 'connections:detail' incident.connection.pk %}" id="inc-conn-link">{{ incident.connection.name }}</a>
+        {% endif %}
+        {% if incident.resolved_at %}
+          &nbsp;·&nbsp; Resolved {{ incident.resolved_at|date:"Y-m-d H:i" }}
+        {% endif %}
+      </div>
+      {% if incident.description %}
+        <p class="mt-2 mb-0" id="inc-description">{{ incident.description }}</p>
+      {% else %}
+        <p class="mt-2 mb-0 text-dim" id="inc-description"><em>No description.</em></p>
+      {% endif %}
+    </div>
+    <div class="d-flex gap-2 flex-wrap flex-shrink-0">
+      <button class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#editIncidentModal">Edit</button>
+      {% if incident.is_resolved %}
+        <a href="{% url 'incidents:postmortem' incident.pk %}" class="btn btn-outline-secondary">Post-mortem{% if postmortem %} ✓{% endif %}</a>
+        <button class="btn btn-outline-secondary" id="reopenBtn" onclick="reopenIncident()">Reopen</button>
+      {% else %}
+        <button class="btn btn-signal" id="resolveBtn" onclick="resolveIncident()">Resolve</button>
+      {% endif %}
+      <button class="btn btn-outline-danger" onclick="deleteIncident()">Delete</button>
+    </div>
+  </div>
+
+  <!-- SLA bar -->
+  <div class="panel py-2 px-3 mb-3 d-flex align-items-center gap-4 flex-wrap">
+    <div class="d-flex align-items-center gap-2">
+      <span class="text-dim small">Response SLA:</span>
+      <span class="sla-chip sla-{{ incident.sla_response_status }}">
+        {% if incident.acknowledged_at %}Acknowledged{% elif incident.sla_response_status == 'breached' %}Breached{% elif incident.sla_response_status == 'warning' %}Warning{% else %}On track{% endif %}
+      </span>
+      {% if incident.sla_response_deadline %}
+        <span class="text-dim small mono">deadline {{ incident.sla_response_deadline|date:"H:i Y-m-d" }}</span>
+      {% endif %}
+    </div>
+    <div class="d-flex align-items-center gap-2">
+      <span class="text-dim small">Resolution SLA:</span>
+      <span class="sla-chip sla-{{ incident.sla_resolution_status }}">
+        {% if incident.is_resolved %}Resolved{% elif incident.sla_resolution_status == 'breached' %}Breached{% elif incident.sla_resolution_status == 'warning' %}Warning{% else %}On track{% endif %}
+      </span>
+      {% if incident.sla_resolution_deadline %}
+        <span class="text-dim small mono">deadline {{ incident.sla_resolution_deadline|date:"H:i Y-m-d" }}</span>
+      {% endif %}
+    </div>
+    {% if incident.affected_services %}
+    <div class="d-flex align-items-center gap-2 ms-auto flex-wrap">
+      <span class="text-dim small">Affected:</span>
+      {% for svc in incident.affected_services %}
+        <span class="svc-chip">{{ svc }}</span>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Status quick-change bar -->
+  <div class="panel py-2 px-3 mb-3 d-flex align-items-center gap-3 flex-wrap">
+    <span class="text-dim small">Status:</span>
+    {% for value, label in status_choices %}
+      <button
+        class="btn btn-sm {% if incident.status == value %}btn-signal{% else %}btn-outline-secondary{% endif %} inc-status-btn"
+        data-status="{{ value }}"
+        onclick="setStatus('{{ value }}')"
+        id="status-btn-{{ value }}">
+        {{ label }}
+      </button>
+    {% endfor %}
+    <span class="ms-auto text-dim small">Severity:</span>
+    {% for value, label in severity_choices %}
+      <button
+        class="btn btn-sm {% if incident.severity == value %}btn-secondary{% else %}btn-outline-secondary{% endif %} inc-sev-btn"
+        data-severity="{{ value }}"
+        onclick="setSeverity('{{ value }}')"
+        id="sev-btn-{{ value }}">
+        {{ label }}
+      </button>
+    {% endfor %}
+  </div>
+
+  <!-- Timeline -->
+  <div class="panel">
+    <h6 class="mb-3" data-t="incidents.detail.timeline">Timeline</h6>
+
+    <div class="inc-timeline" id="incTimeline">
+      <!-- Opened event -->
+      <div class="inc-event inc-event-system">
+        <span class="inc-event-dot"></span>
+        <div class="inc-event-body">
+          <span class="text-dim small">Incident opened</span>
+          <span class="mono small text-dim ms-2">{{ incident.created_at|date:"Y-m-d H:i" }}</span>
+        </div>
+      </div>
+
+      {% for note in notes %}
+        <div class="inc-event" id="note-{{ note.pk }}">
+          <span class="inc-event-dot inc-event-dot-note"></span>
+          <div class="inc-event-body">
+            <div class="inc-note-text">{{ note.body }}</div>
+            <div class="d-flex align-items-center gap-3 mt-1">
+              <span class="mono small text-dim">{{ note.created_at|date:"Y-m-d H:i" }}</span>
+              <button class="btn btn-sm btn-link text-dim p-0" style="font-size:0.75rem" onclick="deleteNote({{ note.pk }})">Delete</button>
+            </div>
+          </div>
+        </div>
+      {% empty %}
+        <p class="text-dim small mb-0" id="noNotesMsg" data-t="incidents.detail.no_notes">No notes yet — add the first update below.</p>
+      {% endfor %}
+
+      {% if incident.resolved_at %}
+        <div class="inc-event inc-event-resolved">
+          <span class="inc-event-dot inc-event-dot-resolved"></span>
+          <div class="inc-event-body">
+            <span class="text-dim small">Incident resolved</span>
+            <span class="mono small text-dim ms-2">{{ incident.resolved_at|date:"Y-m-d H:i" }}</span>
+          </div>
+        </div>
+      {% endif %}
+    </div>
+
+    <!-- Add note -->
+    <div class="mt-4 pt-3 border-top">
+      <label class="form-label small" data-t="incidents.lbl.note">Note</label>
+      <textarea class="form-control mb-2" id="noteBody" rows="3" placeholder="Describe what you found, what you tried, or the current status…"></textarea>
+      <div id="noteError" class="alert alert-danger d-none mb-2"></div>
+      <button class="btn btn-signal btn-sm" onclick="addNote()" data-t="incidents.btn.add_note">Add note</button>
+    </div>
+  </div>
+
+  <!-- Attachments -->
+  <div class="panel mt-3" id="incAttachPanel">
+    <div class="d-flex align-items-center justify-content-between mb-3">
+      <h6 class="mb-0">Attachments <span class="text-dim small" id="incAttachCount">({{ attachments|length }})</span></h6>
+      <label class="btn btn-sm btn-outline-secondary mb-0" style="cursor:pointer">
+        Attach file
+        <input type="file" id="incFileInput" style="display:none" multiple onchange="uploadFiles(this.files, 'incident', {{ incident.pk }})">
+      </label>
+    </div>
+    <div id="incAttachList">
+      {% for att in attachments %}
+        <div class="attach-row" id="attach-{{ att.pk }}">
+          <i class="bi-paperclip attach-icon"></i>
+          <a href="{{ att.file.url }}" target="_blank" class="attach-name">{{ att.name }}</a>
+          <span class="attach-size text-dim small">{{ att.size|filesizeformat }}</span>
+          <span class="text-dim small">{{ att.created_at|date:"Y-m-d H:i" }}</span>
+          <button class="btn btn-sm btn-link text-dim p-0 ms-auto" onclick="deleteAttachment({{ att.pk }})">Delete</button>
+        </div>
+      {% empty %}
+        <p class="text-dim small mb-0" id="noIncAttach">No attachments yet.</p>
+      {% endfor %}
+    </div>
+    <div id="incUploadProgress" class="d-none mt-2">
+      <div class="progress" style="height:4px"><div class="progress-bar" id="incProgressBar" style="width:0%"></div></div>
+    </div>
+  </div>
+
+  <!-- Linked tickets -->
+  <div class="panel mt-3" id="ticketsPanel">
+    <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+      <h6 class="mb-0">Linked tickets <span class="text-dim small" id="ticketCount">({{ tickets|length }})</span></h6>
+      <div class="d-flex gap-2 flex-wrap">
+        {% if not incident.is_resolved %}
+          <button class="btn btn-sm btn-outline-secondary" onclick="closeAllTickets()" id="closeTicketsBtn">
+            Close all open
+          </button>
+        {% endif %}
+        <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#linkTicketModal">
+          Link existing
+        </button>
+        <button class="btn btn-sm btn-signal" data-bs-toggle="modal" data-bs-target="#createTicketModal">
+          + New ticket
+        </button>
+      </div>
+    </div>
+    <table class="table align-middle mb-0 small">
+      <thead>
+        <tr>
+          <th>Title</th>
+          <th>Priority</th>
+          <th>Status</th>
+          <th>User</th>
+          <th>Opened</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="ticketsBody">
+        {% for tk in tickets %}
+          <tr id="ticket-row-{{ tk.pk }}">
+            <td><span class="fw-500">{{ tk.title }}</span></td>
+            <td>
+              {% if tk.priority == "critical" %}<span class="status-chip err">Critical</span>
+              {% elif tk.priority == "high" %}<span class="status-chip warn">High</span>
+              {% elif tk.priority == "medium" %}<span class="status-chip ok">Medium</span>
+              {% else %}<span class="status-chip">Low</span>{% endif %}
+            </td>
+            <td>
+              {% if tk.status == "open" %}<span class="status-chip err">Open</span>
+              {% elif tk.status == "in_progress" %}<span class="status-chip warn">In progress</span>
+              {% elif tk.status == "resolved" %}<span class="status-chip ok">Resolved</span>
+              {% else %}<span class="status-chip">Closed</span>{% endif %}
+            </td>
+            <td class="text-dim">{{ tk.created_by.username }}</td>
+            <td class="mono">{{ tk.created_at|date:"Y-m-d H:i" }}</td>
+            <td class="text-end">
+              <button class="btn btn-sm btn-link text-dim p-0" onclick="unlinkTicket({{ tk.pk }})">Unlink</button>
+            </td>
+          </tr>
+        {% empty %}
+          <tr id="noTicketsRow"><td colspan="6" class="text-dim small">No tickets linked yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Link existing ticket modal -->
+  <div class="modal fade" id="linkTicketModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Link existing ticket</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div id="linkTicketError" class="alert alert-danger d-none"></div>
+          <label class="form-label">Select ticket</label>
+          <select class="form-select" id="linkTicketSelect">
+            <option value="">Loading…</option>
+          </select>
+          <div class="text-dim small mt-2">Only tickets not already linked to an incident are shown.</div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button class="btn btn-signal" onclick="linkTicket()">Link ticket</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Create new ticket modal -->
+  <div class="modal fade" id="createTicketModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">New ticket for this incident</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div id="createTicketError" class="alert alert-danger d-none"></div>
+          <div class="mb-3">
+            <label class="form-label">Title</label>
+            <input class="form-control" id="ct_title" placeholder="e.g. Can't sync orders — connection down">
+          </div>
+          <div class="row g-2 mb-3">
+            <div class="col-6">
+              <label class="form-label">Priority</label>
+              <select class="form-select" id="ct_priority">
+                <option value="critical">Critical</option>
+                <option value="high">High</option>
+                <option value="medium" selected>Medium</option>
+                <option value="low">Low</option>
+              </select>
+            </div>
+            <div class="col-6">
+              <label class="form-label">Assign to user</label>
+              <select class="form-select" id="ct_user">
+                <option value="">Loading…</option>
+              </select>
+            </div>
+          </div>
+          <div class="mb-1">
+            <label class="form-label">Description <span class="text-dim">(optional)</span></label>
+            <textarea class="form-control" id="ct_description" rows="3"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button class="btn btn-signal" onclick="createLinkedTicket()">Create ticket</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <a href="{% url 'incidents:list' %}" class="btn btn-outline-secondary mt-3">← back to incidents</a>
+
+  <!-- Edit modal -->
+  <div class="modal fade" id="editIncidentModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Edit incident</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div id="editIncidentError" class="alert alert-danger d-none"></div>
+          <div class="mb-3">
+            <label class="form-label">Title</label>
+            <input class="form-control" id="ei_title" value="{{ incident.title }}">
+          </div>
+          <div class="row g-2 mb-3">
+            <div class="col-6">
+              <label class="form-label">Severity</label>
+              <select class="form-select" id="ei_severity">
+                {% for value, label in severity_choices %}
+                  <option value="{{ value }}" {% if incident.severity == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-6">
+              <label class="form-label">Connection <span class="text-dim">(optional)</span></label>
+              <select class="form-select" id="ei_connection">
+                <option value="">None</option>
+                {% for c in connections %}
+                  <option value="{{ c.pk }}" {% if incident.connection_id == c.pk %}selected{% endif %}>{{ c.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Description</label>
+            <textarea class="form-control" id="ei_description" rows="3">{{ incident.description }}</textarea>
+          </div>
+          <div class="mb-1">
+            <label class="form-label">Affected services <span class="text-dim">(optional)</span></label>
+            <div class="d-flex flex-wrap gap-2 mt-1" id="svcCheckboxes">
+              {% for value, label in service_choices %}
+                <label class="svc-checkbox-label">
+                  <input type="checkbox" value="{{ value }}"
+                    {% if value in incident.affected_services %}checked{% endif %}
+                    class="ei-svc-check">
+                  {{ label }}
+                </label>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button class="btn btn-signal" onclick="saveEdit()" data-t="btn.save">Save</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+const INC_ID = {{ incident.pk }};
+
+/* ── severity / status chips ─────────────────────────────────────── */
+const SEV_CLASS  = { critical:'err', high:'warn', medium:'ok', low:'' };
+const SEV_LABEL  = { critical:'Critical', high:'High', medium:'Medium', low:'Low' };
+const STAT_CLASS = { open:'err', investigating:'warn', identified:'warn', resolved:'ok' };
+const STAT_LABEL = { open:'Open', investigating:'Investigating', identified:'Identified', resolved:'Resolved' };
+
+function updateSevChip(sev) {
+  const chip = document.getElementById('inc-sev-chip');
+  chip.className = 'inc-sev-chip inc-sev-' + sev;
+  chip.textContent = SEV_LABEL[sev] || sev;
+  document.querySelectorAll('.inc-sev-btn').forEach(b => {
+    b.classList.toggle('btn-secondary', b.dataset.severity === sev);
+    b.classList.toggle('btn-outline-secondary', b.dataset.severity !== sev);
+  });
+}
+
+function updateStatusChip(st) {
+  const chip = document.getElementById('inc-status-chip');
+  chip.className = 'inc-status-chip inc-status-' + st;
+  chip.textContent = STAT_LABEL[st] || st;
+  document.querySelectorAll('.inc-status-btn').forEach(b => {
+    b.classList.toggle('btn-signal', b.dataset.status === st);
+    b.classList.toggle('btn-outline-secondary', b.dataset.status !== st);
+  });
+  const resolveBtn = document.getElementById('resolveBtn');
+  const reopenBtn  = document.getElementById('reopenBtn');
+  if (resolveBtn) resolveBtn.style.display = st === 'resolved' ? 'none' : '';
+  if (reopenBtn)  reopenBtn.style.display  = st === 'resolved' ? '' : 'none';
+}
+
+/* ── API helpers ─────────────────────────────────────────────────── */
+async function patch(data) {
+  const resp = await fetch(`/api/incidents/${INC_ID}/`, {
+    method: 'PATCH', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(data),
+  });
+  return resp.ok ? resp.json() : Promise.reject(await resp.json());
+}
+
+async function post(path, data) {
+  const resp = await fetch(`/api/incidents/${INC_ID}/${path}/`, {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(data || {}),
+  });
+  return resp.ok ? resp.json() : Promise.reject(await resp.json());
+}
+
+/* ── Status / severity quick-change ─────────────────────────────── */
+async function setStatus(s) {
+  await patch({ status: s });
+  updateStatusChip(s);
+}
+
+async function setSeverity(s) {
+  await patch({ severity: s });
+  updateSevChip(s);
+}
+
+/* ── Resolve / Reopen ────────────────────────────────────────────── */
+async function resolveIncident() {
+  const data = await post('resolve');
+  updateStatusChip(data.status);
+  if (data.resolved_at) {
+    /* append resolved event if not already there */
+    const existing = document.querySelector('.inc-event-resolved');
+    if (!existing) {
+      const ts = new Date(data.resolved_at).toLocaleString();
+      document.getElementById('incTimeline').insertAdjacentHTML('beforeend', `
+        <div class="inc-event inc-event-resolved">
+          <span class="inc-event-dot inc-event-dot-resolved"></span>
+          <div class="inc-event-body">
+            <span class="text-dim small">Incident resolved</span>
+            <span class="mono small text-dim ms-2">${ts}</span>
+          </div>
+        </div>`);
+    }
+  }
+}
+
+async function reopenIncident() {
+  const data = await post('reopen');
+  updateStatusChip(data.status);
+  document.querySelector('.inc-event-resolved')?.remove();
+}
+
+/* ── Add note ────────────────────────────────────────────────────── */
+async function addNote() {
+  const err  = document.getElementById('noteError');
+  const body = document.getElementById('noteBody').value.trim();
+  err.classList.add('d-none');
+  if (!body) { err.textContent = 'Note cannot be empty.'; err.classList.remove('d-none'); return; }
+
+  const note = await post('notes', { body }).catch(e => {
+    err.textContent = e.error || JSON.stringify(e); err.classList.remove('d-none'); return null;
+  });
+  if (!note) return;
+
+  document.getElementById('noteBody').value = '';
+  document.getElementById('noNotesMsg')?.remove();
+  const ts = new Date(note.created_at).toLocaleString();
+  const resolved = document.querySelector('.inc-event-resolved');
+  const html = `
+    <div class="inc-event" id="note-${note.id}">
+      <span class="inc-event-dot inc-event-dot-note"></span>
+      <div class="inc-event-body">
+        <div class="inc-note-text"></div>
+        <div class="d-flex align-items-center gap-3 mt-1">
+          <span class="mono small text-dim">${ts}</span>
+          <button class="btn btn-sm btn-link text-dim p-0" style="font-size:0.75rem" onclick="deleteNote(${note.id})">Delete</button>
+        </div>
+      </div>
+    </div>`;
+  if (resolved) {
+    resolved.insertAdjacentHTML('beforebegin', html);
+  } else {
+    document.getElementById('incTimeline').insertAdjacentHTML('beforeend', html);
+  }
+  /* set text safely (no XSS) */
+  document.querySelector(`#note-${note.id} .inc-note-text`).textContent = note.body;
+}
+
+/* ── Delete note ─────────────────────────────────────────────────── */
+async function deleteNote(id) {
+  if (!(await confirmModal('Delete this note? This can\'t be undone.'))) return;
+  const resp = await fetch(`/api/incident-notes/${id}/`, { method: 'DELETE' });
+  if (resp.ok) document.getElementById(`note-${id}`)?.remove();
+}
+
+/* ── Edit incident ───────────────────────────────────────────────── */
+async function saveEdit() {
+  const err = document.getElementById('editIncidentError');
+  err.classList.add('d-none');
+  const title = document.getElementById('ei_title').value.trim();
+  if (!title) { err.textContent = 'Title is required.'; err.classList.remove('d-none'); return; }
+  const payload = {
+    title,
+    severity:           document.getElementById('ei_severity').value,
+    description:        document.getElementById('ei_description').value,
+    affected_services:  Array.from(document.querySelectorAll('.ei-svc-check:checked')).map(c => c.value),
+  };
+  const conn = document.getElementById('ei_connection').value;
+  payload.connection = conn || null;
+
+  const data = await patch(payload).catch(e => {
+    err.textContent = JSON.stringify(e); err.classList.remove('d-none'); return null;
+  });
+  if (!data) return;
+
+  document.getElementById('inc-title').textContent = data.title;
+  document.getElementById('inc-description').textContent = data.description || '';
+  updateSevChip(data.severity);
+  bootstrap.Modal.getInstance(document.getElementById('editIncidentModal')).hide();
+  window.location.reload();
+}
+
+/* ── Delete incident ─────────────────────────────────────────────── */
+async function deleteIncident() {
+  if (!(await confirmModal(`Delete incident "${document.getElementById('inc-title').textContent}"? This can't be undone.`))) return;
+  const resp = await fetch(`/api/incidents/${INC_ID}/`, { method: 'DELETE' });
+  if (resp.ok) window.location.href = '{% url "incidents:list" %}';
+}
+
+/* ── Close all linked tickets ────────────────────────────────────── */
+async function closeAllTickets() {
+  if (!(await confirmModal('Close all open tickets linked to this incident?'))) return;
+  const resp = await fetch(`/api/incidents/${INC_ID}/close-tickets/`, {
+    method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}',
+  });
+  if (resp.ok) {
+    const data = await resp.json();
+    document.querySelectorAll('#ticketsBody tr[id^="ticket-row-"]').forEach(row => {
+      const statusCell = row.cells[2];
+      const chip = statusCell?.querySelector('.status-chip');
+      if (chip && (chip.classList.contains('err') || chip.classList.contains('warn'))) {
+        statusCell.innerHTML = '<span class="status-chip">Closed</span>';
+      }
+    });
+    const btn = document.getElementById('closeTicketsBtn');
+    if (btn) btn.disabled = true;
+    alertModal(`${data.closed} ticket(s) closed.`);
+  }
+}
+
+/* ── Ticket count badge ─────────────────────────────────────────── */
+function updateTicketCount(delta) {
+  const el = document.getElementById('ticketCount');
+  const n = (parseInt(el.textContent.replace(/\D/g,'')) || 0) + delta;
+  el.textContent = `(${n})`;
+}
+
+/* ── Link existing ticket ────────────────────────────────────────── */
+document.getElementById('linkTicketModal').addEventListener('show.bs.modal', async () => {
+  const sel = document.getElementById('linkTicketSelect');
+  sel.innerHTML = '<option value="">Loading…</option>';
+  /* fetch all tickets not already linked to an incident */
+  const resp = await fetch('/api/tickets/?page_size=200');
+  if (!resp.ok) { sel.innerHTML = '<option value="">Failed to load</option>'; return; }
+  const data = await resp.json();
+  const results = data.results || data;
+  /* exclude tickets already linked to ANY incident */
+  const free = results.filter(t => !t.incident);
+  if (!free.length) {
+    sel.innerHTML = '<option value="">No unlinked tickets available</option>';
+    return;
+  }
+  sel.innerHTML = '<option value="">— select —</option>' +
+    free.map(t => `<option value="${t.id}">[${t.created_by_username}] ${escHtml(t.title)}</option>`).join('');
+});
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+async function linkTicket() {
+  const err = document.getElementById('linkTicketError');
+  err.classList.add('d-none');
+  const id = document.getElementById('linkTicketSelect').value;
+  if (!id) { err.textContent = 'Select a ticket first.'; err.classList.remove('d-none'); return; }
+
+  const resp = await fetch(`/api/tickets/${id}/`, {
+    method: 'PATCH', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ incident: INC_ID }),
+  });
+  if (!resp.ok) {
+    err.textContent = JSON.stringify(await resp.json()); err.classList.remove('d-none'); return;
+  }
+  const tk = await resp.json();
+  bootstrap.Modal.getInstance(document.getElementById('linkTicketModal')).hide();
+  appendTicketRow(tk);
+}
+
+/* ── Create ticket for this incident ────────────────────────────── */
+document.getElementById('createTicketModal').addEventListener('show.bs.modal', async () => {
+  /* populate user select with staff-visible ticket owners — use Django users list via a simple fetch */
+  const sel = document.getElementById('ct_user');
+  /* We can't easily list users from the API without a dedicated endpoint;
+     fall back to creating as current user — the select is hidden if only one option */
+  sel.innerHTML = '<option value="self">Myself ({{ request.user.username }})</option>';
+});
+
+async function createLinkedTicket() {
+  const err = document.getElementById('createTicketError');
+  err.classList.add('d-none');
+  const title = document.getElementById('ct_title').value.trim();
+  if (!title) { err.textContent = 'Title is required.'; err.classList.remove('d-none'); return; }
+
+  const resp = await fetch('/api/tickets/', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({
+      title,
+      priority:    document.getElementById('ct_priority').value,
+      description: document.getElementById('ct_description').value,
+      incident:    INC_ID,
+    }),
+  });
+  if (!resp.ok) {
+    err.textContent = JSON.stringify(await resp.json()); err.classList.remove('d-none'); return;
+  }
+  const tk = await resp.json();
+  document.getElementById('ct_title').value = '';
+  document.getElementById('ct_description').value = '';
+  bootstrap.Modal.getInstance(document.getElementById('createTicketModal')).hide();
+  appendTicketRow(tk);
+}
+
+/* ── Unlink ticket ───────────────────────────────────────────────── */
+async function unlinkTicket(id) {
+  if (!(await confirmModal('Remove this ticket from the incident?'))) return;
+  const resp = await fetch(`/api/tickets/${id}/`, {
+    method: 'PATCH', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ incident: null }),
+  });
+  if (resp.ok) {
+    document.getElementById(`ticket-row-${id}`)?.remove();
+    updateTicketCount(-1);
+    if (!document.querySelector('#ticketsBody tr[id^="ticket-row-"]')) {
+      document.getElementById('ticketsBody').innerHTML =
+        '<tr id="noTicketsRow"><td colspan="6" class="text-dim small">No tickets linked yet.</td></tr>';
+    }
+  }
+}
+
+/* ── Append a new ticket row to the table ───────────────────────── */
+const PRI_CHIP = { critical:'err', high:'warn', medium:'ok', low:'' };
+const STA_CHIP = { open:'err', in_progress:'warn', resolved:'ok', closed:'' };
+const PRI_LBL  = { critical:'Critical', high:'High', medium:'Medium', low:'Low' };
+const STA_LBL  = { open:'Open', in_progress:'In progress', resolved:'Resolved', closed:'Closed' };
+
+/* ── Attachments ──────────────────────────────────────────────────── */
+async function uploadFiles(files, type, id) {
+  const bar  = document.getElementById('incProgressBar');
+  const prog = document.getElementById('incUploadProgress');
+  prog.classList.remove('d-none');
+  let uploaded = 0;
+  for (const file of files) {
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append(type, id);
+    const resp = await fetch('/api/attachments/', { method: 'POST', body: fd });
+    if (resp.ok) {
+      const att = await resp.json();
+      appendAttachRow(att);
+      uploaded++;
+      bar.style.width = `${(uploaded / files.length) * 100}%`;
+    }
+  }
+  prog.classList.add('d-none');
+  bar.style.width = '0%';
+  document.getElementById('incFileInput').value = '';
+}
+
+function fmtBytes(n) {
+  if (n < 1024) return n + ' B';
+  if (n < 1048576) return (n/1024).toFixed(1) + ' KB';
+  return (n/1048576).toFixed(1) + ' MB';
+}
+
+function appendAttachRow(att) {
+  document.getElementById('noIncAttach')?.remove();
+  const el = document.createElement('div');
+  el.className = 'attach-row';
+  el.id = `attach-${att.id}`;
+  el.innerHTML = `
+    <i class="bi-paperclip attach-icon"></i>
+    <a href="${att.file_url}" target="_blank" class="attach-name">${escHtml(att.name)}</a>
+    <span class="attach-size text-dim small">${fmtBytes(att.size)}</span>
+    <button class="btn btn-sm btn-link text-dim p-0 ms-auto" onclick="deleteAttachment(${att.id})">Delete</button>`;
+  document.getElementById('incAttachList').appendChild(el);
+  const cnt = document.getElementById('incAttachCount');
+  cnt.textContent = `(${document.querySelectorAll('#incAttachList .attach-row').length})`;
+}
+
+async function deleteAttachment(id) {
+  if (!(await confirmModal('Delete this attachment?'))) return;
+  const resp = await fetch(`/api/attachments/${id}/`, { method: 'DELETE' });
+  if (resp.ok) {
+    document.getElementById(`attach-${id}`)?.remove();
+    if (!document.querySelector('#incAttachList .attach-row')) {
+      document.getElementById('incAttachList').innerHTML = '<p class="text-dim small mb-0" id="noIncAttach">No attachments yet.</p>';
+    }
+    const cnt = document.getElementById('incAttachCount');
+    cnt.textContent = `(${document.querySelectorAll('#incAttachList .attach-row').length})`;
+  }
+}
+
+function appendTicketRow(tk) {
+  document.getElementById('noTicketsRow')?.remove();
+  const priCls = PRI_CHIP[tk.priority] ? `status-chip ${PRI_CHIP[tk.priority]}` : 'status-chip';
+  const staCls = STA_CHIP[tk.status]   ? `status-chip ${STA_CHIP[tk.status]}`   : 'status-chip';
+  const ts = new Date(tk.created_at).toLocaleDateString();
+  const row = document.createElement('tr');
+  row.id = `ticket-row-${tk.id}`;
+  row.innerHTML = `
+    <td><span class="fw-500">${escHtml(tk.title)}</span></td>
+    <td><span class="${priCls}">${PRI_LBL[tk.priority] || tk.priority}</span></td>
+    <td><span class="${staCls}">${STA_LBL[tk.status] || tk.status}</span></td>
+    <td class="text-dim">${escHtml(tk.created_by_username || '—')}</td>
+    <td class="mono">${ts}</td>
+    <td class="text-end"><button class="btn btn-sm btn-link text-dim p-0" onclick="unlinkTicket(${tk.id})">Unlink</button></td>`;
+  document.getElementById('ticketsBody').appendChild(row);
+  updateTicketCount(1);
+}
+</script>
+{% endblock %}

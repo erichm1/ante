@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Post-mortem · {{ incident.title }}{% endblock %}
+{% block content %}
+
+  <div class="d-flex align-items-center gap-3 mb-1 flex-wrap">
+    <a href="{% url 'incidents:detail' incident.pk %}" class="text-dim small">← {{ incident.title }}</a>
+  </div>
+
+  <div class="d-flex justify-content-between align-items-start page-actions mb-4">
+    <div>
+      <div class="page-title mb-1">Post-mortem</div>
+      <div class="text-dim small">
+        Incident opened {{ incident.created_at|date:"Y-m-d H:i" }}
+        {% if incident.resolved_at %}· resolved {{ incident.resolved_at|date:"Y-m-d H:i" }}{% endif %}
+        {% if pm.updated_at %}· last edited {{ pm.updated_at|date:"Y-m-d H:i" }}{% endif %}
+      </div>
+    </div>
+    <div class="d-flex gap-2">
+      <button class="btn btn-signal" form="pmForm" type="submit">Save</button>
+    </div>
+  </div>
+
+  {% if messages %}
+    {% for message in messages %}
+      <div class="alert alert-success mb-3">{{ message }}</div>
+    {% endfor %}
+  {% endif %}
+
+  <form method="post" id="pmForm">
+    {% csrf_token %}
+
+    <div class="row g-3">
+
+      <!-- Summary -->
+      <div class="col-12">
+        <div class="panel">
+          <label class="pm-section-label">Summary</label>
+          <div class="text-dim small mb-2">A one-paragraph description of what happened, when, and its impact.</div>
+          <textarea class="form-control pm-textarea" name="summary" rows="4" placeholder="On [date], [service] experienced [issue] affecting [impact]…">{{ pm.summary }}</textarea>
+        </div>
+      </div>
+
+      <!-- Timeline -->
+      <div class="col-12">
+        <div class="panel">
+          <label class="pm-section-label">Timeline</label>
+          <div class="text-dim small mb-2">Step-by-step chronology of events. One line per event, e.g. "14:03 — Alert fired in monitoring."</div>
+          <textarea class="form-control pm-textarea mono" name="timeline" rows="8" placeholder="14:00 — First error reports received&#10;14:15 — On-call engineer paged&#10;14:30 — Root cause identified&#10;15:10 — Fix deployed">{{ pm.timeline }}</textarea>
+        </div>
+      </div>
+
+      <!-- Impact -->
+      <div class="col-md-6">
+        <div class="panel h-100">
+          <label class="pm-section-label">Impact</label>
+          <div class="text-dim small mb-2">Who was affected and how? Data loss, downtime, SLA breach?</div>
+          <textarea class="form-control pm-textarea" name="impact" rows="5" placeholder="Affected users, data scope, downtime duration…">{{ pm.impact }}</textarea>
+        </div>
+      </div>
+
+      <!-- Root cause -->
+      <div class="col-md-6">
+        <div class="panel h-100">
+          <label class="pm-section-label">Root cause</label>
+          <div class="text-dim small mb-2">The single underlying reason this incident occurred.</div>
+          <textarea class="form-control pm-textarea" name="root_cause" rows="5" placeholder="e.g. A deploy removed a nil-guard introduced in v2.3…">{{ pm.root_cause }}</textarea>
+        </div>
+      </div>
+
+      <!-- Contributing factors -->
+      <div class="col-12">
+        <div class="panel">
+          <label class="pm-section-label">Contributing factors</label>
+          <div class="text-dim small mb-2">Conditions that made the incident worse or harder to detect — not the root cause itself.</div>
+          <textarea class="form-control pm-textarea" name="contributing_factors" rows="4" placeholder="Missing test coverage, delayed alerting, unclear runbook…">{{ pm.contributing_factors }}</textarea>
+        </div>
+      </div>
+
+      <!-- What went well / wrong -->
+      <div class="col-md-6">
+        <div class="panel h-100">
+          <label class="pm-section-label" style="color: var(--trace)">What went well</label>
+          <div class="text-dim small mb-2">Response strengths — fast detection, good communication, quick rollback.</div>
+          <textarea class="form-control pm-textarea" name="what_went_well" rows="5" placeholder="On-call responded within SLA&#10;Rollback was straightforward…">{{ pm.what_went_well }}</textarea>
+        </div>
+      </div>
+
+      <div class="col-md-6">
+        <div class="panel h-100">
+          <label class="pm-section-label" style="color: var(--danger)">What went wrong</label>
+          <div class="text-dim small mb-2">Process gaps, communication failures, missing tooling.</div>
+          <textarea class="form-control pm-textarea" name="what_went_wrong" rows="5" placeholder="Alert threshold was too high&#10;No runbook for this scenario…">{{ pm.what_went_wrong }}</textarea>
+        </div>
+      </div>
+
+      <!-- Action items -->
+      <div class="col-12">
+        <div class="panel">
+          <label class="pm-section-label">Action items</label>
+          <div class="text-dim small mb-2">Concrete tasks to prevent recurrence. Include owner and due date for each.</div>
+          <textarea class="form-control pm-textarea" name="action_items" rows="5" placeholder="[ ] Add unit test for nil-guard — @eng — by 2026-10-01&#10;[ ] Lower alert threshold to 5% — @ops — by 2026-09-20">{{ pm.action_items }}</textarea>
+        </div>
+      </div>
+
+      <!-- Lessons learned -->
+      <div class="col-12">
+        <div class="panel">
+          <label class="pm-section-label">Lessons learned</label>
+          <div class="text-dim small mb-2">Key takeaways for the team. What would you do differently next time?</div>
+          <textarea class="form-control pm-textarea" name="lessons_learned" rows="4" placeholder="We need a dedicated runbook per integration type…">{{ pm.lessons_learned }}</textarea>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="d-flex gap-2 mt-3">
+      <button type="submit" class="btn btn-signal">Save post-mortem</button>
+      <a href="{% url 'incidents:detail' incident.pk %}" class="btn btn-outline-secondary">Cancel</a>
+    </div>
+  </form>
+
+{% endblock %}

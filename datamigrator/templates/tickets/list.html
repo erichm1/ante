@@ -1,0 +1,209 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Tickets{% endblock %}
+{% block content %}
+  <div class="d-flex justify-content-between align-items-start page-actions">
+    <div>
+      <div class="page-title" data-t="tickets.title">My Tickets</div>
+      <div class="page-subtitle" data-t="tickets.subtitle">Track issues and requests — linked to incidents when relevant.</div>
+    </div>
+    <button class="btn btn-signal" data-bs-toggle="modal" data-bs-target="#newTicketModal" data-t="tickets.new">New ticket</button>
+  </div>
+
+  <form method="get" class="row g-2 align-items-end mb-3">
+    <div class="col-md-4">
+      <label class="form-label small mb-1" data-t="lbl.search">Search</label>
+      <input type="text" name="q" class="form-control form-control-sm" placeholder="Ticket title" value="{{ filters.q }}">
+    </div>
+    <div class="col-md-3">
+      <label class="form-label small mb-1" data-t="th.status">Status</label>
+      <select name="status" class="form-select form-select-sm">
+        <option value="">Any</option>
+        {% for value, label in status_choices %}
+          <option value="{{ value }}" {% if filters.status == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label small mb-1" data-t="tickets.th.priority">Priority</label>
+      <select name="priority" class="form-select form-select-sm">
+        <option value="">Any</option>
+        {% for value, label in priority_choices %}
+          <option value="{{ value }}" {% if filters.priority == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-2 d-flex align-items-end gap-2">
+      <button type="submit" class="btn btn-sm btn-signal" data-t="btn.filter">Filter</button>
+      {% if filters.q or filters.status or filters.priority %}
+        <a href="{% url 'tickets:list' %}" class="small text-nowrap">Clear ×</a>
+      {% endif %}
+    </div>
+    <div class="col-12 d-flex justify-content-end">
+      <div class="d-flex align-items-center gap-2">
+        <label class="text-dim small mb-0" for="pageSizeSelect" data-t="lbl.per_page">Per page</label>
+        <select name="page_size" class="form-select form-select-sm" id="pageSizeSelect" style="width:auto" onchange="gotoWithParam('page_size', this.value)">
+          {% for size in page_size_choices %}
+            <option value="{{ size }}" {% if size == page_size %}selected{% endif %}>{{ size }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+  </form>
+
+  <div class="panel">
+    {% if page_obj %}
+      <table class="table align-middle mb-0">
+        <thead>
+          <tr>
+            <th data-t="tickets.th.priority">Priority</th>
+            <th data-t="th.name">Title</th>
+            <th data-t="th.status">Status</th>
+            <th data-t="tickets.th.incident">Incident</th>
+            <th>SLA</th>
+            <th data-t="tickets.th.opened">Opened</th>
+            <th>Resolved</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for tk in page_obj %}
+            <tr>
+              <td>
+                {% if tk.priority == "critical" %}
+                  <span class="status-chip err" data-t="tickets.pri.critical">Critical</span>
+                {% elif tk.priority == "high" %}
+                  <span class="status-chip warn" data-t="tickets.pri.high">High</span>
+                {% elif tk.priority == "medium" %}
+                  <span class="status-chip ok" data-t="tickets.pri.medium">Medium</span>
+                {% else %}
+                  <span class="status-chip" data-t="tickets.pri.low">Low</span>
+                {% endif %}
+              </td>
+              <td>
+                <a href="{% url 'tickets:detail' tk.pk %}" class="fw-500">{{ tk.title }}</a>
+              </td>
+              <td>
+                {% if tk.status == "open" %}
+                  <span class="status-chip err">open</span>
+                {% elif tk.status == "in_progress" %}
+                  <span class="status-chip warn">in progress</span>
+                {% elif tk.status == "resolved" %}
+                  <span class="status-chip ok">resolved</span>
+                {% else %}
+                  <span class="status-chip">closed</span>
+                {% endif %}
+              </td>
+              <td class="small">
+                {% if tk.incident %}
+                  <span class="text-dim">{{ tk.incident.title }}</span>
+                {% else %}
+                  <span class="text-dim">—</span>
+                {% endif %}
+              </td>
+              <td>
+                {% with s=tk.sla_resolution_status %}
+                  {% if s == "breached" %}<span class="sla-chip sla-breached">Breached</span>
+                  {% elif s == "warning" %}<span class="sla-chip sla-warning">Warning</span>
+                  {% elif s == "ok" %}<span class="sla-chip sla-ok">OK</span>
+                  {% else %}<span class="text-dim small">—</span>{% endif %}
+                {% endwith %}
+              </td>
+              <td class="mono small">{{ tk.created_at|date:"Y-m-d H:i" }}</td>
+              <td class="mono small">{{ tk.resolved_at|date:"Y-m-d H:i"|default:"—" }}</td>
+              <td class="text-end">
+                <a href="{% url 'tickets:detail' tk.pk %}" class="btn btn-sm btn-outline-secondary">Open</a>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% include "jobs/_pagination.html" with item_label="tickets" %}
+    {% else %}
+      <p class="text-dim mb-0">
+        {% if filters.q or filters.status or filters.priority %}
+          No tickets match these filters.
+        {% else %}
+          No tickets yet — open one when you need help.
+        {% endif %}
+      </p>
+    {% endif %}
+  </div>
+
+  <!-- New ticket modal -->
+  <div class="modal fade" id="newTicketModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" data-t="tickets.new">New ticket</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div id="createTicketError" class="alert alert-danger d-none"></div>
+          <div class="mb-3">
+            <label class="form-label" data-t="th.name">Title</label>
+            <input class="form-control" id="nt_title" placeholder="e.g. Sync fails for connection X">
+          </div>
+          <div class="row g-2 mb-3">
+            <div class="col-6">
+              <label class="form-label" data-t="tickets.th.priority">Priority</label>
+              <select class="form-select" id="nt_priority">
+                {% for value, label in priority_choices %}
+                  <option value="{{ value }}" {% if value == "medium" %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-6">
+              <label class="form-label" data-t="tickets.th.incident">Incident <span class="text-dim">(optional)</span></label>
+              <select class="form-select" id="nt_incident">
+                <option value="">None</option>
+                {% for inc in open_incidents %}
+                  <option value="{{ inc.pk }}">{{ inc.title }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+          <div class="mb-1">
+            <label class="form-label" data-t="lbl.description">Description <span class="text-dim">(optional)</span></label>
+            <textarea class="form-control" id="nt_description" rows="3" placeholder="What is the problem? What have you tried?"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline-secondary" data-bs-dismiss="modal" data-t="btn.cancel">Cancel</button>
+          <button class="btn btn-signal" onclick="createTicket()">Create ticket</button>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{% static 'js/pagination.js' %}"></script>
+<script>
+async function createTicket() {
+  const err = document.getElementById('createTicketError');
+  err.classList.add('d-none');
+  const title = document.getElementById('nt_title').value.trim();
+  if (!title) { err.textContent = 'Title is required.'; err.classList.remove('d-none'); return; }
+  const payload = {
+    title,
+    priority:    document.getElementById('nt_priority').value,
+    description: document.getElementById('nt_description').value,
+  };
+  const inc = document.getElementById('nt_incident').value;
+  if (inc) payload.incident = inc;
+
+  const resp = await fetch('/api/tickets/', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (resp.ok) {
+    const body = await resp.json();
+    window.location.href = `/tickets/${body.id}/`;
+  } else {
+    err.textContent = JSON.stringify(await resp.json());
+    err.classList.remove('d-none');
+  }
+}
+</script>
+{% endblock %}

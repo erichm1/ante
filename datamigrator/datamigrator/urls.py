@@ -12,6 +12,9 @@ from jobs import views as job_views
 from plans import views as plan_views
 from chains import views as chain_views
 from reports import views as report_views
+from incidents import views as incident_views
+from tickets import views as ticket_views
+from attachments import views as attachment_views
 
 router = routers.DefaultRouter()
 router.register(r"connections", connection_views.ConnectionViewSet, basename="connection")
@@ -28,6 +31,11 @@ router.register(r"chains", chain_views.CallChainViewSet, basename="chain")
 router.register(r"chain-steps", chain_views.CallChainStepViewSet, basename="chain-step")
 router.register(r"reports", report_views.ReportViewSet, basename="report")
 router.register(r"report-sections", report_views.ReportSectionViewSet, basename="report-section")
+router.register(r"incidents", incident_views.IncidentViewSet, basename="incident")
+router.register(r"incident-notes", incident_views.IncidentNoteViewSet, basename="incident-note")
+router.register(r"tickets", ticket_views.TicketViewSet, basename="ticket")
+router.register(r"ticket-notes", ticket_views.TicketNoteViewSet, basename="ticket-note")
+router.register(r"attachments", attachment_views.AttachmentViewSet, basename="attachment")
 
 urlpatterns = [
     path("admin/", admin.site.urls),
@@ -43,6 +51,8 @@ urlpatterns = [
     path("plans/", include("plans.urls")),
     path("chains/", include("chains.urls")),
     path("reports/", include("reports.urls")),
+    path("incidents/", include("incidents.urls")),
+    path("tickets/", include("tickets.urls")),
 ]
 
 if settings.DEBUG:
