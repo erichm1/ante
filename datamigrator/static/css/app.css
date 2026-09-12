@@ -1,18 +1,60 @@
+/* ── Design tokens — light (default) ─────────────────────────────────────── */
 :root {
-  --ink: #12181b;
-  --ink-soft: #1c252a;
-  --paper: #f6f7f5;
-  --paper-line: #e1e5e1;
-  --panel: #ffffff;
-  --text: #1b2226;
-  --text-dim: #5b666b;
-  --trace: #2f9c94;
-  --trace-soft: #d7ece9;
-  --signal: #d98a2b;
-  --danger: #c1453a;
-  --font-ui: "IBM Plex Sans", system-ui, sans-serif;
+  --ink:       #12181b;
+  --ink-soft:  #1c252a;
+  --paper:     #f6f7f5;
+  --paper-line:#e1e5e1;
+  --panel:     #ffffff;
+  --text:      #1b2226;
+  --text-dim:  #5b666b;
+  --trace:     #2f9c94;
+  --trace-soft:#d7ece9;
+  --signal:    #d98a2b;
+  --danger:    #c1453a;
+  --font-ui:   "IBM Plex Sans", system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", "SFMono-Regular", Menlo, monospace;
+
+  /* Status chip surface colours (separate so dark mode can swap them) */
+  --chip-warn-bg: #fbf1e0;
+  --chip-warn-bd: #f3ddb8;
+  --chip-err-bg:  #f8e6e4;
+  --chip-err-bd:  #edcdc9;
 }
+
+/* ── Dark palette — system preference ────────────────────────────────────── */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ink:       #0e1518;
+    --ink-soft:  #141c20;
+    --paper:     #181f23;
+    --paper-line:#263138;
+    --panel:     #1c2730;
+    --text:      #dce8e4;
+    --text-dim:  #7a9098;
+    --trace-soft:#162f2c;
+    --chip-warn-bg: #2d200e;
+    --chip-warn-bd: #4a3318;
+    --chip-err-bg:  #2d1010;
+    --chip-err-bd:  #461818;
+  }
+}
+
+/* ── Dark palette — explicit toggle ──────────────────────────────────────── */
+:root[data-theme="dark"] {
+  --ink:       #0e1518;
+  --ink-soft:  #141c20;
+  --paper:     #181f23;
+  --paper-line:#263138;
+  --panel:     #1c2730;
+  --text:      #dce8e4;
+  --text-dim:  #7a9098;
+  --trace-soft:#162f2c;
+  --chip-warn-bg: #2d200e;
+  --chip-warn-bd: #4a3318;
+  --chip-err-bg:  #2d1010;
+  --chip-err-bd:  #461818;
+}
+/* ── /dark mode ──────────────────────────────────────────────────────────── */
 
 body {
   font-family: var(--font-ui);
@@ -185,6 +227,38 @@ code, .mono, .field-type, .endpoint-path, .schema-name {
   .app-main { padding: 32px 40px; }
 }
 
+/* -- Theme toggle button (sun / moon in nav-end) -- */
+.nav-theme-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 50%;
+  color: #b9c4c1;
+  font-size: 0.88rem;
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.15s, color 0.15s;
+  line-height: 1;
+}
+.nav-theme-btn:hover { background: rgba(255,255,255,0.08); color: #fff; }
+
+/* -- Mobile: tables inside panels scroll horizontally -- */
+@media (max-width: 767.98px) {
+  .panel { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+  /* Page header row (title block + action button): stack on narrow screens */
+  .page-actions {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 10px;
+  }
+}
+
 .page-title { font-size: 1.4rem; font-weight: 600; margin-bottom: 4px; }
 .page-subtitle { color: var(--text-dim); margin-bottom: 24px; }
 
@@ -208,8 +282,8 @@ code, .mono, .field-type, .endpoint-path, .schema-name {
 }
 
 .status-chip.ok { color: var(--trace); border-color: var(--trace-soft); background: var(--trace-soft); }
-.status-chip.warn { color: var(--signal); border-color: #f3ddb8; background: #fbf1e0; }
-.status-chip.err { color: var(--danger); border-color: #edcdc9; background: #f8e6e4; }
+.status-chip.warn { color: var(--signal); border-color: var(--chip-warn-bd); background: var(--chip-warn-bg); }
+.status-chip.err { color: var(--danger); border-color: var(--chip-err-bd); background: var(--chip-err-bg); }
 
 .btn-signal {
   background: var(--signal);
@@ -477,7 +551,7 @@ code, .mono, .field-type, .endpoint-path, .schema-name {
 .entity-box {
   position: absolute;
   width: 240px;
-  background: #fff;
+  background: var(--panel);
   border-radius: 5px;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.28);
   cursor: grab;
@@ -529,7 +603,7 @@ code, .mono, .field-type, .endpoint-path, .schema-name {
   height: 11px;
   border-radius: 50%;
   background: var(--trace);
-  border: 2px solid #fff;
+  border: 2px solid var(--panel);
   box-shadow: 0 0 0 1px var(--trace);
   cursor: crosshair;
 }
@@ -562,7 +636,7 @@ code, .mono, .field-type, .endpoint-path, .schema-name {
 
 /* -- Run snapshot (pipeline view) -- */
 .step-label {
-  background: #fff;
+  background: var(--panel);
   border: 1px solid var(--paper-line);
   border-radius: 4px;
   padding: 2px 8px;
@@ -608,7 +682,7 @@ code, .mono, .field-type, .endpoint-path, .schema-name {
   gap: 4px;
   font-family: var(--font-mono);
   font-size: 0.72rem;
-  background: #fff;
+  background: var(--panel);
   border: 1px solid var(--paper-line);
   border-radius: 4px;
   padding: 2px 8px;
@@ -770,7 +844,7 @@ code, .mono, .field-type, .endpoint-path, .schema-name {
   background: var(--paper);
   color: var(--text);
 }
-.onb-btn:hover { background: #e9ece8; }
+.onb-btn:hover { background: var(--paper-line); }
 
 .onb-next {
   background: var(--signal);

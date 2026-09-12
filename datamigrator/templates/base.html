@@ -10,6 +10,15 @@
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <link href="{% static 'css/app.css' %}" rel="stylesheet">
   {% block extra_head %}{% endblock %}
+  <script>
+  /* Runs before first paint to prevent flash of wrong theme. */
+  (function(){
+    var t=localStorage.getItem('ante_theme'),h=document.documentElement;
+    if(t==='dark'){h.setAttribute('data-theme','dark');h.setAttribute('data-bs-theme','dark');}
+    else if(t==='light'){h.setAttribute('data-theme','light');h.setAttribute('data-bs-theme','light');}
+    else if(window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches){h.setAttribute('data-bs-theme','dark');}
+  }());
+  </script>
 </head>
 <body>
   {% csrf_token %}
@@ -63,6 +72,9 @@
         </nav>
 
         <div class="nav-end" id="navEnd">
+          <button class="nav-theme-btn" id="themeToggle" aria-label="Toggle theme" title="Toggle theme">
+            <i class="bi-moon-fill"></i>
+          </button>
           {% if user.is_authenticated %}
             <a href="{% url 'accounts:profile' %}"
                class="nav-avatar"
@@ -140,6 +152,40 @@
   <script>window.ANTE_USER = "{{ user.username|escapejs }}";</script>
   <script src="{% static 'js/onboarding.js' %}"></script>
   {% endif %}
+  <script>
+  /* Theme toggle */
+  (function () {
+    var html = document.documentElement;
+    var btn  = document.getElementById('themeToggle');
+    if (!btn) return;
+
+    function darkActive() {
+      return html.getAttribute('data-theme') === 'dark' ||
+        (!html.getAttribute('data-theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    }
+    function setIcon() {
+      var i = btn.querySelector('i');
+      if (i) i.className = darkActive() ? 'bi-sun-fill' : 'bi-moon-fill';
+    }
+    function applyTheme(mode) {
+      if (mode === 'dark') {
+        html.setAttribute('data-theme', 'dark');
+        html.setAttribute('data-bs-theme', 'dark');
+      } else {
+        html.setAttribute('data-theme', 'light');
+        html.setAttribute('data-bs-theme', 'light');
+      }
+      setIcon();
+    }
+
+    setIcon();
+    btn.addEventListener('click', function () {
+      var next = darkActive() ? 'light' : 'dark';
+      localStorage.setItem('ante_theme', next);
+      applyTheme(next);
+    });
+  }());
+  </script>
   <script>
   /* Hamburger toggle */
   (function () {
