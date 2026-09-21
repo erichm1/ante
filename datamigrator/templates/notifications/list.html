@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Notifications{% endblock %}
+{% block content %}
+  <div class="d-flex justify-content-between align-items-start page-actions">
+    <div>
+      <div class="page-title">Notifications</div>
+      <div class="page-subtitle">Every run, chain, plan and scheduled job that finished, failed, was cancelled or was killed.</div>
+    </div>
+    {% if unread_total %}
+      <button type="button" class="btn btn-sm btn-outline-secondary" id="markAllRead">Mark all {{ unread_total }} as read</button>
+    {% endif %}
+  </div>
+
+  <form method="get" class="row g-2 align-items-end mb-3">
+    <div class="col-6 col-md-3">
+      <label class="form-label small mb-1" for="nfOutcome">Outcome</label>
+      <select id="nfOutcome" name="outcome" class="form-select form-select-sm">
+        <option value="">Any</option>
+        {% for value, label in outcomes %}<option value="{{ value }}" {% if filters.outcome == value %}selected{% endif %}>{{ label|capfirst }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-6 col-md-3">
+      <label class="form-label small mb-1" for="nfKind">Type</label>
+      <select id="nfKind" name="kind" class="form-select form-select-sm">
+        <option value="">Any</option>
+        {% for value, label in kinds %}<option value="{{ value }}" {% if filters.kind == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="form-check mb-1">
+        <input class="form-check-input" type="checkbox" name="unread" value="1" id="nfUnread" {% if filters.unread %}checked{% endif %}>
+        <label class="form-check-label small" for="nfUnread">Unread only</label>
+      </div>
+    </div>
+    <div class="col-6 col-md-3 d-flex gap-2">
+      <button type="submit" class="btn btn-sm btn-signal">Filter</button>
+      {% if filters.outcome or filters.kind or filters.unread %}<a href="{% url 'notifications:list' %}" class="small align-self-center text-nowrap">Clear ×</a>{% endif %}
+    </div>
+  </form>
+
+  <div class="panel">
+    {% for n in page %}
+      <a href="{% url 'notifications:go' n.pk %}" class="notif-row {% if not n.read_at %}unread{% endif %}">
+        <span class="notif-dot {{ n.level }}" title="{{ n.outcome }}"></span>
+        <span class="notif-body">
+          <span class="notif-title">{{ n.title }}</span>
+          {% if n.message %}<span class="notif-msg">{{ n.message }}</span>{% endif %}
+        </span>
+        <span class="status-chip {{ n.level }}">{{ n.outcome }}</span>
+        <span class="notif-time text-dim mono">{{ n.created_at|date:"M j, H:i" }}</span>
+      </a>
+    {% empty %}
+      <div class="p-4 text-dim text-center">Nothing here yet. You'll be told when runs, chains, plans and scheduled jobs finish.</div>
+    {% endfor %}
+  </div>
+
+  {% if page.has_other_pages %}
+    <nav class="d-flex justify-content-between align-items-center mt-3 small">
+      {% if page.has_previous %}<a href="?page={{ page.previous_page_number }}&outcome={{ filters.outcome }}&kind={{ filters.kind }}{% if filters.unread %}&unread=1{% endif %}">← Newer</a>{% else %}<span></span>{% endif %}
+      <span class="text-dim">Page {{ page.number }} of {{ page.paginator.num_pages }}</span>
+      {% if page.has_next %}<a href="?page={{ page.next_page_number }}&outcome={{ filters.outcome }}&kind={{ filters.kind }}{% if filters.unread %}&unread=1{% endif %}">Older →</a>{% else %}<span></span>{% endif %}
+    </nav>
+  {% endif %}
+{% endblock %}
+{% block extra_scripts %}
+<script>
+  (function () {
+    var btn = document.getElementById('markAllRead');
+    if (!btn) return;
+    btn.addEventListener('click', function () {
+      fetch('{% url "notifications:mark_read" %}', { method: 'POST' }).then(function () { location.reload(); });
+    });
+  }());
+</script>
+{% endblock %}

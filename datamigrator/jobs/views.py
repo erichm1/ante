@@ -18,7 +18,7 @@ from schemas.serializers import EntitySerializer
 
 from . import engine
 from .models import MigrationRun
-from .serializers import MigrationRunSerializer, RunStepStatusSerializer
+from .serializers import MigrationRunListSerializer, MigrationRunSerializer, RunStepStatusSerializer
 
 
 def _start_now(mapping, rate_limit_per_second=None, input_file=None):
@@ -50,6 +50,18 @@ class MigrationRunViewSet(viewsets.ModelViewSet):
     serializer_class = MigrationRunSerializer
     filterset_fields = ["mapping", "status"]
     http_method_names = ["get", "post", "delete", "head", "options"]
+
+    def get_serializer_class(self):
+        if self.action == "list" and self.request.query_params.get("slim"):
+            return MigrationRunListSerializer
+        return super().get_serializer_class()
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        if self.action == "list" and self.request.query_params.get("slim"):
+            # The slim serializer never reads these, so don't fetch them.
+            return qs.prefetch_related(None).select_related("mapping")
+        return qs
 
     @action(detail=False, methods=["post"], url_path="trigger")
     def trigger(self, request):
@@ -93,6 +105,17 @@ class MigrationRunViewSet(viewsets.ModelViewSet):
             )
         return Response(MigrationRunSerializer(run).data, status=status.HTTP_201_CREATED)
 
+    @action(detail=True, methods=["post"], url_path="cancel")
+    def cancel(self, request, pk=None):
+        """The Kill button for one run: a running run stops between records (records already written stay
+        written); a queued or scheduled one is simply cancelled."""
+        run = self.get_object()
+        if run.status not in (MigrationRun.STATUS_PENDING, MigrationRun.STATUS_RUNNING):
+            return Response({"error": f"Run #{run.pk} is already {run.status} — nothing to stop."}, status=status.HTTP_400_BAD_REQUEST)
+        engine.cancel_runs([run])
+        run.refresh_from_db()
+        return Response(MigrationRunSerializer(run).data)
+
     @action(detail=True, methods=["post"], url_path="retry")
     def retry(self, request, pk=None):
         """Creates a new run for the same mapping, executing only the entity
@@ -100,8 +123,8 @@ class MigrationRunViewSet(viewsets.ModelViewSet):
         connection problem and re-push just the records that didn't land,
         instead of re-processing everything and risk double-writing successes."""
         original = self.get_object()
-        if original.status != MigrationRun.STATUS_FAILED:
-            return Response({"error": "Only failed runs can be retried."}, status=status.HTTP_400_BAD_REQUEST)
+        if original.status not in (MigrationRun.STATUS_FAILED, MigrationRun.STATUS_CANCELLED):
+            return Response({"error": "Only failed or cancelled runs can be retried."}, status=status.HTTP_400_BAD_REQUEST)
 
         failed_em_ids = list(
             original.step_statuses.filter(status="failed").values_list("entity_mapping_id", flat=True)

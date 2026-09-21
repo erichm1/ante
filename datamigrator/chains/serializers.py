@@ -4,22 +4,24 @@ from .models import CallChain, CallChainRun, CallChainStep, CallChainStepResult
 
 
 class CallChainStepSerializer(serializers.ModelSerializer):
+    connection_name = serializers.CharField(source="connection.name", read_only=True, default=None)
+
     class Meta:
         model = CallChainStep
         fields = [
-            "id", "chain", "name", "order", "method", "path", "body", "captures",
+            "id", "chain", "name", "kind", "params", "timeout_seconds", "headers", "query_params", "connection", "connection_name", "order", "method", "path", "body", "captures",
             "is_async", "async_poll_path", "async_poll_method", "async_condition_path",
             "async_condition_value", "async_interval_seconds", "async_timeout_seconds", "async_result_path",
         ]
-        read_only_fields = ["order", "chain"]  # order assigned by add_step; chain never reassigned via PATCH
+        read_only_fields = ["order", "chain", "kind"]  # order/kind are set by add_step and never change; chain never reassigned via PATCH
 
 
 class CallChainStepResultSerializer(serializers.ModelSerializer):
     class Meta:
         model = CallChainStepResult
         fields = [
-            "id", "order", "name", "method", "resolved_path", "resolved_body",
-            "status_code", "response_json", "poll_attempts", "captured_variables", "error",
+            "id", "order", "name", "kind", "method", "resolved_path", "resolved_body",
+            "status_code", "response_json", "poll_attempts", "captured_variables", "detail", "response_headers", "error",
         ]
 
 

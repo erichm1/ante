@@ -72,6 +72,25 @@ class EntityViewSet(viewsets.ModelViewSet):
             return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
         return Response(EntitySerializer(entity).data, status=status.HTTP_201_CREATED)
 
+    @action(detail=True, methods=["get"], url_path="file-preview")
+    def file_preview(self, request, pk=None):
+        """The first rows of this entity's uploaded CSV/XLSX — the Studio's file-preview chain
+        step shows this in its dialog so you can see the file before wiring anything to it."""
+        entity = self.get_object()
+        if not entity.source_file:
+            return Response({"error": "This entity has no uploaded file."}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            limit = max(1, min(int(request.query_params.get("limit", 10)), 100))
+        except ValueError:
+            limit = 10
+        try:
+            rows = discovery.read_all_records_from_source_file(entity)
+        except Exception as exc:  # unreadable/corrupt file — say so rather than 500
+            return Response({"error": f"Couldn't read the file: {exc}"}, status=status.HTTP_400_BAD_REQUEST)
+        from chains.executor import _file_columns   # same rule as the chain's file-preview step
+        columns = _file_columns(entity, rows[:limit])
+        return Response({"entity": entity.name, "columns": columns, "rows": rows[:limit], "count": len(rows)})
+
     @action(detail=True, methods=["patch"], url_path="position")
     def update_position(self, request, pk=None):
         entity = self.get_object()

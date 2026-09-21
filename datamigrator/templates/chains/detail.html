@@ -26,8 +26,8 @@
             <td class="text-dim" style="cursor:grab;user-select:none;font-size:1rem;line-height:1;padding-right:0" title="Drag to reorder">⠿</td>
             <td class="mono">{{ step.order }}</td>
             <td class="mono">{{ step.name }}</td>
-            <td><span class="verb-badge verb-{{ step.method|lower }}">{{ step.method }}</span></td>
-            <td class="mono small">{{ step.path }}</td>
+            <td>{% if step.kind == "http" %}<span class="verb-badge verb-{{ step.method|lower }}">{{ step.method }}</span>{% else %}<span class="status-chip">{{ step.get_kind_display }}</span>{% endif %}</td>
+            <td class="mono small">{{ step.path|default:"—" }}</td>
             <td class="mono small text-dim" style="max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ step.body|default:"—" }}</td>
             <td class="small">
               {% if step.is_async %}
@@ -123,10 +123,11 @@
               <tr style="cursor: pointer;" onclick="document.getElementById('result-detail-{{ r.pk }}').classList.toggle('d-none')">
                 <td class="text-dim">▸</td>
                 <td class="mono">{{ r.name }}</td>
-                <td><span class="verb-badge verb-{{ r.method|lower }}">{{ r.method }}</span></td>
+                <td>{% if r.kind == "http" %}<span class="verb-badge verb-{{ r.method|lower }}">{{ r.method }}</span>{% else %}<span class="status-chip">{{ r.kind }}</span>{% endif %}</td>
                 <td class="mono small">{{ r.resolved_path }}</td>
                 <td>
                   {% if r.error %}<span class="status-chip err">error</span>
+                  {% elif r.kind != "http" %}<span class="status-chip ok">ok</span>
                   {% elif r.status_code and r.status_code < 400 %}<span class="status-chip ok">{{ r.status_code }}</span>
                   {% else %}<span class="status-chip err">{{ r.status_code|default:"?" }}</span>{% endif %}
                 </td>

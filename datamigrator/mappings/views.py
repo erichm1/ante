@@ -1,20 +1,43 @@
 from django.core.paginator import Paginator
+from django.db.models import Q
 from django.shortcuts import get_object_or_404, render
 from rest_framework import viewsets
+from rest_framework.decorators import action
+from rest_framework.response import Response
 
 from connections.models import Connection
+from jobs import engine
 from jobs.models import MigrationRun
 from jobs.views import _connection_integration, _route_info
 from schemas.models import Entity, Field
 from schemas.serializers import EntitySerializer
 
 from .models import EntityMapping, FieldMapping, Mapping
+from .preview import clamp_limit, preview_mapping
 from .serializers import EntityMappingSerializer, FieldMappingSerializer, MappingSerializer
 
 
 class MappingViewSet(viewsets.ModelViewSet):
     queryset = Mapping.objects.select_related("source_connection").prefetch_related("destination_connections")
     serializer_class = MappingSerializer
+
+    @action(detail=True, methods=["post"], url_path="cancel")
+    def cancel(self, request, pk=None):
+        """The Kill button on a mapping: stop everything of this mapping that is running right now, and any
+        queued (not-yet-started) runs. Runs *scheduled* for later are left alone — cancel those one by one."""
+        mapping = self.get_object()
+        active = MigrationRun.objects.filter(mapping=mapping).filter(
+            Q(status=MigrationRun.STATUS_RUNNING) | Q(status=MigrationRun.STATUS_PENDING, scheduled_at__isnull=True))
+        return Response({"cancelled": engine.cancel_runs(active)})
+
+    @action(detail=True, methods=["get"], url_path="preview")
+    def preview(self, request, pk=None):
+        """Read-only dry run: a sample of each pair's source records next to the
+        payloads the field mappings would produce from them (see mappings/
+        preview.py). Nothing is written to any target system."""
+        mapping = self.get_object()
+        limit = clamp_limit(request.query_params.get("limit"))
+        return Response({"limit": limit, "pairs": preview_mapping(mapping, limit)})
 
 
 class EntityMappingViewSet(viewsets.ModelViewSet):

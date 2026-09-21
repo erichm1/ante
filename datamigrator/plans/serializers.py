@@ -1,6 +1,7 @@
 from rest_framework import serializers
 
 from chains.models import CallChainRun
+from chains.serializers import CallChainStepResultSerializer, CallChainStepSerializer
 from jobs.models import MigrationRun
 
 from .models import MigrationPlan, PlanStep
@@ -30,7 +31,9 @@ class StepChainRunSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = CallChainRun
-        fields = ["id", "status"]
+        # A chain run is created "failed" and only flipped when it finishes, so
+        # finished_at is what says whether it's still running.
+        fields = ["id", "status", "finished_at"]
 
 
 class PlanStepSerializer(serializers.ModelSerializer):
@@ -41,8 +44,12 @@ class PlanStepSerializer(serializers.ModelSerializer):
     single source of truth for structure. Exactly one of mapping/chain is
     ever set, matching the owning plan's execution_mode."""
 
+    kind = serializers.SerializerMethodField()
     mapping_name = serializers.SerializerMethodField()
     chain_name = serializers.SerializerMethodField()
+    pairs_total = serializers.SerializerMethodField()
+    function = serializers.SerializerMethodField()
+    result = serializers.SerializerMethodField()
     run = StepRunSerializer(read_only=True)
     chain_run = StepChainRunSerializer(read_only=True)
     rate_limit_per_second = serializers.FloatField(
@@ -52,10 +59,29 @@ class PlanStepSerializer(serializers.ModelSerializer):
     class Meta:
         model = PlanStep
         fields = [
-            "id", "plan", "mapping", "mapping_name", "chain", "chain_name",
-            "order", "rate_limit_per_second", "run", "chain_run",
+            "id", "plan", "kind", "mapping", "mapping_name", "chain", "chain_name",
+            "order", "wait_seconds", "entity_mapping_ids", "pairs_total", "function", "result", "started_at", "finished_at",
+            "rate_limit_per_second", "run", "chain_run",
         ]
-        read_only_fields = ["plan", "mapping", "chain", "order", "run", "chain_run"]
+        read_only_fields = ["plan", "mapping", "chain", "order", "run", "chain_run", "started_at", "finished_at"]
+
+    def get_kind(self, obj):
+        return obj.kind
+
+    def get_function(self, obj):
+        """A function block's settings (it is a step of the plan's hidden inline chain)."""
+        return CallChainStepSerializer(obj.inline_step).data if obj.inline_step_id else None
+
+    def get_result(self, obj):
+        """What that block did on the plan's current/last execution, if it has run."""
+        run = obj.plan.inline_run
+        if not obj.inline_step_id or run is None:
+            return None
+        found = next((r for r in run.step_results.all() if r.step_id == obj.inline_step_id), None)
+        return CallChainStepResultSerializer(found).data if found else None
+
+    def get_pairs_total(self, obj):
+        return len(obj.mapping.entity_mappings.all()) if obj.mapping_id else None
 
     def get_mapping_name(self, obj):
         return obj.mapping.name if obj.mapping_id else None

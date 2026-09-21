@@ -25,6 +25,44 @@ from schemas.models import Field
 from .models import MigrationLog, MigrationRun, RunStepStatus
 
 
+STEP_FLUSH_SECONDS = 0.5   # how often a running pair's counts are saved (see run_migration)
+CANCEL_CHECK_SECONDS = 0.4  # how often a running migration looks for the Kill button
+
+
+class RunCancelled(Exception):
+    """The Kill button was pressed — stop cleanly (records already written stay written)."""
+
+    def __str__(self):
+        return "Cancelled by user."
+
+
+# Ids of migration runs THIS process is executing. An unfinished run that isn't in here was orphaned
+# (its thread died — a dev-server restart) and would never notice a cancel flag, so cancel_runs() closes
+# it immediately instead. (Scaffold scope: one process, like the rest of this module.)
+ACTIVE_RUNS = set()
+
+
+def cancel_runs(runs) -> int:
+    """The Kill button for migrations. Flags each run (a queryset of pending/running MigrationRuns) to stop.
+    A running one notices within a fraction of a second and stops between records; one that is only queued
+    (pending), or orphaned, is closed straight away. Returns how many were affected."""
+    count = 0
+    for run in runs:
+        run.cancel_requested = True
+        fields = ["cancel_requested"]
+        was_queued = run.status == MigrationRun.STATUS_PENDING
+        closed_here = was_queued or run.pk not in ACTIVE_RUNS
+        if closed_here:
+            run.status, run.finished_at = MigrationRun.STATUS_CANCELLED, timezone.now()
+            fields += ["status", "finished_at"]
+        run.save(update_fields=fields)
+        if closed_here:
+            from notifications.services import notify_run
+            notify_run(run, "cancelled" if was_queued else "killed")      # queued → cancelled; it had been running → killed
+        count += 1
+    return count
+
+
 def _log(run: MigrationRun, message: str, level=MigrationLog.LEVEL_INFO):
     MigrationLog.objects.create(run=run, message=message, level=level)
 
@@ -106,6 +144,28 @@ def _assign_nested(out: dict, dotted_name: str, value) -> None:
     container[parts[-1]] = value
 
 
+def transform_field(record: dict, field_mapping):
+    """One mapped field's value for one source record — the same no-code rules,
+    then the advanced expression, then type coercion, in the same order a real
+    run applies them. Returns (raw_value, final_value); the pair lets the
+    Studio's data preview show which cells a transform actually changed."""
+    raw_value = record.get(field_mapping.source_field.name)
+    value = _apply_rules(raw_value, field_mapping.transform_rules)
+    value = _apply_transform(value, field_mapping.transform)
+    return raw_value, _coerce_to_field_type(value, field_mapping.target_field.field_type)
+
+
+def build_payload(record: dict, field_mappings) -> dict:
+    """The exact JSON body a run writes for `record` — dotted target names
+    (e.g. precos.preco) become nested objects. Shared by run_migration and the
+    read-only mapping preview so what you preview is what gets sent."""
+    out = {}
+    for field_mapping in field_mappings:
+        _, value = transform_field(record, field_mapping)
+        _assign_nested(out, field_mapping.target_field.name, value)
+    return out
+
+
 def run_migration(run: MigrationRun, entity_mapping_ids=None) -> MigrationRun:
     """Executes `run` in place. `run` must already exist (status=running) so
     its id is known to the caller before this function's progress updates land.
@@ -117,6 +177,19 @@ def run_migration(run: MigrationRun, entity_mapping_ids=None) -> MigrationRun:
     target_clients = {}       # connection_id -> ConnectionClient
     source_records = {}       # source_entity_id -> extracted records, read once per run
     last_request_at = None    # monotonic timestamp of the last throttled call, across reads and writes alike
+    last_cancel_check = 0.0
+    ACTIVE_RUNS.add(run.pk)
+
+    def check_cancel(force=False):
+        """Raise RunCancelled if the Kill button was pressed. Cheap enough to call per record: it only
+        actually asks the DB every CANCEL_CHECK_SECONDS unless `force`d."""
+        nonlocal last_cancel_check
+        now = time.monotonic()
+        if not force and now - last_cancel_check < CANCEL_CHECK_SECONDS:
+            return
+        last_cancel_check = now
+        if MigrationRun.objects.filter(pk=run.pk, cancel_requested=True).exists():
+            raise RunCancelled()
 
     def throttle():
         """Sleeps just long enough to keep this run's combined read+write rate
@@ -166,6 +239,7 @@ def run_migration(run: MigrationRun, entity_mapping_ids=None) -> MigrationRun:
                 _log(run, f"Read {len(records)} record(s) from file.")
             else:
                 _log(run, f"Reading {entity} ...")
+                check_cancel(force=True)
                 throttle()
                 response = source_client.get(entity.endpoint_path)
                 note_request()
@@ -191,6 +265,7 @@ def run_migration(run: MigrationRun, entity_mapping_ids=None) -> MigrationRun:
             _log(run, "No entity mappings configured — nothing to migrate.", level=MigrationLog.LEVEL_WARNING)
 
         for entity_mapping in entity_mappings:
+            check_cancel(force=True)
             step, _ = RunStepStatus.objects.update_or_create(
                 run=run, entity_mapping=entity_mapping,
                 defaults={"status": RunStepStatus.STATUS_RUNNING, "started_at": timezone.now()},
@@ -242,14 +317,15 @@ def run_migration(run: MigrationRun, entity_mapping_ids=None) -> MigrationRun:
                     f"to {entity_mapping.target_entity} on {target_connection.name} "
                     f"via {entity_mapping.write_method} ...",
                 )
+                # Publish this pair's live counts (read now, written/failed as they land) so the
+                # Studio's per-entity meters move during the run instead of jumping at the end.
+                # Throttled to ~2 writes/second: a per-record save would double the DB traffic.
+                step.records_read = len(records)
+                step.save(update_fields=["records_read"])
+                last_step_flush = time.monotonic()
                 for record in records:
-                    out = {}
-                    for field_mapping in field_mappings:
-                        raw_value = record.get(field_mapping.source_field.name)
-                        value = _apply_rules(raw_value, field_mapping.transform_rules)
-                        value = _apply_transform(value, field_mapping.transform)
-                        value = _coerce_to_field_type(value, field_mapping.target_field.field_type)
-                        _assign_nested(out, field_mapping.target_field.name, value)
+                    check_cancel()
+                    out = build_payload(record, field_mappings)
                     try:
                         throttle()
                         write_response = target_client.request(
@@ -269,6 +345,10 @@ def run_migration(run: MigrationRun, entity_mapping_ids=None) -> MigrationRun:
                         )
                     finally:
                         run.save(update_fields=["records_written", "records_failed"])
+                        if time.monotonic() - last_step_flush >= STEP_FLUSH_SECONDS:
+                            step.records_written, step.records_failed = step_written, step_failed
+                            step.save(update_fields=["records_written", "records_failed"])
+                            last_step_flush = time.monotonic()
 
                 step.status = RunStepStatus.STATUS_FAILED if step_failed and not step_written else RunStepStatus.STATUS_SUCCESS
                 step.records_read = len(records)
@@ -290,12 +370,20 @@ def run_migration(run: MigrationRun, entity_mapping_ids=None) -> MigrationRun:
             if run_had_step_failure or (run.records_failed and not run.records_written)
             else MigrationRun.STATUS_SUCCESS
         )
+    except RunCancelled:
+        run.status = MigrationRun.STATUS_CANCELLED
+        _log(run, f"Run cancelled by user — {run.records_written} record(s) had already been written and stay written.",
+             level=MigrationLog.LEVEL_WARNING)
     except Exception as exc:
         run.status = MigrationRun.STATUS_FAILED
         _log(run, f"Migration aborted: {exc}", level=MigrationLog.LEVEL_ERROR)
     finally:
+        ACTIVE_RUNS.discard(run.pk)
         run.finished_at = timezone.now()
         run.save()
+        # A run that was running and got cancelled was *killed*; the notification says so.
+        from notifications.services import notify_run
+        notify_run(run, {"success": "success", "failed": "failed"}.get(run.status, "killed"))
 
     return run
 
@@ -330,6 +418,8 @@ def run_batch_in_background(run_ids):
     try:
         for run_id in run_ids:
             run = MigrationRun.objects.select_related("mapping", "mapping__source_connection").get(pk=run_id)
+            if run.status == MigrationRun.STATUS_CANCELLED:
+                continue                    # killed while it was still queued
             run.status = MigrationRun.STATUS_RUNNING
             run.save(update_fields=["status"])
             run_migration(run)

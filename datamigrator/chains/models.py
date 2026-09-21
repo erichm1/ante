@@ -15,6 +15,11 @@ class CallChain(models.Model):
         help_text="Every step in this chain calls this connection's API, using its configured auth.",
     )
     description = models.TextField(blank=True)
+    hidden = models.BooleanField(
+        default=False,
+        help_text="Owned by a plan: holds the function blocks (request, find, check…) dragged into a custom "
+                   "run so they can share data. Never listed as a chain of its own.",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -35,7 +40,55 @@ class CallChainStep(models.Model):
         (METHOD_PATCH, "PATCH"), (METHOD_DELETE, "DELETE"),
     ]
 
+    KIND_HTTP = "http"
+    KIND_WAIT = "wait"
+    KIND_NEXT = "next"
+    KIND_FIND = "find"
+    KIND_CHECK = "check"
+    KIND_FILE = "file"
+    KIND_CHOICES = [
+        (KIND_HTTP, "HTTP call"),
+        (KIND_WAIT, "Wait"),
+        (KIND_NEXT, "Next page"),
+        (KIND_FIND, "Find in list"),
+        (KIND_CHECK, "Check header"),
+        (KIND_FILE, "File preview"),
+    ]
+
     chain = models.ForeignKey(CallChain, on_delete=models.CASCADE, related_name="steps")
+    kind = models.CharField(
+        max_length=10, choices=KIND_CHOICES, default=KIND_HTTP,
+        help_text="What this step does. HTTP calls are the original (and default) kind; the others "
+                   "work on data earlier steps already fetched, or just pause — see chains/executor.py.",
+    )
+    params = models.JSONField(
+        default=dict, blank=True,
+        help_text="Settings for the non-HTTP kinds (wait: seconds · next: from_step/next_path/items_path/"
+                   "cursor_param/max_pages · find: source/match_field/operator/value/pick/on_missing · "
+                   "check: from_step/header/operator/value/on_fail · file: entity/limit). Validated in "
+                   "chains/views.py::parse_kind_params.",
+    )
+    headers = models.JSONField(
+        default=list, blank=True,
+        help_text="HTTP steps only: extra request headers, a list of {name, value}. Values may use {{placeholders}}. "
+                   "They override the connection's own headers of the same name, and are also sent on an async step's "
+                   "poll/result calls and on the pages a next-page step fetches.",
+    )
+    query_params = models.JSONField(
+        default=list, blank=True,
+        help_text="HTTP steps only: query string parameters, a list of {name, value} (values may use {{placeholders}}). "
+                   "A next-page step repeats them on every page.",
+    )
+    connection = models.ForeignKey(
+        "connections.Connection", null=True, blank=True, on_delete=models.CASCADE, related_name="+",
+        help_text="Overrides the chain's connection for this one step — a plan's custom run has no single "
+                   "connection, so each of its request steps names its own.",
+    )
+    timeout_seconds = models.FloatField(
+        null=True, blank=True,
+        help_text="HTTP steps only: give up on the request after this many seconds (blank = the "
+                   "connection client's default, 30s). Also applies to an async step's poll/result calls.",
+    )
     name = models.SlugField(
         max_length=50,
         help_text="Referenced by later steps as {{this_name.some.json.path}} — must be unique within the chain.",
@@ -43,7 +96,7 @@ class CallChainStep(models.Model):
     order = models.PositiveIntegerField()
     method = models.CharField(max_length=10, choices=METHOD_CHOICES, default=METHOD_GET)
     path = models.CharField(
-        max_length=500,
+        max_length=500, blank=True,
         help_text="Endpoint path, relative to the chain's connection base_url. May reference a prior "
                    "step's response with {{step_name.field.path}}, e.g. /orders/{{create_customer.id}}.",
     )
@@ -110,10 +163,14 @@ class CallChainStep(models.Model):
 class CallChainRun(models.Model):
     STATUS_SUCCESS = "success"
     STATUS_FAILED = "failed"
-    STATUS_CHOICES = [(STATUS_SUCCESS, "success"), (STATUS_FAILED, "failed")]
+    STATUS_CANCELLED = "cancelled"
+    STATUS_CHOICES = [(STATUS_SUCCESS, "success"), (STATUS_FAILED, "failed"), (STATUS_CANCELLED, "cancelled")]
 
     chain = models.ForeignKey(CallChain, on_delete=models.CASCADE, related_name="runs")
     status = models.CharField(max_length=10, choices=STATUS_CHOICES)
+    cancel_requested = models.BooleanField(
+        default=False, help_text="Set by the Kill button; the runner checks it between steps, while waiting and while polling.",
+    )
     started_at = models.DateTimeField(auto_now_add=True)
     finished_at = models.DateTimeField(null=True, blank=True)
     result_file = models.FileField(
@@ -151,6 +208,17 @@ class CallChainStepResult(models.Model):
         default=dict, blank=True,
         help_text="{variable_name: extracted_value} for every capture defined on this step, as it "
                    "actually resolved on this run.",
+    )
+    kind = models.CharField(max_length=10, default=CallChainStep.KIND_HTTP)
+    detail = models.JSONField(
+        default=dict, blank=True,
+        help_text="What a non-HTTP step found/decided, for the run detail view — e.g. a check's expected "
+                   "vs actual header, a find's match count, a file preview's rows.",
+    )
+    response_headers = models.JSONField(
+        default=dict, blank=True,
+        help_text="The HTTP response's headers (names as sent), kept so a later 'check header' step — "
+                   "or a retried run — can read them.",
     )
     error = models.TextField(blank=True)
 

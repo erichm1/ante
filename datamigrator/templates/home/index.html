@@ -100,15 +100,15 @@
       <div class="panel h-100">
         <div class="d-flex align-items-center justify-content-between mb-3">
           <h6 class="mb-0">Active incidents</h6>
-          {% if request.user.is_staff %}
+          {% if 'incidents' in user_modules %}
             <a href="{% url 'incidents:list' %}" class="btn btn-sm btn-outline-secondary">View all</a>
           {% endif %}
         </div>
         {% if open_incidents %}
           <div class="home-item-list">
             {% for inc in open_incidents %}
-              <div class="home-item-row {% if request.user.is_staff %}home-item-link{% endif %}"
-                {% if request.user.is_staff %}onclick="window.location='/incidents/{{ inc.pk }}/'"{% endif %}>
+              <div class="home-item-row {% if 'incidents' in user_modules %}home-item-link{% endif %}"
+                {% if 'incidents' in user_modules %}onclick="window.location='/incidents/{{ inc.pk }}/'"{% endif %}>
                 <div class="home-item-name">{{ inc.title }}</div>
                 <div class="home-item-meta">
                   {% if inc.severity == "critical" %}<span class="status-chip err" style="font-size:0.7rem;padding:1px 7px">Critical</span>

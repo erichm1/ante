@@ -6,6 +6,7 @@ from django.shortcuts import redirect, render
 from django.urls import reverse_lazy
 from django.views.generic import FormView
 
+from . import permissions
 from .forms import ProfileForm, StyledAuthenticationForm, StyledUserCreationForm
 from .models import Profile
 
@@ -50,4 +51,7 @@ def profile(request):
     else:
         form = ProfileForm(instance=profile_obj)
 
-    return render(request, "accounts/profile.html", {"profile": profile_obj, "form": form})
+    return render(request, "accounts/profile.html", {
+        "profile": profile_obj, "form": form,
+        "admin_config": {"me": request.user.pk, "iAmSuperuser": request.user.is_superuser} if permissions.is_admin(request.user) else None,
+    })

@@ -137,6 +137,10 @@ code, .mono, .field-type, .endpoint-path, .schema-name {
 }
 .nav-links a:hover { color: #fff; background: var(--ink-soft); }
 .nav-links a.active { color: #fff; border-left-color: var(--trace); background: var(--ink-soft); }
+/* A module the signed-in user has no access to: still visible, dimmed, with a lock — clicking explains why. */
+.nav-links a.locked { color: #7e8a87; }
+.nav-links a.locked:hover { color: #b9c4c1; }
+.nav-lock { font-size: 0.68rem; margin-left: 6px; opacity: 0.85; }
 
 .nav-end {
   display: flex;
@@ -268,6 +272,13 @@ code, .mono, .field-type, .endpoint-path, .schema-name {
     gap: 10px;
   }
 }
+
+/* Page header row (title block + action buttons — 19 templates share this markup). Mobile first:
+   the actions drop below the title when there isn't room, instead of squeezing the title or
+   pushing a button off-screen; on a wide screen everything still fits on one line. */
+.app-main > .d-flex.justify-content-between.align-items-start { flex-wrap: wrap; gap: 10px 14px; }
+.app-main > .d-flex.justify-content-between.align-items-start > :first-child { flex: 1 1 220px; min-width: 0; }
+.app-main > .d-flex.justify-content-between.align-items-start > :not(:first-child) { flex-shrink: 0; }
 
 .page-title { font-size: 1.4rem; font-weight: 600; margin-bottom: 4px; }
 .page-subtitle { color: var(--text-dim); margin-bottom: 24px; }
@@ -1514,3 +1525,77 @@ tr.run-selected td { background: color-mix(in srgb, var(--signal) 6%, transparen
 
 /* Checkbox column */
 .col-check { width: 36px; }
+
+
+/* -- Company logo, next to the avatar: it reuses .nav-avatar-img, so it is identical to the user's photo -- */
+.nav-company { display: flex; align-items: center; }
+
+/* -- Notifications: bell + dropdown + list rows -- */
+.nav-bell-wrap { position: relative; }
+.nav-bell {
+  position: relative; display: flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; color: #b9c4c1; text-decoration: none; font-size: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 50%;
+}
+.nav-bell:hover { color: #fff; background: rgba(255, 255, 255, 0.08); }
+.nav-bell-badge {
+  position: absolute; top: -5px; right: -6px; min-width: 17px; height: 17px; padding: 0 4px;
+  border-radius: 9px; background: var(--danger); color: #fff; font-size: 0.66rem; font-weight: 600;
+  line-height: 17px; text-align: center; border: 2px solid var(--ink); box-sizing: content-box;
+}
+.nav-bell-badge[hidden] { display: none; }
+.notif-panel {
+  position: absolute; right: -60px; top: 40px; width: 360px; max-width: calc(100vw - 24px); z-index: 300;
+  background: var(--panel); color: var(--text); border: 1px solid var(--paper-line); border-radius: 8px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25); overflow: hidden;
+}
+.notif-panel[hidden] { display: none; }
+.notif-panel-head { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; border-bottom: 1px solid var(--paper-line); font-size: 0.9rem; }
+.btn-link-plain { background: none; border: none; padding: 0; color: var(--trace); font-size: 0.8rem; cursor: pointer; }
+.btn-link-plain:hover { text-decoration: underline; }
+.btn-link-plain[hidden] { display: none; }
+.notif-panel-items { max-height: 380px; overflow-y: auto; }
+.notif-panel-foot { display: block; padding: 9px 14px; text-align: center; font-size: 0.82rem; border-top: 1px solid var(--paper-line); text-decoration: none; color: var(--trace); }
+.notif-panel-foot:hover { background: var(--paper); }
+.notif-empty { padding: 18px 14px; color: var(--text-dim); font-size: 0.85rem; text-align: center; }
+.notif-item, .notif-row {
+  display: flex; align-items: flex-start; gap: 10px; padding: 10px 14px; color: var(--text);
+  text-decoration: none; border-bottom: 1px solid var(--paper-line);
+}
+.notif-item:last-child, .notif-row:last-child { border-bottom: none; }
+.notif-item:hover, .notif-row:hover { background: var(--paper); color: var(--text); }
+.notif-item.unread, .notif-row.unread { background: var(--trace-soft); }
+.notif-item.unread:hover, .notif-row.unread:hover { background: var(--trace-soft); filter: brightness(0.97); }
+.notif-dot { flex: 0 0 auto; width: 9px; height: 9px; margin-top: 5px; border-radius: 50%; background: var(--text-dim); }
+.notif-dot.ok { background: var(--trace); }
+.notif-dot.err { background: var(--danger); }
+.notif-dot.warn { background: var(--signal); }
+.notif-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.notif-title { font-size: 0.86rem; font-weight: 500; overflow-wrap: anywhere; }
+.notif-msg { font-size: 0.78rem; color: var(--text-dim); overflow-wrap: anywhere; }
+.notif-row { align-items: center; }
+.notif-time { font-size: 0.76rem; white-space: nowrap; }
+@media (max-width: 575.98px) { .notif-row { flex-wrap: wrap; } .notif-time { width: 100%; padding-left: 19px; } }
+
+/* A form-field that can be shown but not used because the user lacks the module */
+.perm-locked { opacity: 0.55; }
+
+/* -- Administration panel (profile page) -- */
+.admin-tabs .nav-link { color: var(--text-dim); font-size: 0.9rem; }
+.admin-tabs .nav-link.active { color: var(--text); font-weight: 500; }
+.admin-table th { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-dim); font-weight: 500; white-space: nowrap; }
+.perm-grid { display: grid; grid-template-columns: 1fr; gap: 6px 16px; }
+@media (min-width: 576px) { .perm-grid { grid-template-columns: 1fr 1fr; } }
+.perm-cell { display: flex; gap: 10px; align-items: flex-start; padding: 6px 0; }
+.perm-icon { color: var(--text-dim); font-size: 1.05rem; margin-top: 2px; width: 20px; text-align: center; flex: 0 0 auto; }
+.perm-list { border: 1px solid var(--paper-line); border-radius: 6px; }
+.perm-row { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--paper-line); }
+.perm-row:last-child { border-bottom: none; }
+.perm-name { display: flex; gap: 10px; align-items: flex-start; min-width: 0; }
+.perm-ctl { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+@media (min-width: 768px) { .perm-row { flex-direction: row; align-items: center; justify-content: space-between; } .perm-name { flex: 1; } .perm-ctl { flex: 0 0 auto; width: 320px; } }
+.perm-status { font-size: 0.78rem; color: var(--text-dim); }
+.perm-status.is-on { color: var(--trace); }
+.perm-row .btn-group .btn.active.perm-on { background: var(--trace); border-color: var(--trace); color: #fff; }
+.perm-row .btn-group .btn.active.perm-off { background: var(--danger); border-color: var(--danger); color: #fff; }
+.perm-row .btn-group .btn.active.perm-inherit { background: var(--text-dim); border-color: var(--text-dim); color: #fff; }

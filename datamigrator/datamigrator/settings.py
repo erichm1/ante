@@ -34,6 +34,8 @@ INSTALLED_APPS = [
     "jobs",
     "plans",
     "chains",
+    "studio",
+    "notifications",
     "reports",
     "incidents",
     "tickets",
@@ -48,6 +50,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "accounts.middleware.LoginRequiredMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
+    "accounts.middleware.ModuleAccessMiddleware",      # after messages: a denial is shown as a warning message
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
@@ -65,6 +68,7 @@ TEMPLATES = [
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
                 "accounts.context_processors.profile",
+                "accounts.context_processors.access",
             ],
         },
     },

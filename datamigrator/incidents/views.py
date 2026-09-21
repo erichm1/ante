@@ -1,4 +1,5 @@
-from django.contrib.admin.views.decorators import staff_member_required
+from functools import wraps
+
 from django.core.paginator import Paginator
 from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
@@ -6,6 +7,7 @@ from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
+from accounts import permissions as access
 from connections.models import Connection
 
 from .models import Incident, IncidentNote, PostMortem, IncidentRule, SERVICE_CHOICES
@@ -13,8 +15,25 @@ from .serializers import IncidentNoteSerializer, IncidentSerializer, IncidentRul
 
 
 class IsStaffPermission(permissions.BasePermission):
+    """Incidents used to be hard-wired to is_staff; it is now the "incidents" module like any other (administrators
+    have it automatically, and anyone else can be granted it). Kept under the old name for the imports."""
+
     def has_permission(self, request, view):
-        return bool(request.user and request.user.is_staff)
+        return access.has_module(request.user, "incidents")
+
+
+def staff_member_required(view):
+    """Page-level twin of IsStaffPermission. ModuleAccessMiddleware already turns a missing module into a warning +
+    redirect before a view runs; this is the belt to that braces (and covers the view being called directly)."""
+    @wraps(view)
+    def wrapped(request, *args, **kwargs):
+        if not access.has_module(request.user, "incidents"):
+            from django.contrib import messages
+            from django.shortcuts import redirect
+            messages.warning(request, access.denial_message(["incidents"]))
+            return redirect("home:index")
+        return view(request, *args, **kwargs)
+    return wrapped
 
 
 class IncidentViewSet(viewsets.ModelViewSet):

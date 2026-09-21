@@ -15,6 +15,7 @@ from reports import views as report_views
 from incidents import views as incident_views
 from tickets import views as ticket_views
 from attachments import views as attachment_views
+from accounts import api as account_api
 
 router = routers.DefaultRouter()
 router.register(r"connections", connection_views.ConnectionViewSet, basename="connection")
@@ -36,9 +37,13 @@ router.register(r"incident-notes", incident_views.IncidentNoteViewSet, basename=
 router.register(r"tickets", ticket_views.TicketViewSet, basename="ticket")
 router.register(r"ticket-notes", ticket_views.TicketNoteViewSet, basename="ticket-note")
 router.register(r"attachments", attachment_views.AttachmentViewSet, basename="attachment")
+router.register(r"admin-users", account_api.UserAdminViewSet, basename="admin-user")
+router.register(r"admin-groups", account_api.AccessGroupViewSet, basename="admin-group")
+router.register(r"admin-departments", account_api.DepartmentViewSet, basename="admin-department")
 
 urlpatterns = [
     path("admin/", admin.site.urls),
+    path("api/admin-modules/", account_api.ModuleListView.as_view(), name="admin-modules"),
     path("api/", include(router.urls)),
     path("", RedirectView.as_view(url="/home/", permanent=False)),
     path("accounts/", include("accounts.urls")),
@@ -50,9 +55,11 @@ urlpatterns = [
     path("jobs/", include("jobs.urls")),
     path("plans/", include("plans.urls")),
     path("chains/", include("chains.urls")),
+    path("studio/", include("studio.urls")),
     path("reports/", include("reports.urls")),
     path("incidents/", include("incidents.urls")),
     path("tickets/", include("tickets.urls")),
+    path("notifications/", include("notifications.urls")),
 ]
 
 if settings.DEBUG:

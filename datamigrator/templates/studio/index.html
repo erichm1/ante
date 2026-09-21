@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Studio{% endblock %}
+{% block main_class %} app-main-bleed{% endblock %}
+{% block extra_head %}<link href="{% static 'css/studio.css' %}" rel="stylesheet">{% endblock %}
+
+{% block content %}
+{# Phones and small screens get this notice instead of the workspace (see studio.css: the Studio is display:none until 768px). #}
+<div class="st-mobile-block" id="stMobileBlock" role="alert">
+  <div class="st-mobile-card">
+    <i class="bi-display st-mobile-icon" aria-hidden="true"></i>
+    <h1>Studio needs a bigger screen</h1>
+    <p>The Studio is a visual editor — canvases, drag-and-drop and side-by-side panels — and can't be used on a phone.</p>
+    <p class="st-mobile-cta"><i class="bi-laptop me-2" aria-hidden="true"></i>Please open Ante on a <b>desktop or laptop</b> (the web application) to use it.</p>
+    <a class="btn btn-signal" href="{% url 'home:index' %}">Back to Home</a>
+  </div>
+</div>
+
+<div class="studio" id="studio">
+
+  {# ── Toolbar ───────────────────────────────────────────────────────────── #}
+  <div class="st-toolbar" role="toolbar" aria-label="Studio toolbar">
+    <button class="st-tb-btn" id="stNew" aria-haspopup="menu" title="Create a new mapping, chain or plan — blank or from a template">
+      <i class="bi-plus-lg"></i><span>New</span>
+    </button>
+
+    <span class="st-tb-sep"></span>
+
+    <button class="st-tb-btn st-tb-run" id="stRun" disabled title="Run the open document"><i class="bi-play-fill"></i><span id="stRunLabel">Run</span></button>
+    <button class="st-tb-btn" id="stRunOpts" disabled title="Schedule / rate limit / input files"><i class="bi-sliders"></i><span>Options</span></button>
+    <button class="st-tb-btn st-kill" id="stKill" disabled title="Kill — stop what is running now"><i class="bi-stop-circle-fill"></i><span>Kill</span></button>
+
+    <span class="st-tb-sep"></span>
+
+    <button class="st-tb-btn" id="stReload" disabled title="Reload from the server"><i class="bi-arrow-clockwise"></i></button>
+    <button class="st-tb-btn" id="stProps" disabled title="Rename / edit properties"><i class="bi-gear"></i><span>Properties</span></button>
+    <button class="st-tb-btn st-danger" id="stDelete" disabled title="Delete this document"><i class="bi-trash"></i></button>
+
+    <span class="st-tb-spacer"></span>
+
+    <div class="st-status" id="stStatus" aria-live="polite"></div>
+
+    <span class="st-tb-sep"></span>
+
+    <div class="st-zoom">
+      <button class="st-tb-btn" id="stZoomOut" disabled title="Zoom out (Ctrl/⌘ + scroll)"><i class="bi-dash-lg"></i></button>
+      <span class="st-zoom-level" id="stZoomLevel">100%</span>
+      <button class="st-tb-btn" id="stZoomIn" disabled title="Zoom in (Ctrl/⌘ + scroll)"><i class="bi-plus-lg"></i></button>
+      <button class="st-tb-btn" id="stZoomFit" disabled title="Fit everything on screen"><i class="bi-arrows-angle-contract"></i></button>
+    </div>
+    <button class="st-tb-btn" id="stToggleResults" title="Show / hide the results panel"><i class="bi-terminal"></i></button>
+  </div>
+
+  {# ── Explorer (left) ───────────────────────────────────────────────────── #}
+  <aside class="st-explorer" id="stExplorer">
+    <div class="st-side-tabs" role="tablist">
+      <button class="active" data-side="view" role="tab">View</button>
+      <button data-side="design" role="tab">Design</button>
+    </div>
+
+    <div class="st-side-pane" id="stSideView">
+      <div class="st-search"><i class="bi-search"></i><input type="search" id="stFilter" placeholder="Filter…" autocomplete="off"></div>
+      <div class="st-tree" id="stTree"><div class="st-empty">Loading…</div></div>
+    </div>
+
+    <div class="st-side-pane d-none" id="stSideDesign">
+      <div class="st-palette" id="stPalette"></div>
+    </div>
+  </aside>
+
+  {# ── Workspace (right) ─────────────────────────────────────────────────── #}
+  <section class="st-work">
+    <div class="st-doctabs" id="stDocTabs" role="tablist"></div>
+
+    <div class="st-stage" id="stStage">
+      <div class="st-welcome" id="stWelcome">
+        <i class="bi-diagram-3"></i>
+        <h2>Ante Studio</h2>
+        <p>Everything in one place: wire fields in a <b>mapping</b>, script API calls in a <b>chain</b>,
+           and sequence both into a <b>plan</b>. Open one from the explorer, or start something new.</p>
+        <div class="st-welcome-actions">
+          <button class="btn btn-signal" data-new="mapping"><i class="bi-diagram-2 me-1"></i> New mapping</button>
+          <button class="btn btn-outline-secondary" data-new="chain"><i class="bi-link-45deg me-1"></i> New chain</button>
+          <button class="btn btn-outline-secondary" data-new="plan"><i class="bi-list-ol me-1"></i> New plan</button>
+          <button class="btn btn-outline-secondary" data-templates><i class="bi-magic me-1"></i> From a template</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="st-splitter" id="stSplitter" title="Drag to resize"></div>
+
+    <div class="st-results" id="stResults">
+      <div class="st-empty">Open a document to see its runs, logs and details here.</div>
+    </div>
+  </section>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="https://cdn.jsdelivr.net/npm/jsplumb@2.15.6/dist/js/jsplumb.min.js"></script>
+<script src="{% static 'js/studio/core.js' %}"></script>
+<script src="{% static 'js/studio/viz.js' %}"></script>
+<script src="{% static 'js/studio/templates.js' %}"></script>
+<script src="{% static 'js/studio/canvas_editor.js' %}"></script>
+<script src="{% static 'js/studio/mapping_editor.js' %}"></script>
+<script src="{% static 'js/studio/step_kinds.js' %}"></script>
+<script src="{% static 'js/studio/chain_editor.js' %}"></script>
+<script src="{% static 'js/studio/plan_editor.js' %}"></script>
+<script src="{% static 'js/studio/boot.js' %}"></script>
+{% endblock %}

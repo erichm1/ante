@@ -1,3 +1,4 @@
+from . import permissions
 from .models import Profile
 
 
@@ -11,3 +12,10 @@ def profile(request):
         return {}
     profile_obj, _ = Profile.objects.get_or_create(user=request.user)
     return {"current_profile": profile_obj}
+
+
+def access(request):
+    """What this user may use — the navbar marks locked modules, and shows the admin-only links."""
+    if not request.user.is_authenticated:
+        return {}
+    return {"user_modules": permissions.effective_modules(request.user), "is_app_admin": permissions.is_admin(request.user)}

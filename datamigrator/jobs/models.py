@@ -6,9 +6,15 @@ class MigrationRun(models.Model):
     STATUS_RUNNING = "running"
     STATUS_SUCCESS = "success"
     STATUS_FAILED = "failed"
-    STATUS_CHOICES = [(s, s) for s in (STATUS_PENDING, STATUS_RUNNING, STATUS_SUCCESS, STATUS_FAILED)]
+    STATUS_CANCELLED = "cancelled"
+    STATUS_CHOICES = [(s, s) for s in (STATUS_PENDING, STATUS_RUNNING, STATUS_SUCCESS, STATUS_FAILED, STATUS_CANCELLED)]
 
     mapping = models.ForeignKey("mappings.Mapping", on_delete=models.CASCADE, related_name="runs")
+    cancel_requested = models.BooleanField(
+        default=False,
+        help_text="Set by the Kill button. jobs/engine.py checks it between records and stops cleanly "
+                   "(status → cancelled); records already written stay written.",
+    )
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING)
     retry_of = models.ForeignKey(
         "self", null=True, blank=True, on_delete=models.SET_NULL, related_name="retries",

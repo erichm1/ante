@@ -31,3 +31,13 @@ class MigrationRunSerializer(serializers.ModelSerializer):
             "started_at", "finished_at", "input_file", "retry_of", "retry_resolved",
             "logs", "step_statuses",
         ]
+
+
+class MigrationRunListSerializer(MigrationRunSerializer):
+    """Same fields minus the nested logs/step_statuses — a run's log can be
+    thousands of lines, so a list of runs (the Studio's run-history table)
+    shouldn't carry every one of them. Opt in with ?slim=1 on the list
+    endpoint; the detail endpoint always returns the full serializer."""
+
+    class Meta(MigrationRunSerializer.Meta):
+        fields = [f for f in MigrationRunSerializer.Meta.fields if f not in ("logs", "step_statuses")]

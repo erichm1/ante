@@ -44,79 +44,40 @@
       page:   '/app-store/',
     },
 
-    /* ── Mappings ────────────────────────────────────────────────────────── */
+    /* ── Studio ──────────────────────────────────────────────────────────── */
     {
-      id:    'nav-mappings',
-      title: 'Mappings',
-      body:  'A Mapping pairs a source Connection with one or more destination Connections and defines which data entities (API endpoints, CSV sheets) to move between them.',
-      target: '.nav-links a[href="/mappings/"]',
+      id:    'nav-studio',
+      title: 'Studio',
+      body:  'The Studio is where the real work happens — one workspace for <strong>Mappings</strong>, <strong>Chains</strong>, <strong>Plans</strong> and their <strong>Runs</strong>, laid out like a data-integration IDE.',
+      target: '.nav-links a[href="/studio/"]',
     },
     {
-      id:    'mappings-new',
-      title: 'Create your first mapping',
-      body:  'Click <strong>New mapping</strong> to open the builder. You\'ll pick a source connection, one or more destination connections, and then choose which entities (API endpoints or file tabs) to synchronise.',
-      target: '.btn-signal',
-      page:   '/mappings/',
-    },
-
-    /* ── Canvas ──────────────────────────────────────────────────────────── */
-    {
-      id:    'nav-canvas',
-      title: 'Canvas',
-      body:  'The Canvas is the visual field-wiring editor inside a Mapping. Drag teal dots (source fields) onto amber dots (destination fields) to map individual columns. One source field can fan out to multiple destinations.',
-      target: '.nav-links a[href="/mappings/canvas/"]',
+      id:    'studio-explorer',
+      title: 'Explorer',
+      body:  'Everything you have built lives in the left explorer: mappings, chains, plans and your recent runs. Click one to open it in a tab, or use <strong>+</strong> to create a new one. The <strong>Design</strong> tab shows the building blocks you can drop onto the open canvas.',
+      target: '.st-explorer',
+      page:   '/studio/',
     },
     {
-      id:    'canvas-page',
-      title: 'Open a Canvas',
-      body:  'Click <strong>Open</strong> next to any Mapping to enter its visual field-wiring editor. There you\'ll see each entity as a card with its fields. Drag a teal source dot to an amber destination dot to map columns. One source can fan out to multiple destinations.',
-      target: 'a.btn-outline-secondary',
-      page:   '/mappings/canvas/',
-    },
-
-    /* ── Runs ────────────────────────────────────────────────────────────── */
-    {
-      id:    'nav-runs',
-      title: 'Runs',
-      body:  'Trigger a migration here: upload a CSV or XLSX file for file-backed connections, or kick off a live API pull for REST connections. Logs update in real time as records are processed.',
-      target: '.nav-links a[href="/jobs/"]',
+      id:    'studio-canvas',
+      title: 'One canvas per document',
+      body:  'A <strong>mapping</strong> is a field-wiring canvas — drag a teal dot onto an amber dot. A <strong>chain</strong> is a flow of API calls, each able to use values captured from the one before. A <strong>plan</strong> is a job: drop mappings and chains onto it, in order, and double-click an entry to open it.',
+      target: '.st-stage',
+      page:   '/studio/',
     },
     {
-      id:    'runs-create',
-      title: 'Trigger a migration',
-      body:  'Click <strong>Create run</strong> to start a new migration. Choose a Mapping, then either upload a source file or trigger a live API pull. Each processed record is logged in the API call history.',
-      target: 'button.btn-signal',
-      page:   '/jobs/',
-    },
-
-    /* ── Plans ───────────────────────────────────────────────────────────── */
-    {
-      id:    'nav-plans',
-      title: 'Plans',
-      body:  'Plans bundle multiple Mappings into one ordered, sequential migration batch. Run them on demand or schedule them. Each step runs after the previous one completes, so you can chain dependent data moves.',
-      target: '.nav-links a[href="/plans/"]',
+      id:    'studio-toolbar',
+      title: 'Run from the toolbar',
+      body:  '<strong>Run</strong> starts whatever is open — a migration, a chain, or a whole plan. <strong>Options</strong> adds scheduling, a rate limit and input files. Entities on the canvas turn green or red as it goes.',
+      target: '.st-toolbar',
+      page:   '/studio/',
     },
     {
-      id:    'plans-new',
-      title: 'Create a plan',
-      body:  'Click <strong>New plan</strong> to create a batch. Add your Mappings as ordered steps, set an execution mode (sequential or chain), and run or schedule the whole thing from a single button.',
-      target: 'button.btn-signal',
-      page:   '/plans/',
-    },
-
-    /* ── Chains ──────────────────────────────────────────────────────────── */
-    {
-      id:    'nav-chains',
-      title: 'Chains',
-      body:  'Chains compose multi-step API call sequences where each step can use captured values from the previous response. Useful for create-then-link patterns — e.g. create a customer, capture their ID, then create an order against that ID.',
-      target: '.nav-links a[href="/chains/"]',
-    },
-    {
-      id:    'chains-new',
-      title: 'Create a chain',
-      body:  'Click <strong>New chain</strong> to start. Each chain step defines an HTTP call — method, path, body. Use <code>{{step_name.field}}</code> placeholders to forward a previous step\'s captured response data into the next step. Drag the handle column to reorder steps.',
-      target: 'button.btn-signal',
-      page:   '/chains/',
+      id:    'studio-results',
+      title: 'Results panel',
+      body:  'The bottom panel follows the open document: run history, per-entity step metrics and live logging for a mapping; step requests, responses and captured variables for a chain; step status for a plan. Drag its top edge to resize.',
+      target: '.st-results',
+      page:   '/studio/',
     },
 
     /* ── Reports ─────────────────────────────────────────────────────────── */

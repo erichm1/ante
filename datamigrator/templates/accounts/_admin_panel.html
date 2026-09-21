@@ -1,0 +1,45 @@
+<section class="panel mt-4" id="adminPanel" aria-labelledby="adminTitle">
+  <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+    <div>
+      <h6 class="mb-1" id="adminTitle"><i class="bi-shield-lock me-1"></i> Administration</h6>
+      <div class="text-dim small">Who can sign in, which department they are in and — module by module — what they may use. Visible to administrators only.</div>
+    </div>
+  </div>
+
+  <ul class="nav nav-tabs admin-tabs" role="tablist">
+    <li class="nav-item" role="presentation"><button class="nav-link active" type="button" data-admin-tab="users" role="tab">Users <span class="badge text-bg-secondary" data-count="users"></span></button></li>
+    <li class="nav-item" role="presentation"><button class="nav-link" type="button" data-admin-tab="groups" role="tab">Groups <span class="badge text-bg-secondary" data-count="groups"></span></button></li>
+    <li class="nav-item" role="presentation"><button class="nav-link" type="button" data-admin-tab="departments" role="tab">Departments <span class="badge text-bg-secondary" data-count="departments"></span></button></li>
+  </ul>
+
+  <div id="adminAlert" class="alert alert-danger py-2 mt-3 d-none" role="alert"></div>
+
+  <div class="pt-3" data-admin-pane="users">
+    <div class="row g-2 align-items-end mb-3">
+      <div class="col-12 col-md-4"><label class="form-label small mb-1" for="auSearch">Search</label><input id="auSearch" type="search" class="form-control form-control-sm" placeholder="Name, username or email"></div>
+      <div class="col-6 col-md-3"><label class="form-label small mb-1" for="auDept">Department</label><select id="auDept" class="form-select form-select-sm"></select></div>
+      <div class="col-6 col-md-3"><label class="form-label small mb-1" for="auGroup">Group</label><select id="auGroup" class="form-select form-select-sm"></select></div>
+      <div class="col-12 col-md-2 d-grid"><button type="button" class="btn btn-sm btn-signal" id="auNew"><i class="bi-plus-lg"></i> New user</button></div>
+    </div>
+    <div class="table-responsive"><table class="table table-sm align-middle admin-table"><thead><tr>
+      <th>User</th><th>Department</th><th>Groups</th><th>Modules</th><th class="text-end">Actions</th></tr></thead><tbody id="auRows"></tbody></table></div>
+  </div>
+
+  <div class="pt-3 d-none" data-admin-pane="groups">
+    <div class="d-flex justify-content-between align-items-center mb-3 gap-2 flex-wrap">
+      <div class="text-dim small">A group is a named set of modules switched on. Members get all of their groups' modules.</div>
+      <button type="button" class="btn btn-sm btn-signal" id="agNew"><i class="bi-plus-lg"></i> New group</button>
+    </div>
+    <div class="table-responsive"><table class="table table-sm align-middle admin-table"><thead><tr>
+      <th>Group</th><th>Modules</th><th>Members</th><th class="text-end">Actions</th></tr></thead><tbody id="agRows"></tbody></table></div>
+  </div>
+
+  <div class="pt-3 d-none" data-admin-pane="departments">
+    <div class="d-flex justify-content-between align-items-center mb-3 gap-2 flex-wrap">
+      <div class="text-dim small">Where people sit in the organisation. A label — permissions come from groups and per-user switches.</div>
+      <button type="button" class="btn btn-sm btn-signal" id="adNew"><i class="bi-plus-lg"></i> New department</button>
+    </div>
+    <div class="table-responsive"><table class="table table-sm align-middle admin-table"><thead><tr>
+      <th>Department</th><th>Description</th><th>Members</th><th class="text-end">Actions</th></tr></thead><tbody id="adRows"></tbody></table></div>
+  </div>
+</section>
