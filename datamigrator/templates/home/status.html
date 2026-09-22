@@ -1,334 +1,127 @@
-{% extends "base.html" %}
-{% load static %}
-{% block title %}Status{% endblock %}
-{% block content %}
-  <div class="page-title" data-t="status.title">Status</div>
-  <div class="page-subtitle" data-t="status.subtitle">Live health overview — background workers, connections, recent runs, and API errors.</div>
+{% load static %}<!DOCTYPE html>
+<html lang="{{ LANGUAGE_CODE|default:'en' }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="refresh" content="60">
+  <script>
+    /* Runs before first paint to prevent a flash of the wrong theme. */
+    (function () {
+      try {
+        var t = localStorage.getItem('ante_theme'), h = document.documentElement;
+        if (t === 'dark') { h.setAttribute('data-theme', 'dark'); h.setAttribute('data-bs-theme', 'dark'); }
+        else if (t === 'light') { h.setAttribute('data-theme', 'light'); h.setAttribute('data-bs-theme', 'light'); }
+        else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) { h.setAttribute('data-bs-theme', 'dark'); }
+      } catch (e) {}
+    })();
+  </script>
+  <title>Ante Status Page</title>
+  <link rel="icon" type="image/svg+xml" href="{% static 'img/logo.svg' %}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+  <link href="{% static 'css/app.css' %}" rel="stylesheet">
+  <link href="{% static 'css/status.css' %}" rel="stylesheet">
+</head>
+<body class="clm-status-page">
+<div class="container py-5" style="max-width: 900px;">
 
-  <div class="status-banner {{ overall }}" id="statusBanner">
-    <span class="status-banner-dot"></span>
-    <span id="statusBannerText">
-      {% if overall == "operational" %}All systems operational
-      {% elif overall == "degraded" %}Degraded performance
-      {% else %}Major issues detected{% endif %}
-    </span>
-    <span class="text-dim small ms-auto" id="statusGeneratedAt">as of {{ generated_at|date:"H:i:s" }}</span>
+  <div class="clm-status-head mb-4">
+    <a href="{% url 'home:index' %}" class="d-flex align-items-center text-decoration-none">
+      <img src="{% static 'img/logo.svg' %}" alt="Ante" class="clm-brand-mark">
+      <span class="ms-2 clm-display fw-bold fs-4">Status Page</span>
+    </a>
+    <div class="clm-head-end" data-lang-host>
+      <button type="button" class="clm-theme-btn" id="themeToggle" aria-label="Toggle theme" title="Toggle theme"><i class="bi-moon-fill"></i></button>
+    </div>
   </div>
 
-  {% if reasons %}
-    <ul class="mb-0 mt-2" id="statusReasons">
-      {% for r in reasons %}
-        <li class="small {% if r.severity == 'down' %}text-danger{% else %}text-dim{% endif %}">{{ r.message }}</li>
-      {% endfor %}
-    </ul>
-  {% else %}
-    <ul class="mb-0 mt-2" id="statusReasons"></ul>
+  <div class="clm-banner st-{{ overall|lower }} mb-4 d-flex align-items-center justify-content-between flex-wrap gap-2">
+    <div>
+      <div class="clm-display fs-5 fw-bold">
+        {% if overall == "OPERATIONAL" %}All systems operational
+        {% elif overall == "DEGRADED" %}Degraded performance
+        {% else %}Service disruption detected{% endif %}
+      </div>
+      <div class="small opacity-75">Checked {{ checked_at|date:"Y-m-d H:i:s" }} UTC · auto-refreshes every 60s</div>
+    </div>
+    <a href="{% url 'home:status' %}" class="btn btn-sm btn-light">
+      <i class="bi bi-arrow-clockwise"></i> Refresh now
+    </a>
+  </div>
+
+  {% if not has_history %}
+  <div class="alert alert-info small">
+    No historical uptime data yet — this page is showing a live check only.
+    Schedule <code>python manage.py run_status_checks</code> (e.g. every 5 minutes via cron)
+    to build 24h uptime % and history for each check.
+  </div>
   {% endif %}
 
-  <div class="row g-3 mt-1">
-    <div class="col-md-6">
-      <div class="panel h-100">
-        <h6 class="mb-3" data-t="status.workers">Background workers</h6>
-        <div id="workersBox">
-          {% for w in workers %}
-            <div class="d-flex justify-content-between align-items-center border-bottom py-2" id="worker-row-{{ forloop.counter0 }}">
-              <div>
-                <div>{{ w.name }}</div>
-                <div class="text-dim small">{{ w.description }}</div>
-              </div>
-              <span class="status-chip {% if w.status == 'ok' %}ok{% elif w.status == 'starting' %}warn{% else %}err{% endif %}" id="worker-chip-{{ forloop.counter0 }}">
-                {% if w.status == 'ok' %}running{% elif w.status == 'starting' %}starting…{% else %}stalled{% endif %}
-              </span>
-            </div>
+  {% for group, checks in groups.items %}
+  <div class="clm-kpi mb-3">
+    <h2 class="h6 clm-display mb-3">{{ group }}</h2>
+    {% for check in checks %}
+    <div class="clm-check d-flex align-items-center justify-content-between py-2 {% if not forloop.last %}border-bottom{% endif %}">
+      <div class="d-flex align-items-center gap-2 min-w-0">
+        <span class="clm-status-dot st-{{ check.state|lower }}"></span>
+        <div class="min-w-0">
+          <div class="small fw-semibold clm-check-name">{% if check.href %}<a href="{{ check.href }}">{{ check.name }}</a>{% else %}{{ check.name }}{% endif %}</div>
+          {% if check.method != "-" or check.path %}
+          <div class="small text-muted clm-mono clm-check-path" title="{{ check.method }} {{ check.path }}">{% if check.method != "-" %}{{ check.method }} {% endif %}{{ check.path }}</div>
+          {% endif %}
+          {% if check.detail %}<div class="clm-check-detail st-{{ check.state|lower }}">{{ check.detail }}</div>{% endif %}
+        </div>
+      </div>
+
+      <div class="clm-check-metrics">
+        {% if check.history %}
+        <div class="clm-spark d-none d-md-flex">
+          {% for h in check.history %}
+          <div class="clm-spark-bar st-{{ h.state|lower }}" title="{{ h.at|date:'Y-m-d H:i' }} — {{ h.state|title }}"></div>
           {% endfor %}
         </div>
+        {% endif %}
+        {% if check.uptime_pct is not None %}
+        <div class="small text-muted text-nowrap">{{ check.uptime_pct }}% / 24h</div>
+        {% endif %}
+        <div class="small clm-mono text-muted text-nowrap" style="width: 70px; text-align:right;">
+          {% if check.latency_ms %}{{ check.latency_ms }}ms{% else %}—{% endif %}
+        </div>
+        <span class="clm-badge st-{{ check.state|lower }}">{% if check.label %}{{ check.label }}{% elif check.state == "OPERATIONAL" %}Operational{% elif check.state == "DEGRADED" %}Degraded{% else %}Down{% endif %}</span>
       </div>
     </div>
+    {% endfor %}
+  </div>
+  {% endfor %}
 
-    <div class="col-md-6">
-      <div class="panel h-100">
-        <h6 class="mb-3" data-t="status.connections">Connections</h6>
-        <div class="d-flex align-items-center justify-content-between border-bottom py-2">
-          <span data-t="status.connected">Connected</span>
-          <span class="mono" id="connConnected">{{ connections.connected }}</span>
-        </div>
-        <div class="d-flex align-items-center justify-content-between py-2">
-          <span data-t="status.needs_setup">Needs setup</span>
-          <span class="mono" id="connDisconnected">{{ connections.disconnected }}</span>
-        </div>
-        <a href="{% url 'integrations:list' %}?tab=installed" class="small">View all connections →</a>
-      </div>
-    </div>
-
-    <div class="col-md-6">
-      <div class="panel h-100">
-        <h6 class="mb-3"><span data-t="status.recent_runs">Recent runs</span> <span class="text-dim small">— last {{ runs.window }}</span></h6>
-        <div class="d-flex align-items-center justify-content-between border-bottom py-2">
-          <span data-t="status.failure_rate">Failure rate</span>
-          <span class="mono" id="runFailureRate">{{ runs.failure_rate_pct }}%</span>
-        </div>
-        <div class="d-flex align-items-center justify-content-between py-2">
-          <span data-t="status.active_now">Active right now</span>
-          <span class="mono" id="runActive">{{ runs.active }}</span>
-        </div>
-        <a href="{% url 'jobs:run_list' %}" class="small">View runs →</a>
-      </div>
-    </div>
-
-    <div class="col-md-6">
-      <div class="panel h-100">
-        <h6 class="mb-3"><span data-t="status.api_errors">API errors</span> <span class="text-dim small">— last {{ api_errors.window_hours }}h</span></h6>
-        <div class="d-flex align-items-center justify-content-between border-bottom py-2">
-          <span data-t="status.errored_calls">Errored calls</span>
-          <span class="mono" id="apiErrored">{{ api_errors.errored_calls }}</span>
-        </div>
-        <div class="d-flex align-items-center justify-content-between py-2">
-          <span data-t="status.total_calls">Total calls</span>
-          <span class="mono" id="apiTotal">{{ api_errors.total_calls }}</span>
-        </div>
-        <a href="{% url 'connections:logs' %}?q=error%3Atrue+since%3A1h" class="small">View errored calls →</a>
-      </div>
-    </div>
+  <div class="text-center text-muted small mt-4">
+    Programmatic access: <code>GET {% url 'home:status_data' %}</code> ·
+    <a href="{% url 'home:index' %}" class="text-muted">Back to Ante</a>
   </div>
 
-  <!-- Endpoint honeycomb -->
-  <div class="panel mt-3">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-      <h6 class="mb-0"><span data-t="status.endpoint_health">Endpoint health</span> <span class="text-dim small" data-t="status.endpoint_health_sub">— all-time call volume &amp; error rate</span></h6>
-      <div class="d-flex gap-3 small text-dim">
-        <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#2f9c94;vertical-align:middle;margin-right:4px"></span>ok</span>
-        <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#d98a2b;vertical-align:middle;margin-right:4px"></span>&lt;10% errors</span>
-        <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#c1453a;vertical-align:middle;margin-right:4px"></span>≥10% errors</span>
-      </div>
-    </div>
-    {% if honeycomb %}
-      <div id="honeycombWrap" style="overflow-x:auto;">
-        <canvas id="honeycombCanvas" style="display:block;"></canvas>
-      </div>
-      <div id="hexTooltip" style="position:fixed;display:none;z-index:200;pointer-events:none;background:var(--ink);color:#e7ecea;font-size:0.75rem;font-family:var(--font-mono);padding:6px 10px;border-radius:6px;max-width:280px;line-height:1.4;white-space:pre-wrap;box-shadow:0 4px 12px rgba(0,0,0,0.28)"></div>
-      {{ honeycomb|json_script:"honeycomb-data" }}
-    {% else %}
-      <p class="text-dim small mb-0">No API calls recorded yet. Make some migrations to populate endpoint data.</p>
-    {% endif %}
-  </div>
-{% endblock %}
+</div>
 
-{% block extra_scripts %}
 <script>
-function bannerClass(overall) {
-  if (overall === 'operational') return 'operational';
-  if (overall === 'degraded') return 'degraded';
-  return 'down';
-}
-function bannerText(overall) {
-  if (overall === 'operational') return 'All systems operational';
-  if (overall === 'degraded') return 'Degraded performance';
-  return 'Major issues detected';
-}
-function workerChipClass(status) {
-  if (status === 'ok') return 'ok';
-  if (status === 'starting') return 'warn';
-  return 'err';
-}
-function workerChipText(status) {
-  if (status === 'ok') return 'running';
-  if (status === 'starting') return 'starting…';
-  return 'stalled';
-}
-
-async function refreshStatus() {
-  try {
-    const resp = await fetch('{% url "home:status_data" %}');
-    if (!resp.ok) return;
-    const data = await resp.json();
-
-    const banner = document.getElementById('statusBanner');
-    banner.className = 'status-banner ' + bannerClass(data.overall);
-    document.getElementById('statusBannerText').textContent = bannerText(data.overall);
-    document.getElementById('statusGeneratedAt').textContent = 'as of ' + new Date(data.generated_at).toLocaleTimeString();
-
-    data.workers.forEach((w, i) => {
-      const chip = document.getElementById(`worker-chip-${i}`);
-      if (!chip) return;
-      chip.className = 'status-chip ' + workerChipClass(w.status);
-      chip.textContent = workerChipText(w.status);
-    });
-
-    document.getElementById('connConnected').textContent = data.connections.connected;
-    document.getElementById('connDisconnected').textContent = data.connections.disconnected;
-    document.getElementById('runFailureRate').textContent = data.runs.failure_rate_pct + '%';
-    document.getElementById('runActive').textContent = data.runs.active;
-    document.getElementById('apiErrored').textContent = data.api_errors.errored_calls;
-    document.getElementById('apiTotal').textContent = data.api_errors.total_calls;
-
-    document.getElementById('statusReasons').innerHTML = data.reasons.map(r =>
-      `<li class="small ${r.severity === 'down' ? 'text-danger' : 'text-dim'}"></li>`
-    ).join('');
-    document.querySelectorAll('#statusReasons li').forEach((li, i) => { li.textContent = data.reasons[i].message; });
-
-    if (data.honeycomb) renderHoneycomb(data.honeycomb);
-  } catch (e) {
-    // transient network hiccup — next tick retries
-  }
-}
-
-setInterval(refreshStatus, 5000);
-
-/* ---- Honeycomb renderer --------------------------------------------------- */
+/* Theme toggle — same storage key and attributes as the rest of Ante. */
 (function () {
-  const dataEl = document.getElementById('honeycomb-data');
-  if (!dataEl) return;
-  const initialData = JSON.parse(dataEl.textContent);
-
-  /* colours */
-  const COL_OK   = '#2f9c94';
-  const COL_WARN = '#d98a2b';
-  const COL_ERR  = '#c1453a';
-  const COL_BG   = getComputedStyle(document.documentElement).getPropertyValue('--panel').trim() || '#ffffff';
-
-  function hexColor(errorRate) {
-    if (errorRate <= 0)   return COL_OK;
-    if (errorRate < 0.10) return COL_WARN;
-    return COL_ERR;
+  var html = document.documentElement, btn = document.getElementById('themeToggle');
+  if (!btn) return;
+  function dark() {
+    return html.getAttribute('data-theme') === 'dark' ||
+      (!html.getAttribute('data-theme') && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
   }
-
-  function drawHex(ctx, cx, cy, r, fillColor) {
-    ctx.beginPath();
-    for (let i = 0; i < 6; i++) {
-      const angle = Math.PI / 180 * (60 * i - 30);
-      const x = cx + r * Math.cos(angle);
-      const y = cy + r * Math.sin(angle);
-      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
-    }
-    ctx.closePath();
-    ctx.fillStyle = fillColor;
-    ctx.fill();
-  }
-
-  function labelInHex(ctx, cx, cy, r, text, color) {
-    ctx.fillStyle = color;
-    ctx.font = `${Math.max(9, Math.round(r * 0.28))}px var(--font-mono, monospace)`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    /* truncate label to fit */
-    const maxW = r * 1.5;
-    let label = text;
-    while (label.length > 2 && ctx.measureText(label).width > maxW) {
-      label = label.slice(0, -2) + '…';
-    }
-    ctx.fillText(label, cx, cy);
-  }
-
-  function layout(items) {
-    /* Pointy-top hexagons in offset columns:
-       column c, row r — same algorithm as most hexagonal grids. */
-    const maxCount = Math.max(...items.map(d => d.count), 1);
-    const R_MIN = 28, R_MAX = 60;
-    const hexes = items.map(d => ({
-      ...d,
-      r: Math.round(R_MIN + (d.count / maxCount) * (R_MAX - R_MIN)),
-    }));
-
-    /* Pack into rows of ~5 per row */
-    const cols = Math.min(items.length, 6);
-    const result = hexes.map((h, i) => {
-      const col = i % cols;
-      const row = Math.floor(i / cols);
-      const R = h.r;
-      const HW = R * Math.sqrt(3);          /* hex width  */
-      const VH = R * 1.5;                   /* vertical step */
-      const cx = col * HW + (row % 2 === 0 ? 0 : HW / 2) + R_MAX + 4;
-      const cy = row * VH + R_MAX + 4;
-      return { ...h, cx, cy };
-    });
-    return result;
-  }
-
-  function render(data) {
-    const canvas = document.getElementById('honeycombCanvas');
-    if (!canvas) return;
-    const items = layout(data);
-    if (!items.length) return;
-
-    const maxR = Math.max(...items.map(h => h.r));
-    const W = Math.ceil(Math.max(...items.map(h => h.cx + h.r * Math.sqrt(3) / 2)) + maxR + 8);
-    const H = Math.ceil(Math.max(...items.map(h => h.cy + h.r)) + maxR + 8);
-
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width  = W * dpr;
-    canvas.height = H * dpr;
-    canvas.style.width  = W + 'px';
-    canvas.style.height = H + 'px';
-
-    const ctx = canvas.getContext('2d');
-    ctx.scale(dpr, dpr);
-    ctx.clearRect(0, 0, W, H);
-
-    items.forEach(h => {
-      /* shadow hex (border effect) */
-      drawHex(ctx, h.cx, h.cy, h.r + 2, 'rgba(0,0,0,0.08)');
-      /* filled hex */
-      drawHex(ctx, h.cx, h.cy, h.r, hexColor(h.error_rate));
-      /* method label */
-      labelInHex(ctx, h.cx, h.cy - h.r * 0.2, h.r, h.method, 'rgba(255,255,255,0.9)');
-      /* path label (smaller, below method) */
-      const pathLabel = h.endpoint.replace(/^https?:\/\/[^/]+/, '');
-      ctx.fillStyle = 'rgba(255,255,255,0.72)';
-      ctx.font = `${Math.max(8, Math.round(h.r * 0.22))}px var(--font-mono, monospace)`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      let label = pathLabel || '/';
-      const maxW = h.r * 1.5;
-      while (label.length > 2 && ctx.measureText(label).width > maxW) {
-        label = label.slice(0, -2) + '…';
-      }
-      ctx.fillText(label, h.cx, h.cy + h.r * 0.22);
-    });
-
-    /* Tooltip handling */
-    canvas.onmousemove = function (e) {
-      const rect = canvas.getBoundingClientRect();
-      const mx = e.clientX - rect.left;
-      const my = e.clientY - rect.top;
-      const tip = document.getElementById('hexTooltip');
-      let hit = null;
-      for (const h of items) {
-        const dist = Math.sqrt((mx - h.cx) ** 2 + (my - h.cy) ** 2);
-        if (dist < h.r * 0.95) { hit = h; break; }
-      }
-      if (hit) {
-        const errorPct = (hit.error_rate * 100).toFixed(1);
-        tip.textContent = `${hit.method} ${hit.endpoint}\n${hit.count} calls · ${hit.errors} errors (${errorPct}%)`;
-        tip.style.display = 'block';
-        tip.style.left = (e.clientX + 14) + 'px';
-        tip.style.top  = (e.clientY - 10) + 'px';
-        canvas.style.cursor = 'pointer';
-      } else {
-        tip.style.display = 'none';
-        canvas.style.cursor = 'default';
-      }
-    };
-    canvas.onmouseleave = function () {
-      document.getElementById('hexTooltip').style.display = 'none';
-    };
-    canvas.onclick = function (e) {
-      const rect = canvas.getBoundingClientRect();
-      const mx = e.clientX - rect.left;
-      const my = e.clientY - rect.top;
-      for (const h of items) {
-        const dist = Math.sqrt((mx - h.cx) ** 2 + (my - h.cy) ** 2);
-        if (dist < h.r * 0.95) {
-          /* Navigate to logs filtered on this endpoint */
-          const q = encodeURIComponent(`url:${h.endpoint.replace(/^https?:\/\/[^/]+/, '')}`);
-          window.location.href = `/connections/logs/?q=${q}`;
-          break;
-        }
-      }
-    };
-  }
-
-  window.renderHoneycomb = render;
-  render(initialData);
+  function icon() { var i = btn.querySelector('i'); if (i) i.className = dark() ? 'bi-sun-fill' : 'bi-moon-fill'; }
+  icon();
+  btn.addEventListener('click', function () {
+    var next = dark() ? 'light' : 'dark';
+    html.setAttribute('data-theme', next); html.setAttribute('data-bs-theme', next);
+    try { localStorage.setItem('ante_theme', next); } catch (e) {}
+    icon();
+  });
 }());
 </script>
-{% endblock %}
+<script src="{% static 'js/i18n.js' %}"></script>
+</body>
+</html>

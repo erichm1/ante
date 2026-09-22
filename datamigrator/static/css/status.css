@@ -1,0 +1,115 @@
+/* =========================================================================
+   Ante — status page.
+   Ported from the callum_freight_hub console (static/css/custom.css): the same design tokens (deep ink navy, paper-light
+   workspace, success / warning / danger colours), the same three typefaces, the same KPI card, and the same status
+   components (banner, dot, sparkline, badge). Class names are kept (clm-…) so the two stay easy to compare.
+   Loaded after app.css (which the language picker needs), so everything here is scoped to body.clm-status-page.
+   ========================================================================= */
+
+:root {
+  --clm-ink: #0f1b2d;
+  --clm-ink-soft: #16273e;
+  --clm-paper: #f5f7fa;
+  --clm-surface: #ffffff;
+  --clm-line: #e2e6ec;
+  --clm-text: #1a2333;
+  --clm-text-muted: #5b6b82;
+
+  --clm-signal: #ff6b35;
+  --clm-success: #1d9a6c;
+  --clm-success-bg: #e7f7f0;
+  --clm-warning: #c9962b;
+  --clm-warning-bg: #fbf3e2;
+  --clm-danger: #d64545;
+  --clm-danger-bg: #fbe9e9;
+
+  --clm-radius: 10px;
+  --clm-font-display: "Space Grotesk", "Segoe UI", sans-serif;
+  --clm-font-body: "Inter", "Segoe UI", sans-serif;
+  --clm-font-mono: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
+}
+
+/* Dark mode — the same attribute Bootstrap 5.3 reads (data-bs-theme), toggled by the button in the header. */
+:root[data-bs-theme="dark"] {
+  --clm-paper: #0b1220;
+  --clm-surface: #141d2e;
+  --clm-line: #253147;
+  --clm-text: #e5e9f0;
+  --clm-text-muted: #93a0b8;
+
+  --clm-success-bg: #12281f;
+  --clm-warning-bg: #2a2313;
+  --clm-danger-bg: #2a1616;
+}
+
+body.clm-status-page {
+  background: var(--clm-paper);
+  color: var(--clm-text);
+  font-family: var(--clm-font-body);
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.clm-status-page h1, .clm-status-page h2, .clm-status-page h3, .clm-status-page h4, .clm-status-page .clm-display {
+  font-family: var(--clm-font-display);
+  letter-spacing: -0.01em;
+}
+.clm-status-page .clm-mono { font-family: var(--clm-font-mono); letter-spacing: 0.01em; }
+.clm-status-page .text-muted { color: var(--clm-text-muted) !important; }
+.clm-status-page .border-bottom { border-color: var(--clm-line) !important; }
+.clm-status-page a { color: inherit; }
+
+/* header */
+.clm-status-head { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+.clm-brand-mark { width: 34px; height: 34px; border-radius: 8px; display: block; }
+.clm-status-head .clm-head-end { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+.clm-status-page .lang-selector { position: relative; }
+.clm-status-page .lang-menu { right: 0; }
+.clm-theme-btn {
+  width: 34px; height: 34px; border-radius: 8px; border: 1px solid var(--clm-line);
+  background: var(--clm-surface); color: var(--clm-text); display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+}
+.clm-theme-btn:hover { border-color: var(--clm-text-muted); }
+
+/* KPI card — each group of checks sits in one */
+.clm-kpi {
+  background: var(--clm-surface);
+  border: 1px solid var(--clm-line);
+  border-radius: var(--clm-radius);
+  padding: 1.1rem 1.25rem;
+  height: 100%;
+}
+
+/* overall banner */
+.clm-banner { border-radius: var(--clm-radius); padding: 1.5rem; color: #fff; }
+.clm-banner.st-operational { background: var(--clm-success); }
+.clm-banner.st-degraded { background: var(--clm-warning); }
+.clm-banner.st-down { background: var(--clm-danger); }
+.clm-banner .btn-light { color: #1a2333; }
+
+/* one check */
+.clm-status-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+.clm-status-dot.st-operational { background: var(--clm-success); }
+.clm-status-dot.st-degraded { background: var(--clm-warning); }
+.clm-status-dot.st-down { background: var(--clm-danger); }
+.clm-check-detail { font-size: 0.78rem; color: var(--clm-warning); }
+.clm-check-detail.st-down { color: var(--clm-danger); }
+.clm-check-name a { text-decoration: none; }
+.clm-check-name a:hover { text-decoration: underline; }
+.clm-check-path { max-width: 72ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.clm-spark { display: flex; gap: 2px; align-items: flex-end; height: 22px; }
+.clm-spark-bar { width: 6px; height: 100%; border-radius: 2px; background: var(--clm-line); }
+.clm-spark-bar.st-operational { background: var(--clm-success); }
+.clm-spark-bar.st-degraded { background: var(--clm-warning); }
+.clm-spark-bar.st-down { background: var(--clm-danger); }
+
+.clm-badge { display: inline-block; min-width: 82px; padding: 0.25em 0.6em; border-radius: 6px; font-size: 0.75rem; font-weight: 600; text-align: center; }
+.clm-badge.st-operational { background: var(--clm-success-bg); color: var(--clm-success); }
+.clm-badge.st-degraded { background: var(--clm-warning-bg); color: var(--clm-warning); }
+.clm-badge.st-down { background: var(--clm-danger-bg); color: var(--clm-danger); }
+
+.clm-check-metrics { display: flex; align-items: center; gap: 1.5rem; }
+@media (max-width: 767.98px) {
+  .clm-check { flex-wrap: wrap; gap: 6px; }
+  .clm-check-metrics { width: 100%; justify-content: space-between; gap: 0.75rem; }
+}
+.clm-status-page .min-w-0 { min-width: 0; }

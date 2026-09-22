@@ -118,6 +118,7 @@ def incident_list(request):
         "filters":           {"q": q, "status": status_filter, "severity": severity_filter},
         "status_choices":    Incident.STATUS_CHOICES,
         "severity_choices":  Incident.SEVERITY_CHOICES,
+        "trigger_choices":   IncidentRule.TRIGGER_CHOICES,
         "connections":       Connection.objects.order_by("name"),
         "page_size":         page_size,
         "page_size_choices": PAGE_SIZE_CHOICES,

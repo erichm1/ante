@@ -7,7 +7,10 @@
       <div class="page-title" data-t="incidents.title">Incidents</div>
       <div class="page-subtitle" data-t="incidents.subtitle">Track outages and issues affecting your integrations.</div>
     </div>
-    <button class="btn btn-signal" data-bs-toggle="modal" data-bs-target="#newIncidentModal" data-t="incidents.new">New incident</button>
+    <div class="d-flex flex-wrap gap-2">
+      <button class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#rulesModal" id="openRulesBtn"><i class="bi-robot me-1"></i>Automation rules</button>
+      <button class="btn btn-signal" data-bs-toggle="modal" data-bs-target="#newIncidentModal" data-t="incidents.new">New incident</button>
+    </div>
   </div>
 
   <form method="get" class="row g-2 align-items-end mb-3">
@@ -188,6 +191,101 @@
       </div>
     </div>
   </div>
+
+  <!-- Automation rules: open an incident by itself when an error rate crosses a threshold -->
+  <div class="modal fade" id="rulesModal" tabindex="-1" aria-labelledby="rulesModalTitle">
+    <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <div>
+            <h5 class="modal-title" id="rulesModalTitle">Automation rules</h5>
+            <div class="text-dim small">Auto-create incidents when thresholds are breached.</div>
+          </div>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+
+        <div class="modal-body">
+          <div id="rulesResult" class="alert d-none" role="status"></div>
+
+          <div id="rulesListPane">
+            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+              <div class="text-dim small">Rules are checked only when you press “Check now”.</div>
+              <div class="d-flex gap-2">
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="rulesCheckBtn"><i class="bi-lightning-charge me-1"></i>Check now</button>
+                <button type="button" class="btn btn-sm btn-signal" id="rulesNewBtn">+ New rule</button>
+              </div>
+            </div>
+            <div class="table-responsive">
+              <table class="table align-middle mb-0 small d-none" id="rulesTable">
+                <thead>
+                  <tr><th>Rule</th><th>Fires when</th><th>Severity</th><th>Connection</th><th>Enabled</th><th></th></tr>
+                </thead>
+                <tbody id="rulesBody"></tbody>
+              </table>
+            </div>
+            <p class="text-dim small mb-0" id="rulesEmpty">Loading…</p>
+          </div>
+
+          <div id="rulesFormPane" class="d-none">
+            <h6 class="mb-3" id="ruleFormTitle">New automation rule</h6>
+            <div id="ruleFormError" class="alert alert-danger d-none"></div>
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label" for="rf_name">Rule name</label>
+                <input class="form-control" id="rf_name" placeholder="e.g. High fail rate alert">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label" for="rf_trigger">Trigger type</label>
+                <select class="form-select" id="rf_trigger">
+                  {% for value, label in trigger_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+                </select>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label" for="rf_threshold">Threshold (%)</label>
+                <input class="form-control" id="rf_threshold" type="number" min="0" max="100" step="1" value="20">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label" for="rf_window">Window (hours)</label>
+                <input class="form-control" id="rf_window" type="number" min="1" max="168" step="1" value="1">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label" for="rf_severity">Incident severity</label>
+                <select class="form-select" id="rf_severity">
+                  {% for value, label in severity_choices %}<option value="{{ value }}" {% if value == "high" %}selected{% endif %}>{{ label }}</option>{% endfor %}
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label" for="rf_connection">Connection <span class="text-dim">(optional)</span></label>
+                <select class="form-select" id="rf_connection">
+                  <option value="">Any / all</option>
+                  {% for c in connections %}<option value="{{ c.pk }}">{{ c.name }}</option>{% endfor %}
+                </select>
+                <div class="form-text">Only used by the connection error rate trigger.</div>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label" for="rf_title">Incident title <span class="text-dim">(optional)</span></label>
+                <input class="form-control" id="rf_title" placeholder="Leave blank to generate one">
+              </div>
+              <div class="col-12">
+                <div class="form-check form-switch">
+                  <input class="form-check-input" type="checkbox" id="rf_enabled" checked>
+                  <label class="form-check-label" for="rf_enabled">Enabled</label>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <div id="rulesListFooter"><button class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button></div>
+          <div id="rulesFormFooter" class="d-none d-flex gap-2">
+            <button class="btn btn-outline-secondary" type="button" id="ruleFormBack">Back to rules</button>
+            <button class="btn btn-signal" type="button" id="ruleFormSave">Save rule</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 {% endblock %}
 
 {% block extra_scripts %}
@@ -218,5 +316,159 @@ async function createIncident() {
     err.classList.remove('d-none');
   }
 }
+</script>
+
+<script>
+/* ── Automation rules modal ─────────────────────────────────────────────────────────────────────────────────────
+   Talks to /home/rules/ (list / create), /home/rules/<id>/ (edit / enable / delete) and /home/check-rules/. */
+(function () {
+  const $ = id => document.getElementById(id);
+  const modalEl = $('rulesModal');
+  if (!modalEl) return;
+  const csrf = () => { const m = document.cookie.match(/csrftoken=([^;]+)/); return m ? m[1] : ''; };
+  let rules = [], editingId = null, createdIncidents = false, confirmTimer = null;
+
+  function flatten(d) {
+    if (!d) return '';
+    if (typeof d === 'string') return d;
+    if (Array.isArray(d)) return d.map(flatten).join(' ');
+    return Object.keys(d).map(k => (k === 'error' || k === 'detail' || k === 'non_field_errors' ? '' : k.replace(/_/g, ' ') + ': ') + flatten(d[k])).join(' · ');
+  }
+  async function api(method, url, body) {
+    const resp = await fetch(url, { method, credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf() }, body: body === undefined ? undefined : JSON.stringify(body) });
+    const data = resp.status === 204 ? null : await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(flatten(data) || `Request failed (${resp.status})`);
+    return data;
+  }
+  function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
+  function say(kind, text) { const box = $('rulesResult'); box.className = `alert alert-${kind}`; box.textContent = text; }
+  function hideSay() { $('rulesResult').classList.add('d-none'); }
+
+  const SEVERITY = { critical: ['err', 'Critical'], high: ['warn', 'High'], medium: ['ok', 'Medium'], low: ['', 'Low'] };
+
+  function render() {
+    const body = $('rulesBody');
+    body.replaceChildren();
+    $('rulesTable').classList.toggle('d-none', !rules.length);
+    $('rulesEmpty').classList.toggle('d-none', !!rules.length);
+    $('rulesEmpty').textContent = 'No rules yet — add one to start auto-creating incidents.';
+    rules.forEach(rule => {
+      const tr = el('tr');
+      const name = el('td'); name.append(el('div', 'fw-500', rule.name), el('div', 'text-dim', rule.trigger_type_display));
+      const when = el('td', 'mono', `≥ ${rule.threshold}% · ${rule.window_hours}h`);
+      const sev = el('td'); const [cls, label] = SEVERITY[rule.severity] || ['', rule.severity]; sev.append(el('span', `status-chip ${cls}`.trim(), label));
+      const conn = el('td', '', rule.connection_name || '—');
+      const on = el('td'); const sw = el('div', 'form-check form-switch mb-0'); sw.style.minHeight = '0';
+      const box = el('input', 'form-check-input'); box.type = 'checkbox'; box.checked = rule.enabled; box.style.cursor = 'pointer';
+      box.setAttribute('aria-label', 'Enabled');
+      box.addEventListener('change', async () => {
+        try { const saved = await api('PATCH', `/home/rules/${rule.id}/`, { enabled: box.checked }); Object.assign(rule, saved); hideSay(); }
+        catch (e) { box.checked = !box.checked; say('danger', e.message); }
+      });
+      sw.append(box); on.append(sw);
+      const actions = el('td', 'text-end text-nowrap');
+      const edit = el('button', 'btn btn-sm btn-outline-secondary me-1', 'Edit'); edit.type = 'button';
+      edit.addEventListener('click', () => openForm(rule));
+      const del = el('button', 'btn btn-sm btn-outline-danger', 'Delete'); del.type = 'button';
+      del.addEventListener('click', () => askDelete(actions, rule));
+      actions.append(edit, del);
+      tr.append(name, when, sev, conn, on, actions);
+      body.append(tr);
+    });
+  }
+
+  /* Deleting asks in place (a second dialog on top of this one would stack awkwardly). */
+  function askDelete(cell, rule) {
+    clearTimeout(confirmTimer);
+    render();                                                     // any other row that was asking goes back to normal
+    const row = [...$('rulesBody').children][rules.indexOf(rule)];
+    const cellNow = row.lastElementChild;
+    cellNow.replaceChildren();
+    const sure = el('button', 'btn btn-sm btn-danger me-1', 'Delete this rule?'); sure.type = 'button';
+    const no = el('button', 'btn btn-sm btn-outline-secondary', 'Cancel'); no.type = 'button';
+    no.addEventListener('click', render);
+    sure.addEventListener('click', async () => {
+      sure.disabled = true;
+      try { await api('DELETE', `/home/rules/${rule.id}/`); rules = rules.filter(r => r.id !== rule.id); hideSay(); render(); }
+      catch (e) { say('danger', e.message); render(); }
+    });
+    cellNow.append(sure, no);
+    confirmTimer = setTimeout(render, 6000);
+  }
+
+  async function load() {
+    try { rules = (await api('GET', '/home/rules/')).results; render(); }
+    catch (e) { $('rulesEmpty').textContent = e.message; $('rulesEmpty').classList.remove('d-none'); }
+  }
+
+  function showPane(form) {
+    $('rulesListPane').classList.toggle('d-none', form);
+    $('rulesFormPane').classList.toggle('d-none', !form);
+    $('rulesListFooter').classList.toggle('d-none', form);
+    $('rulesFormFooter').classList.toggle('d-none', !form);
+    $('ruleFormError').classList.add('d-none');
+    hideSay();
+  }
+
+  function openForm(rule) {
+    editingId = rule ? rule.id : null;
+    $('ruleFormTitle').textContent = rule ? 'Edit rule' : 'New automation rule';
+    $('rf_name').value = rule ? rule.name : '';
+    $('rf_trigger').selectedIndex = 0;
+    if (rule) $('rf_trigger').value = rule.trigger_type;
+    $('rf_threshold').value = rule ? rule.threshold : 20;
+    $('rf_window').value = rule ? rule.window_hours : 1;
+    $('rf_severity').value = rule ? rule.severity : 'high';
+    $('rf_connection').value = rule && rule.connection ? String(rule.connection) : '';
+    $('rf_title').value = rule ? rule.auto_title || '' : '';
+    $('rf_enabled').checked = rule ? rule.enabled : true;
+    showPane(true);
+    $('rf_name').focus();
+  }
+
+  async function saveForm() {
+    const err = $('ruleFormError');
+    err.classList.add('d-none');
+    const name = $('rf_name').value.trim();
+    if (!name) { err.textContent = 'Name is required.'; err.classList.remove('d-none'); return; }
+    const payload = {
+      name, trigger_type: $('rf_trigger').value, threshold: parseFloat($('rf_threshold').value), window_hours: parseInt($('rf_window').value, 10),
+      severity: $('rf_severity').value, auto_title: $('rf_title').value.trim(), enabled: $('rf_enabled').checked,
+      connection: $('rf_connection').value || null,
+    };
+    if (!(payload.threshold >= 0 && payload.threshold <= 100)) { err.textContent = 'Threshold must be between 0 and 100.'; err.classList.remove('d-none'); return; }
+    if (!(payload.window_hours >= 1 && payload.window_hours <= 168)) { err.textContent = 'Window must be between 1 and 168 hours.'; err.classList.remove('d-none'); return; }
+    $('ruleFormSave').disabled = true;
+    try {
+      const saved = editingId ? await api('PATCH', `/home/rules/${editingId}/`, payload) : await api('POST', '/home/rules/', payload);
+      rules = editingId ? rules.map(r => (r.id === saved.id ? saved : r)) : [saved, ...rules];
+      render(); showPane(false);
+      say('success', editingId ? 'Rule saved.' : 'Rule created.');
+    } catch (e) { err.textContent = e.message; err.classList.remove('d-none'); }
+    finally { $('ruleFormSave').disabled = false; }
+  }
+
+  async function checkNow() {
+    const btn = $('rulesCheckBtn');
+    btn.disabled = true;
+    try {
+      const data = await api('POST', '/home/check-rules/');
+      if (data.created) { createdIncidents = true; say('warning', `${data.created} incident(s) auto-created from rules — they appear in the list when you close this window.`); }
+      else say('success', 'No new incidents triggered — all rules within thresholds.');
+    } catch (e) { say('danger', 'Failed to check rules — try again.'); }
+    finally { btn.disabled = false; }
+  }
+
+  $('rulesNewBtn').addEventListener('click', () => openForm(null));
+  $('rulesCheckBtn').addEventListener('click', checkNow);
+  $('ruleFormBack').addEventListener('click', () => showPane(false));
+  $('ruleFormSave').addEventListener('click', saveForm);
+  modalEl.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !$('rulesFormPane').classList.contains('d-none') && e.target.matches('input:not([type=checkbox])')) { e.preventDefault(); saveForm(); }
+  });
+  modalEl.addEventListener('show.bs.modal', () => { showPane(false); load(); });
+  modalEl.addEventListener('hidden.bs.modal', () => { clearTimeout(confirmTimer); if (createdIncidents) window.location.reload(); });
+}());
 </script>
 {% endblock %}

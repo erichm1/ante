@@ -85,7 +85,7 @@
       id:    'nav-reports',
       title: 'Reports',
       body:  'Reports combine data from multiple entities into a single combined CSV export. Build one by dragging entities onto the canvas, picking the columns you want, and previewing the output — then download or call the export API.',
-      target: '.nav-links a[href="/reports/"]',
+      target: '.app-navbar a[href="/reports/"]',
     },
     {
       id:    'reports-new',
@@ -100,7 +100,7 @@
       id:    'nav-logs',
       title: 'Logs',
       body:  'Every outbound API call made across all your Connections is recorded here — URL, method, status, response time, headers, and body. Think of it as Grafana Loki for your migrations.',
-      target: '.nav-links a[href="/connections/logs/"]',
+      target: '.app-navbar a[href="/connections/logs/"]',
     },
     {
       id:    'logs-query',
@@ -173,6 +173,7 @@
     try { localStorage.setItem(K_DONE, '1'); } catch (e) {}
     try { localStorage.removeItem(K_STEP); } catch (e) {}
     overlay.remove(); card.remove(); beacon.remove();
+    if (window.anteNavAdmin) window.anteNavAdmin.pin(false);
     window.removeEventListener('resize', reposition);
     if (href) window.location.href = href;
   }
@@ -194,6 +195,11 @@
   /* ---------- render current step ---------------------------------------- */
   function render() {
     var s       = STEPS[step];
+    /* Some navbar links (Reports, Logs) live in the Admin dropdown: open it for those steps only. */
+    if (window.anteNavAdmin) {
+      var inMenu = s.target && document.querySelector(s.target) && document.querySelector(s.target).closest('.nav-group-menu');
+      window.anteNavAdmin.pin(!!inMenu);
+    }
     var isFirst = step === 0;
     var isLast  = step === STEPS.length - 1;
     var centered = !s.target;

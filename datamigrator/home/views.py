@@ -1,6 +1,3 @@
-from collections import Counter
-from urllib.parse import urlsplit
-
 from django.db.models import Count, F, Q
 from django.http import JsonResponse
 from django.shortcuts import redirect, render
@@ -14,6 +11,9 @@ from tickets.models import Ticket
 import connections.scheduler as connections_scheduler
 import jobs.scheduler as jobs_scheduler
 import plans.scheduler as plans_scheduler
+
+from . import status as status_engine
+from .status import worker_status as _worker_status
 
 ACTIVE_STATUSES = (MigrationRun.STATUS_PENDING, MigrationRun.STATUS_RUNNING)
 RECENT_RUNS_WINDOW = 50    # how many of the most recent runs feed the failure-rate signal
@@ -46,16 +46,10 @@ def index(request):
         "in_progress": Ticket.objects.filter(created_by=request.user, status="in_progress").count(),
     }
 
-    my_rules = list(request.user.incident_rules.select_related("connection").order_by("-created_at"))
-
     return render(request, "home/index.html", {
         "open_incidents":    open_incidents,
         "my_tickets":        my_tickets,
         "my_ticket_counts":  my_ticket_counts,
-        "my_rules":          my_rules,
-        "trigger_choices":   IncidentRule.TRIGGER_CHOICES,
-        "severity_choices":  Incident.SEVERITY_CHOICES,
-        "connections":       Connection.objects.order_by("name"),
     })
 
 
@@ -75,7 +69,7 @@ def _evaluate_rules(user):
         window_start = now - timedelta(hours=rule.window_hours)
 
         if rule.trigger_type == IncidentRule.TRIGGER_RUN_FAIL:
-            qs = MigrationRun.objects.filter(created_at__gte=window_start)
+            qs = MigrationRun.objects.filter(started_at__gte=window_start)
             total = qs.count()
             if total > 0:
                 failed = qs.filter(status=MigrationRun.STATUS_FAILED).count()
@@ -170,47 +164,6 @@ def rule_detail_api(request, pk):
     return JsonResponse({"error": "Method not allowed."}, status=405)
 
 
-def _top_endpoints(limit=5):
-    """Ranks every logged outbound API call (see connections.models.ApiCallLog,
-    populated by every ConnectionClient request) by method + endpoint,
-    ignoring the query string and any trailing slash so e.g. `/produtos/` and
-    `/produtos?page=2` count as the same endpoint."""
-    counter = Counter()
-    for method, url in ApiCallLog.objects.values_list("method", "url"):
-        parts = urlsplit(url)
-        path = parts.path.rstrip("/") or "/"
-        endpoint = f"{parts.scheme}://{parts.netloc}{path}" if parts.netloc else path
-        counter[(method, endpoint)] += 1
-    return [
-        {"method": method, "endpoint": endpoint, "count": count}
-        for (method, endpoint), count in counter.most_common(limit)
-    ]
-
-
-def _endpoint_honeycomb_data(limit=30):
-    """Returns per-endpoint call counts and error counts for the honeycomb view."""
-    counter = Counter()
-    error_counter = Counter()
-    for method, url, status_code, error in ApiCallLog.objects.values_list("method", "url", "status_code", "error"):
-        parts = urlsplit(url)
-        path = parts.path.rstrip("/") or "/"
-        endpoint = f"{parts.scheme}://{parts.netloc}{path}" if parts.netloc else path
-        key = (method, endpoint)
-        counter[key] += 1
-        if error or (status_code and status_code >= 400):
-            error_counter[key] += 1
-    return [
-        {
-            "method": method,
-            "endpoint": endpoint,
-            "count": count,
-            "errors": error_counter.get((method, endpoint), 0),
-            "error_rate": round(error_counter.get((method, endpoint), 0) / count, 3) if count else 0,
-        }
-        for (method, endpoint), count in counter.most_common(limit)
-    ]
-
-
 def stats(request):
     runs = MigrationRun.objects.all()
 
@@ -244,32 +197,7 @@ def stats(request):
             for c in connections
         ],
         "active_runs": active_runs,
-        "total_api_calls": ApiCallLog.objects.count(),
-        "top_endpoints": _top_endpoints(),
     })
-
-
-def _worker_status(name, module, description):
-    """module.LAST_TICK_AT is set at the end of every poll iteration (see
-    jobs/scheduler.py and its plans/connections siblings) — this and the
-    view share a process under `runserver`, so reading it directly tells
-    "alive and polling" from "never started" or "stuck", no IPC needed.
-    A thread that hasn't ticked yet within ~3 poll intervals of process
-    start reads as "starting" rather than "down" — it just hasn't had its
-    first chance to run yet."""
-    last_tick = module.LAST_TICK_AT
-    interval = module.POLL_INTERVAL_SECONDS
-    if last_tick is None:
-        return {"name": name, "description": description, "status": "starting", "last_tick_at": None, "poll_interval_seconds": interval}
-    seconds_ago = (timezone.now() - last_tick).total_seconds()
-    healthy = seconds_ago < interval * 3
-    return {
-        "name": name, "description": description,
-        "status": "ok" if healthy else "stalled",
-        "last_tick_at": last_tick.isoformat(),
-        "seconds_since_tick": round(seconds_ago),
-        "poll_interval_seconds": interval,
-    }
 
 
 def _compute_status_data():
@@ -340,13 +268,34 @@ def _compute_status_data():
     }
 
 
+def _checks(request):
+    """Run every check, store the results now and then (so history builds up), and add each one's history / uptime."""
+    results = status_engine.run_checks(request.get_host())
+    status_engine.record_if_stale(results)
+    return status_engine.attach_history(results)
+
+
 def status_page(request):
-    data = _compute_status_data()
-    data["honeycomb"] = _endpoint_honeycomb_data()
-    return render(request, "home/status.html", data)
+    results = _checks(request)
+    counts = status_engine.summary(results)
+    return render(request, "home/status.html", {
+        "overall": status_engine.overall_state(results),
+        "groups": status_engine.grouped(results),
+        "counts": counts,
+        "checked_at": timezone.now(),
+        "has_history": any(r["history"] for r in results if r["persist"]),      # false until a second sample is stored
+    })
 
 
 def status_data(request):
-    data = _compute_status_data()
-    data["honeycomb"] = _endpoint_honeycomb_data()
-    return JsonResponse(data)
+    """The same checks as JSON — for an uptime monitor or another dashboard to poll (signed-in users only)."""
+    results = _checks(request)
+    return JsonResponse({
+        "status": status_engine.overall_state(results),
+        "checked_at": timezone.now().isoformat(),
+        "checks": [
+            {"group": r["group"], "name": r["name"], "state": r["state"], "http_status": r["http_status"],
+             "latency_ms": r["latency_ms"], "uptime_pct": r["uptime_pct"], "detail": r["detail"]}
+            for r in results
+        ],
+    })

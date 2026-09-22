@@ -420,3 +420,43 @@ class SignInPolicyTests(TestCase):
         self.client.force_login(self.user)
         resp = self.client.post("/accounts/logout/")
         self.assertRedirects(resp, "/", fetch_redirect_response=False)
+
+
+class NavbarAdminSectionTests(AccessTestBase):
+    """Reports, Incidents and Logs live in the navbar's Admin section; the section keeps the per-module locks."""
+
+    def navbar(self, user):
+        self.login(user)
+        page = self.client.get("/home/").content.decode()
+        head = page[page.index('<header class="app-navbar">'):page.index("</header>")]
+        main = head[head.index('id="navLinks"'):head.index("</nav>")]
+        start = head.index('id="navAdmin"')
+        return main, head[start:head.index('<div class="nav-end"', start)]
+
+    def test_the_three_links_moved_from_the_main_bar_into_the_admin_section(self):
+        main, admin = self.navbar(self.make("plain", groups=[self.group("g", ["reports", "incidents", "logs", "tickets"])]))
+        for href in ("/reports/", "/incidents/", "/connections/logs/"):
+            self.assertNotIn(f'href="{href}"', main)
+            self.assertIn(f'href="{href}"', admin)
+        self.assertIn('href="/tickets/"', main)                              # tickets stay where they were
+        self.assertIn('aria-haspopup="true"', admin)
+
+    def test_locks_still_show_inside_the_section(self):
+        _, admin = self.navbar(self.make("limited", groups=[self.group("g", ["reports"])]))
+        self.assertEqual(admin.count("nav-lock"), 2)                         # incidents and logs are locked
+        self.assertNotIn('href="/reports/"\n               class="locked', admin)
+
+    def test_only_administrators_get_the_administration_links(self):
+        _, ordinary = self.navbar(self.make("plain", groups=[self.group("g", ["reports"])]))
+        self.assertNotIn("#adminPanel", ordinary)
+        self.assertNotIn('href="/admin/"', ordinary)
+
+        _, admin = self.navbar(self.make("boss", staff=True))
+        self.assertIn("/accounts/profile/#adminPanel", admin)
+        self.assertIn('href="/admin/"', admin)
+        self.assertNotIn("nav-lock", admin)                                  # an administrator has every module
+
+    def test_a_superuser_without_staff_status_gets_the_panel_but_not_django_admin(self):
+        _, admin = self.navbar(self.make("root", superuser=True))
+        self.assertIn("#adminPanel", admin)
+        self.assertNotIn('href="/admin/"', admin)

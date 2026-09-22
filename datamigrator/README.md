@@ -190,6 +190,22 @@ Visit `http://localhost:8000/connections/` to get started.
    Studio's *Detail* / *Pipeline* links open); a mixed plan's old detail page
    redirects into the Studio. `/api/runs/?slim=1` lists runs without their logs.
 
+## Home, Incidents and the status page
+
+- **Home** (`templates/home/index.html`) is the run dashboard: totals, your tickets, active incidents and the health of each connection.
+  The endpoint ranking and the automation rules are no longer on it.
+- **Automation rules** (`incidents.IncidentRule`, evaluated by `home.views._evaluate_rules` when someone presses *Check now*) are managed in a
+  modal on the **Incidents** page (`templates/incidents/list.html`): list, create, edit, enable/disable, delete, check now. It talks to
+  `/home/rules/`, `/home/rules/<id>/` and `/home/check-rules/`.
+- **Status page** (`/home/status/`, `templates/home/status.html`, `static/css/status.css`) follows the status page of the callum_freight_hub
+  project: a standalone page (its own fonts — Space Grotesk / Inter / IBM Plex Mono — colour tokens and components, ported from that project's
+  `custom.css`), an overall banner and grouped checks with a dot, history, 24h uptime, latency and badge, refreshing every 60s. The engine is
+  `home/status.py`: the database, the background workers, Ante's own pages and API called in-process with Django's test `Client`
+  (`ENDPOINT_REGISTRY`; a 401/403/redirect counts as healthy, a 5xx or exception is down), and rows derived from migration runs, the outbound
+  call log, every connection and the busiest outbound endpoints (20% failures → degraded, 50% → down). Results of the database / worker / API
+  checks are stored in `home.StatusCheckResult` — by `python manage.py run_status_checks` (schedule it) and by the page itself at most every
+  5 minutes — and pruned after 7 days. `GET /home/status/data/` returns the same checks as JSON. Both need a signed-in user with the Status module.
+
 ## Auto-mapping (draft wires)
 
 Auto-mapping matches fields by name and saves the matches as **drafts** to be reviewed before a run. `FieldMapping` has a `status`
@@ -234,6 +250,10 @@ Studio, Reports, Tickets, Incidents and Logs — and each one is simply **on or 
 
 - A user's access = *(the modules of all their groups + modules switched **On** for them) − modules switched **Off**
   for them*. **Off always wins.** Administrators (`is_staff` / superuser) have every module, always.
+- **The navbar's Admin section** (in `templates/base.html`) groups **Reports, Incidents and Logs** in a dropdown (an expandable
+  block in the mobile drawer), so the main bar stays short. Its links keep the per-module locks; administrators also see
+  **Administration** (`/accounts/profile/#adminPanel`) and, if `is_staff`, **Django admin**. The onboarding tour opens the menu
+  while a step points at a link inside it (`window.anteNavAdmin.pin()`).
 - **Groups** (`AccessGroup`) are named sets of modules. **Departments** are organisational labels only. A built-in
   default group, **Standard user**, holds everything an ordinary user could reach before permissions existed (all
   modules except Incidents) and is given to every existing and new user, so nobody is locked out by an upgrade —

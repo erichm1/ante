@@ -76,3 +76,239 @@ class LandingPageTests(TestCase):
         texts.add("Ante — Move data between systems, visually")            # <title>
         missing = sorted(t for t in texts if t not in known and t not in ("Ante", "REST APIs", "OAuth2, API keys, JWT"))
         self.assertEqual(missing, [], "landing text without a translation")
+
+
+# ── Home, Incidents rules modal, status page ────────────────────────────────────────────────────────────────────
+import json
+from datetime import timedelta
+from io import StringIO
+from unittest import mock
+
+from django.core.management import call_command
+from django.utils import timezone
+
+from connections.models import ApiCallLog, Connection
+from jobs.models import MigrationRun
+from mappings.models import Mapping
+
+from . import status
+from .models import StatusCheckResult
+
+
+class HomePageTests(TestCase):
+    def setUp(self):
+        self.client.force_login(User.objects.create_superuser("boss", password="pw"))
+
+    def test_home_no_longer_carries_the_automation_rules_or_the_top_api_endpoints(self):
+        page = self.client.get("/home/").content.decode()
+        for gone in ("Automation rules", "newRuleModal", "editRuleModal", "topEndpointsBox", "Top API endpoints", "createRule"):
+            self.assertFalse(gone in page, gone)
+        self.assertTrue("connectionStatsBody" in page, "connectionStatsBody")                       # the rest of the dashboard is still there
+
+    def test_the_stats_feed_drops_the_endpoint_ranking(self):
+        data = self.client.get("/home/stats/").json()
+        self.assertNotIn("top_endpoints", data)
+        self.assertNotIn("total_api_calls", data)
+        self.assertEqual(set(data), {"total", "active", "success", "failed", "connections", "active_runs"})
+
+
+class IncidentRulesModalTests(TestCase):
+    def setUp(self):
+        self.client.force_login(User.objects.create_superuser("boss", password="pw"))
+
+    def test_the_incidents_page_has_the_rules_modal_with_its_options(self):
+        page = self.client.get("/incidents/").content.decode()
+        self.assertTrue('data-bs-target="#rulesModal"' in page, 'data-bs-target="#rulesModal"')
+        for hook in ("rulesCheckBtn", "rulesNewBtn", "rf_trigger", "rf_threshold", "rf_window", "rf_severity", "rf_connection", "rf_enabled"):
+            self.assertTrue(f'id="{hook}"' in page, f'id="{hook}"')
+        self.assertTrue("Run failure rate exceeds threshold" in page, "Run failure rate exceeds threshold")         # the trigger choices come from the model
+        self.assertTrue("/home/rules/" in page, "/home/rules/")
+
+    def test_the_rules_the_modal_manages_round_trip_through_the_api(self):
+        made = self.client.post("/home/rules/", json.dumps({"name": "Fails", "trigger_type": "run_fail_rate", "threshold": 25, "window_hours": 2,
+                                                            "severity": "high", "auto_title": "", "enabled": True, "connection": None}),
+                                content_type="application/json")
+        self.assertEqual(made.status_code, 201, made.content)
+        rule = made.json()
+        self.assertEqual((rule["threshold"], rule["window_hours"], rule["trigger_type_display"]), (25, 2, "Run failure rate exceeds threshold"))
+        listed = self.client.get("/home/rules/").json()["results"]
+        self.assertEqual([r["name"] for r in listed], ["Fails"])
+        self.assertEqual(self.client.patch(f"/home/rules/{rule['id']}/", json.dumps({"enabled": False}), content_type="application/json").json()["enabled"], False)
+        self.assertEqual(self.client.delete(f"/home/rules/{rule['id']}/").status_code, 204)
+        self.assertEqual(self.client.get("/home/rules/").json()["results"], [])
+
+    def test_check_now_opens_an_incident_when_a_rule_is_breached(self):
+        mapping = Mapping.objects.create(name="M", source_connection=Connection.objects.create(name="S", base_url="https://s.example.com", auth_type="none"))
+        for _ in range(3):
+            MigrationRun.objects.create(mapping=mapping, status=MigrationRun.STATUS_FAILED)
+        self.client.post("/home/rules/", json.dumps({"name": "Fails", "trigger_type": "run_fail_rate", "threshold": 50, "window_hours": 1, "severity": "high"}),
+                         content_type="application/json")
+        self.assertEqual(self.client.post("/home/check-rules/").json()["created"], 1)
+
+
+class StatusEngineTests(TestCase):
+    def conn(self, name="Api", **kw):
+        return Connection.objects.create(name=name, base_url="https://api.example.com/v1", auth_type=kw.pop("auth_type", "none"), **kw)
+
+    def rows(self, **where):
+        return [r for r in status.run_checks() if all(r[k] == v for k, v in where.items())]
+
+    def test_every_group_is_present_and_ordered(self):
+        groups = list(dict.fromkeys(r["group"] for r in status.run_checks()))
+        self.assertEqual(groups, ["Platform", "Ante API", "Console", "Activity"])            # no connections / calls yet
+        self.assertEqual(status.overall_state(status.run_checks()), "OPERATIONAL")
+
+    def test_pages_and_api_are_called_in_process_and_auth_walls_count_as_healthy(self):
+        api = self.rows(group="Ante API")
+        self.assertEqual(len(api), 8)
+        self.assertTrue(all(r["state"] == "OPERATIONAL" and r["http_status"] in (401, 403, 302) and r["latency_ms"] is not None for r in api))
+        (front,) = self.rows(name="Front page")
+        self.assertEqual(front["http_status"], 200)
+
+    def test_a_server_error_is_down_an_unexpected_code_is_degraded_an_exception_is_down(self):
+        class Boom:
+            def generic(self, method, path):
+                if path == "/api/runs/":
+                    raise RuntimeError("kaput")
+                return mock.Mock(status_code={"/api/plans/": 500, "/api/chains/": 404}.get(path, 200))
+        with mock.patch.object(status, "Client", lambda **kw: Boom()):
+            by = {r["name"]: r for r in status.run_checks() if r["group"] == "Ante API"}
+        self.assertEqual((by["Runs"]["state"], by["Runs"]["detail"]), ("DOWN", "kaput"))
+        self.assertEqual(by["Plans"]["state"], "DOWN")
+        self.assertEqual((by["Chains"]["state"], by["Chains"]["detail"]), ("DEGRADED", "Unexpected status 404"))
+        self.assertEqual(by["Mappings"]["state"], "OPERATIONAL")
+
+    def test_a_stalled_worker_degrades_and_all_stalled_is_down(self):
+        stale = timezone.now() - timedelta(hours=1)
+        import jobs.scheduler as jobs_scheduler
+        import plans.scheduler as plans_scheduler
+        import connections.scheduler as connections_scheduler
+        with mock.patch.object(jobs_scheduler, "LAST_TICK_AT", stale):
+            states = {r["name"]: r["state"] for r in self.rows(group="Platform")}
+            self.assertEqual(states["Run scheduler"], "DEGRADED")
+            self.assertEqual(status.overall_state(status.run_checks()), "DEGRADED")
+            with mock.patch.object(plans_scheduler, "LAST_TICK_AT", stale), mock.patch.object(connections_scheduler, "LAST_TICK_AT", stale):
+                self.assertEqual({r["state"] for r in self.rows(group="Platform") if "scheduler" in r["name"] or r["name"] == "Token refresh"}, {"DOWN"})
+
+    def test_a_worker_that_has_not_ticked_yet_is_starting_not_a_problem(self):
+        starting = [r for r in self.rows(group="Platform") if r.get("label")]
+        self.assertTrue(starting and all(r["state"] == "OPERATIONAL" and r["label"] == "Starting…" for r in starting))
+
+    def test_connections_show_setup_and_error_state_with_their_own_history(self):
+        needs_setup = self.conn("Needs token", auth_type="bearer")
+        healthy = self.conn("Healthy")
+        flaky = self.conn("Flaky")
+        for code in (200, 200, 200):
+            ApiCallLog.objects.create(connection=healthy, method="GET", url="https://api.example.com/v1/items", status_code=code, duration_ms=100)
+        for code in (200, 500, 500):
+            ApiCallLog.objects.create(connection=flaky, method="GET", url="https://api.example.com/v1/items", status_code=code, duration_ms=300)
+        by = {r["name"]: r for r in self.rows(group="Connections")}
+        self.assertEqual((by["Needs token"]["state"], by["Needs token"]["detail"]), ("DEGRADED", "Needs setup."))
+        self.assertEqual((by["Healthy"]["state"], by["Healthy"]["uptime_pct"], by["Healthy"]["latency_ms"]), ("OPERATIONAL", 100.0, 100.0))
+        self.assertEqual((by["Flaky"]["state"], by["Flaky"]["uptime_pct"]), ("DOWN", 33.33))
+        self.assertIn("2 of 3 API calls failed", by["Flaky"]["detail"])
+        self.assertEqual([h["state"] for h in by["Flaky"]["history"]], ["OPERATIONAL", "DOWN", "DOWN"])   # oldest first
+        self.assertTrue(by["Healthy"]["href"].endswith(f"/connections/{healthy.pk}/"))
+
+    def test_outbound_endpoints_are_ranked_by_calls_and_carry_their_error_rate(self):
+        c = self.conn()
+        for _ in range(4):
+            ApiCallLog.objects.create(connection=c, method="GET", url="https://api.example.com/v1/items/?page=2", status_code=200)
+        ApiCallLog.objects.create(connection=c, method="POST", url="https://api.example.com/v1/orders", error="timeout")
+        rows = self.rows(group="Outbound endpoints")
+        self.assertEqual([(r["method"], r["name"], r["path"]) for r in rows], [("GET", "/v1/items", "api.example.com"), ("POST", "/v1/orders", "api.example.com")])
+        self.assertEqual([r["state"] for r in rows], ["OPERATIONAL", "DOWN"])
+
+    def test_run_and_api_call_rows_follow_the_failure_thresholds(self):
+        mapping = Mapping.objects.create(name="M", source_connection=self.conn())
+        for s in ("success", "success", "success", "failed"):
+            MigrationRun.objects.create(mapping=mapping, status=s)
+        (runs,) = self.rows(name="Migration runs")
+        self.assertEqual((runs["state"], runs["uptime_pct"]), ("DEGRADED", 75.0))               # 25% failed ≥ 20%
+        self.assertIn("1 of 4 recent migration runs failed (25%)", runs["detail"])
+        self.assertEqual(status.overall_state(status.run_checks()), "DEGRADED")
+
+    def test_history_is_stored_at_most_every_few_minutes_and_feeds_uptime(self):
+        results = status.run_checks()
+        self.assertTrue(status.record_if_stale(results))
+        self.assertFalse(status.record_if_stale(results))                                        # too soon
+        stored = StatusCheckResult.objects.count()
+        self.assertEqual(stored, len([r for r in results if r["persist"]]))                      # activity rows are not stored
+        StatusCheckResult.objects.update(created_at=timezone.now() - timedelta(minutes=10))
+        StatusCheckResult.objects.filter(name="Database").update(state="DOWN")
+        self.assertTrue(status.record_if_stale(results))
+        (db,) = status.attach_history([r for r in status.run_checks() if r["name"] == "Database"])
+        self.assertEqual([h["state"] for h in db["history"]], ["DOWN", "OPERATIONAL"])
+        self.assertEqual(db["uptime_pct"], 50.0)
+
+    def test_old_results_are_pruned(self):
+        StatusCheckResult.objects.create(group="Platform", name="Database", state="OPERATIONAL")
+        StatusCheckResult.objects.update(created_at=timezone.now() - timedelta(days=8))
+        status.record(status.run_checks())
+        self.assertFalse(StatusCheckResult.objects.filter(created_at__lt=timezone.now() - timedelta(days=7)).exists())
+
+    def test_the_management_command_stores_the_checks_and_reports_the_overall_state(self):
+        out = StringIO()
+        call_command("run_status_checks", stdout=out)
+        self.assertIn("Overall status: OPERATIONAL", out.getvalue())
+        self.assertTrue(StatusCheckResult.objects.filter(group="Ante API", name="Mappings").exists())
+
+
+class StatusPageTests(TestCase):
+    def setUp(self):
+        self.client.force_login(User.objects.create_superuser("boss", password="pw"))
+
+    def test_it_is_a_standalone_page_with_the_callum_assets(self):
+        page = self.client.get("/home/status/").content.decode()
+        self.assertFalse('class="app-navbar"' in page, 'class="app-navbar"')
+        self.assertTrue('<meta http-equiv="refresh" content="60">' in page, '<meta http-equiv="refresh" content="60">')
+        for asset in ("css/status.css", "Space+Grotesk", "Inter", "IBM+Plex+Mono", "bootstrap@5.3.3", "bootstrap-icons@1.11.3", "js/i18n.js"):
+            self.assertTrue(asset in page, asset)
+        self.assertTrue("clm-banner st-operational" in page, "clm-banner st-operational")
+        self.assertTrue("All systems operational" in page, "All systems operational")
+        for group in ("Platform", "Ante API", "Console", "Activity"):
+            self.assertTrue(f'<h2 class="h6 clm-display mb-3">{group}</h2>' in page, f'<h2 class="h6 clm-display mb-3">{group}</h2>')
+        self.assertTrue("Refresh now" in page, "Refresh now")
+        self.assertTrue("GET /home/status/data/" in page, "GET /home/status/data/")
+        self.assertTrue("run_status_checks" in page, "run_status_checks")                                                  # no history yet → says how to build it
+
+    def test_the_stylesheet_is_served_and_carries_the_ported_tokens(self):
+        path = finders.find("css/status.css")
+        self.assertIsNotNone(path)
+        css = pathlib.Path(path).read_text()
+        for token in ("--clm-ink: #0f1b2d", "--clm-success: #1d9a6c", "--clm-danger: #d64545", ".clm-kpi", ".clm-spark-bar", ".clm-banner.st-down",
+                      ':root[data-bs-theme="dark"]', "Space Grotesk"):
+            self.assertIn(token, css)
+
+    def test_the_banner_and_rows_reflect_a_problem(self):
+        c = Connection.objects.create(name="Broken", base_url="https://api.example.com", auth_type="none")
+        for _ in range(3):
+            ApiCallLog.objects.create(connection=c, method="GET", url="https://api.example.com/x", status_code=500)
+        page = self.client.get("/home/status/").content.decode()
+        self.assertTrue("clm-banner st-down" in page, "clm-banner st-down")
+        self.assertTrue("Service disruption detected" in page, "Service disruption detected")
+        self.assertTrue("Broken" in page, "Broken")
+        self.assertTrue("clm-badge st-down" in page, "clm-badge st-down")
+        self.assertTrue("3 of 3 API calls failed" in page, "3 of 3 API calls failed")
+        self.assertTrue(f"/connections/{c.pk}/" in page, f"/connections/{c.pk}/")
+
+    def test_a_second_visit_shows_history_and_uptime(self):
+        self.client.get("/home/status/")
+        StatusCheckResult.objects.update(created_at=timezone.now() - timedelta(minutes=10))
+        page = self.client.get("/home/status/").content.decode()
+        self.assertTrue("clm-spark-bar" in page, "clm-spark-bar")
+        self.assertTrue("100.0% / 24h" in page, "100.0% / 24h")
+        self.assertFalse("No historical uptime data yet" in page, "No historical uptime data yet")
+
+    def test_the_json_feed_has_the_same_checks(self):
+        data = self.client.get("/home/status/data/").json()
+        self.assertEqual(data["status"], "OPERATIONAL")
+        self.assertIn("checked_at", data)
+        first = data["checks"][0]
+        self.assertEqual(set(first), {"group", "name", "state", "http_status", "latency_ms", "uptime_pct", "detail"})
+        self.assertIn(("Ante API", "Mappings"), {(c["group"], c["name"]) for c in data["checks"]})
+
+    def test_it_still_needs_a_signed_in_user_with_the_status_module(self):
+        self.client.logout()
+        self.assertEqual(self.client.get("/home/status/").status_code, 302)
+        self.assertEqual(self.client.get("/home/status/data/").status_code, 302)

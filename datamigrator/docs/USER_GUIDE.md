@@ -46,17 +46,17 @@ The usual path is: **install a connector → create connections → discover ent
 
 | Link | What's there |
 |---|---|
-| **Home** | Dashboard: total/active/successful/failed runs, your open tickets, active incidents, health per connection, top API endpoints. |
+| **Home** | Dashboard: total/active/successful/failed runs, your open tickets, active incidents and the health of each connection. |
 | **Status** | Platform health: connection status, API call volumes, busiest endpoints. |
 | **App Store** | Install connectors and manage connections. |
 | **Studio** | The visual workspace for mappings, chains, plans and runs (see [§7](#7-the-studio)). |
 | **Mappings / Runs / Plans / Chains** | The classic list pages for each. Same data as the Studio, page by page. |
-| **Reports** | Cross-entity CSV exports. |
-| **Tickets / Incidents** | Support tickets and outage tracking. |
-| **Logs** | Every outbound API call Ante has made. |
-| **Admin** | Django admin. Only administrators see it. |
+| **Tickets** | Your support tickets. |
+| **Admin ▾** | A menu with the modules an administrator works in: **Reports** (cross-entity CSV exports), **Incidents** (outage tracking) and **Logs** (every outbound API call Ante has made). Administrators also get **Administration** (users, groups and departments — see [§15](#15-for-administrators-users-groups-and-permissions)) and **Django admin** (raw records; staff only). |
 
 On the right of the bar: the **language** picker (English, Portuguese, Spanish, French, German, Italian, Japanese or Chinese — the whole app follows it), the **theme** toggle (light/dark), the **bell** (notifications), your **company logo**, your **photo** (click it to open your profile — see [§14](#14-your-profile)), and **Log out**.
+
+The Admin menu opens on a click and closes when you click elsewhere or press Esc; on a phone it is a section of the drawer that opens by itself when you are on one of its pages. Its links follow the same permissions as any other, so a padlock appears there too.
 
 **A padlock next to a link** means your administrator hasn't switched that module on for you. You can still click it: Ante takes you Home with a message explaining what's missing. See [§15](#15-for-administrators-users-groups-and-permissions) if you're the one who needs to grant access.
 
@@ -392,7 +392,7 @@ Tracks outages and issues that affect your integrations.
   | Low | 8 h | 72 h |
 
 - After resolution, write a **post-mortem** (root cause and follow-ups).
-- **Alert rules** open incidents automatically when a threshold is crossed: run failure rate, a connection's API error rate, or the global API error rate — each over a look-back window you choose, with a severity.
+- **Automation rules** open incidents automatically when a threshold is crossed: run failure rate, a connection's API error rate, or the global API error rate — each over a look-back window you choose, with a severity. Click **Automation rules** at the top of the Incidents page: the window lists your rules and lets you add (**+ New rule**), edit, switch on/off and delete them, and **Check now** evaluates them right away (rules are only evaluated when you press it). Incidents a check creates appear in the list when you close the window.
 
 Incidents are a separate module, **off by default** for ordinary users; an administrator can switch it on.
 
@@ -421,7 +421,17 @@ Example: `connection:shop status:>=400 since:1h` — everything the Shop connect
 
 ### Status
 
-**Status** shows connection health, API call volumes over time, and the busiest endpoints — the first place to look when something feels slow.
+**Status** is a page of its own (no navbar), laid out like the status page of the Callum project: a banner with the overall state — *All systems operational*, *Degraded performance* or *Service disruption detected* — and one card per group of checks. Every check shows a dot, its name (and, for API calls, the path), a small history, its **24h uptime**, its latency and an *Operational / Degraded / Down* badge; anything that isn't fine says why underneath. The page refreshes itself every 60 seconds; **Refresh now** does it at once.
+
+| Group | What is checked |
+|---|---|
+| **Platform** | The database and the three background workers (run scheduler, plan scheduler, token refresh). A worker that hasn't polled for a while is *Degraded*; all three stalled is *Down*. |
+| **Ante API** / **Console** | Ante's own API endpoints and pages, called in-process and timed. Without credentials a *401 / 403 / redirect* is the correct answer, so it counts as healthy; a server error is *Down*. |
+| **Activity** | Recent migration runs (the last 50) and outbound API calls (the last hour). 20% failed is *Degraded*, 50% is *Down*. |
+| **Connections** | Every active connection: *Degraded* if it still needs setup or a fifth of its calls failed in the last 24h, *Down* at half. Click a name to open it. |
+| **Outbound endpoints** | The eight busiest endpoints Ante has called in the last 24h, with the same error thresholds. |
+
+The history and uptime of the **Platform**, **Ante API** and **Console** checks are built from stored results: the page stores one at most every five minutes while it is being opened, and `python manage.py run_status_checks` (schedule it every 1–5 minutes with cron) stores them regularly. Until a check has two stored results it shows no history. **Activity**, **Connections** and **Outbound endpoints** draw theirs from the run and API-call history, so they are available at once. Programs can read the same checks as JSON at `GET /home/status/data/` (signed-in users with the Status module).
 
 ---
 

@@ -1,0 +1,47 @@
+# The status page (Callum-style: banner, grouped checks, uptime) and the automation rules modal on the Incidents page.
+# en || pt-BR || es || fr || de || it || ja || zh
+Status Page || Página de status || Página de estado || Page d'état || Statusseite || Pagina di stato || ステータスページ || 状态页面
+Ante Status Page || Página de status do Ante || Página de estado de Ante || Page d'état d'Ante || Ante-Statusseite || Pagina di stato di Ante || Ante ステータスページ || Ante 状态页面
+Service disruption detected || Interrupção do serviço detectada || Interrupción del servicio detectada || Perturbation du service détectée || Dienststörung erkannt || Interruzione del servizio rilevata || サービスの中断を検出しました || 检测到服务中断
+Checked {1} UTC · auto-refreshes every 60s || Verificado em {1} UTC · atualiza sozinha a cada 60 s || Comprobado el {1} UTC · se actualiza sola cada 60 s || Vérifié le {1} UTC · s'actualise toutes les 60 s || Geprüft {1} UTC · aktualisiert sich alle 60 s || Controllato il {1} UTC · si aggiorna ogni 60 s || {1} UTC に確認 · 60 秒ごとに自動更新 || 检查时间 {1} UTC · 每 60 秒自动刷新
+No historical uptime data yet — this page is showing a live check only. Schedule || Ainda não há histórico de disponibilidade — esta página mostra apenas uma verificação ao vivo. Agende || Aún no hay historial de disponibilidad: esta página solo muestra una comprobación en vivo. Programa || Pas encore d'historique de disponibilité — cette page n'affiche qu'une vérification en direct. Planifiez || Noch keine Verfügbarkeitshistorie — diese Seite zeigt nur eine Live-Prüfung. Planen Sie || Ancora nessuno storico della disponibilità — questa pagina mostra solo un controllo in tempo reale. Pianifica || まだ稼働率の履歴がありません。このページはライブチェックだけを表示しています。次を定期実行してください: || 暂无历史可用性数据——此页面仅显示实时检查。请定期运行
+(e.g. every 5 minutes via cron) to build 24h uptime % and history for each check. || (por exemplo, a cada 5 minutos via cron) para montar a disponibilidade de 24 h e o histórico de cada verificação. || (por ejemplo, cada 5 minutos con cron) para construir la disponibilidad de 24 h y el historial de cada comprobación. || (par exemple toutes les 5 minutes via cron) pour constituer la disponibilité sur 24 h et l'historique de chaque vérification. || (z. B. alle 5 Minuten per Cron), um die 24-h-Verfügbarkeit und den Verlauf jeder Prüfung aufzubauen. || (ad esempio ogni 5 minuti con cron) per costruire la disponibilità a 24 h e lo storico di ogni controllo. || （例: cron で 5 分ごと）。各チェックの 24 時間稼働率と履歴が蓄積されます。 || （例如通过 cron 每 5 分钟一次），即可积累每项检查的 24 小时可用率和历史记录。
+Programmatic access: || Acesso programático: || Acceso programático: || Accès programmatique : || Programmatischer Zugriff: || Accesso programmatico: || プログラムからのアクセス: || 程序化访问：
+Back to Ante || Voltar ao Ante || Volver a Ante || Retour à Ante || Zurück zu Ante || Torna ad Ante || Ante に戻る || 返回 Ante
+{1}% / 24h || {1}% / 24 h || {1} % / 24 h || {1} % / 24 h || {1} % / 24 h || {1}% / 24 h || {1}% / 24 時間 || {1}% / 24 小时
+Platform || Plataforma || Plataforma || Plateforme || Plattform || Piattaforma || プラットフォーム || 平台
+Ante API || API do Ante || API de Ante || API d'Ante || Ante-API || API di Ante || Ante API || Ante API
+Console || Console || Consola || Console || Konsole || Console || コンソール || 控制台
+Activity || Atividade || Actividad || Activité || Aktivität || Attività || アクティビティ || 活动
+Outbound endpoints || Endpoints de saída || Endpoints de salida || Endpoints sortants || Ausgehende Endpunkte || Endpoint in uscita || 送信エンドポイント || 出站端点
+Database || Banco de dados || Base de datos || Base de données || Datenbank || Database || データベース || 数据库
+Front page || Página inicial || Página principal || Page d'accueil || Startseite || Pagina iniziale || トップページ || 首页
+Sign-in page || Página de login || Página de inicio de sesión || Page de connexion || Anmeldeseite || Pagina di accesso || サインインページ || 登录页面
+Migration runs || Execuções de migração || Ejecuciones de migración || Exécutions de migration || Migrationsläufe || Esecuzioni di migrazione || マイグレーション実行 || 迁移运行
+Outbound API calls || Chamadas de API de saída || Llamadas de API salientes || Appels d'API sortants || Ausgehende API-Aufrufe || Chiamate API in uscita || 送信 API 呼び出し || 出站 API 调用
+Operational || Operacional || Operativo || Opérationnel || Betriebsbereit || Operativo || 正常 || 正常运行
+Degraded || Degradado || Degradado || Dégradé || Beeinträchtigt || Degradato || 低下 || 性能下降
+Down || Indisponível || Caído || Hors service || Ausgefallen || Non attivo || 停止 || 已宕机
+Starting… || Iniciando… || Iniciando… || Démarrage… || Startet… || Avvio… || 起動中… || 启动中…
+Last {1} runs || Últimas {1} execuções || Últimas {1} ejecuciones || {1} dernières exécutions || Letzte {1} Läufe || Ultime {1} esecuzioni || 直近 {1} 件の実行 || 最近 {1} 次运行
+No runs yet || Nenhuma execução ainda || Aún no hay ejecuciones || Aucune exécution pour l'instant || Noch keine Läufe || Ancora nessuna esecuzione || まだ実行がありません || 尚无运行
+Last {1}h || Últimas {1} h || Últimas {1} h || Dernières {1} h || Letzte {1} Std. || Ultime {1} h || 直近 {1} 時間 || 最近 {1} 小时
+Hasn't polled for {1}s (it polls every {2}s). || Não consulta há {1} s (consulta a cada {2} s). || No consulta desde hace {1} s (lo hace cada {2} s). || N'a pas interrogé depuis {1} s (intervalle : {2} s). || Hat seit {1} s nicht abgefragt (Intervall: {2} s). || Nessun polling da {1} s (avviene ogni {2} s). || {1} 秒間ポーリングしていません（{2} 秒ごとに実行）。 || 已有 {1} 秒未轮询（每 {2} 秒轮询一次）。
+Unexpected status {1} || Status inesperado {1} || Estado inesperado {1} || Statut inattendu {1} || Unerwarteter Status {1} || Stato imprevisto {1} || 予期しないステータス {1} || 意外的状态 {1}
+Needs setup. || Precisa de configuração. || Necesita configuración. || Configuration requise. || Einrichtung nötig. || Richiede configurazione. || 設定が必要です。 || 需要设置。
+{1} — Operational || {1} — Operacional || {1} — Operativo || {1} — Opérationnel || {1} — Betriebsbereit || {1} — Operativo || {1} — 正常 || {1} — 正常运行
+{1} — Degraded || {1} — Degradado || {1} — Degradado || {1} — Dégradé || {1} — Beeinträchtigt || {1} — Degradato || {1} — 低下 || {1} — 性能下降
+{1} — Down || {1} — Indisponível || {1} — Caído || {1} — Hors service || {1} — Ausgefallen || {1} — Non attivo || {1} — 停止 || {1} — 已宕机
+Rules are checked only when you press “Check now”. || As regras só são verificadas quando você clica em “Verificar agora”. || Las reglas solo se comprueban cuando pulsas «Comprobar ahora». || Les règles ne sont vérifiées que lorsque vous cliquez sur « Vérifier maintenant ». || Regeln werden nur geprüft, wenn Sie auf „Jetzt prüfen“ klicken. || Le regole vengono verificate solo quando premi «Controlla ora». || ルールは「今すぐ確認」を押したときにだけ確認されます。 || 仅在你点击“立即检查”时才会检查规则。
++ New rule || + Nova regra || + Nueva regla || + Nouvelle règle || + Neue Regel || + Nuova regola || + 新しいルール || + 新规则
+Back to rules || Voltar às regras || Volver a las reglas || Retour aux règles || Zurück zu den Regeln || Torna alle regole || ルール一覧に戻る || 返回规则列表
+Save rule || Salvar regra || Guardar regla || Enregistrer la règle || Regel speichern || Salva regola || ルールを保存 || 保存规则
+Rule || Regra || Regla || Règle || Regel || Regola || ルール || 规则
+Fires when || Dispara quando || Se activa cuando || Se déclenche quand || Löst aus, wenn || Scatta quando || 発動条件 || 触发条件
+Only used by the connection error rate trigger. || Usado apenas pelo gatilho de taxa de erro da conexão. || Solo lo usa el disparador de tasa de error de la conexión. || Utilisé uniquement par le déclencheur de taux d'erreur de connexion. || Wird nur vom Auslöser „Fehlerrate der Verbindung“ verwendet. || Usato solo dal trigger sul tasso di errore della connessione. || 接続のエラー率トリガーでのみ使用されます。 || 仅用于“连接错误率”触发器。
+Leave blank to generate one || Deixe em branco para gerar um || Déjalo en blanco para generar uno || Laisser vide pour en générer un || Leer lassen, um einen zu erzeugen || Lascia vuoto per generarlo || 空欄にすると自動生成されます || 留空则自动生成
+Rule created. || Regra criada. || Regla creada. || Règle créée. || Regel erstellt. || Regola creata. || ルールを作成しました。 || 已创建规则。
+Rule saved. || Regra salva. || Regla guardada. || Règle enregistrée. || Regel gespeichert. || Regola salvata. || ルールを保存しました。 || 已保存规则。
+Threshold must be between 0 and 100. || O limite deve estar entre 0 e 100. || El umbral debe estar entre 0 y 100. || Le seuil doit être compris entre 0 et 100. || Der Schwellenwert muss zwischen 0 und 100 liegen. || La soglia deve essere compresa tra 0 e 100. || しきい値は 0 から 100 の間で指定してください。 || 阈值必须在 0 到 100 之间。
+Window must be between 1 and 168 hours. || A janela deve estar entre 1 e 168 horas. || La ventana debe estar entre 1 y 168 horas. || La fenêtre doit être comprise entre 1 et 168 heures. || Das Zeitfenster muss zwischen 1 und 168 Stunden liegen. || La finestra deve essere compresa tra 1 e 168 ore. || 期間は 1 から 168 時間の間で指定してください。 || 时间窗口必须在 1 到 168 小时之间。
+{1} incident(s) auto-created from rules — they appear in the list when you close this window. || {1} incidente(s) criado(s) automaticamente pelas regras — eles aparecem na lista quando você fechar esta janela. || {1} incidente(s) creado(s) automáticamente por las reglas: aparecerán en la lista al cerrar esta ventana. || {1} incident(s) créé(s) automatiquement par les règles — ils apparaissent dans la liste à la fermeture de cette fenêtre. || {1} Vorfall/Vorfälle automatisch durch Regeln erstellt — sie erscheinen in der Liste, sobald Sie dieses Fenster schließen. || {1} incidente/i creato/i automaticamente dalle regole — compaiono nell'elenco quando chiudi questa finestra. || ルールにより {1} 件のインシデントが自動作成されました。このウィンドウを閉じると一覧に表示されます。 || 规则自动创建了 {1} 个事件——关闭此窗口后会显示在列表中。
