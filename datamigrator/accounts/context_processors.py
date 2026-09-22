@@ -1,3 +1,5 @@
+from django.conf import settings
+
 from . import permissions
 from .models import Profile
 
@@ -15,7 +17,8 @@ def profile(request):
 
 
 def access(request):
-    """What this user may use — the navbar marks locked modules, and shows the admin-only links."""
+    """What this user may use — the navbar marks locked modules, and shows the admin-only links. Anonymous
+    pages only learn whether open sign-up is switched on."""
     if not request.user.is_authenticated:
-        return {}
+        return {"allow_self_registration": settings.ALLOW_SELF_REGISTRATION}
     return {"user_modules": permissions.effective_modules(request.user), "is_app_admin": permissions.is_admin(request.user)}

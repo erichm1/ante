@@ -5,12 +5,23 @@ the export actually contains, just capped for the page.
 """
 import csv
 import io
+import json
 
 from schemas.discovery import read_all_records
 from schemas.models import Field
+from schemas.paths import get_path
 
 PREVIEW_ROW_LIMIT = 50
 
+
+def _cell(record, name):
+    """A record's value for a (possibly nested, dotted) field name; missing → empty; objects → JSON text."""
+    value = get_path(record, name)
+    if value is None:
+        return ""
+    if isinstance(value, (dict, list)):
+        return json.dumps(value, ensure_ascii=False, default=str)
+    return value
 
 def _ordered_fields(section):
     """section.field_ids in the order they were saved, dropping any id that
@@ -29,7 +40,7 @@ def build_report_preview(report, limit=PREVIEW_ROW_LIMIT):
             "entity_id": section.entity_id,
             "entity_name": section.entity.name,
             "columns": [f.name for f in fields],
-            "rows": [[record.get(f.name, "") for f in fields] for record in records[:limit]],
+            "rows": [[_cell(record, f.name) for f in fields] for record in records[:limit]],
             "total_records": len(records),
         })
     return sections
@@ -46,5 +57,5 @@ def build_report_csv(report) -> str:
         writer.writerow([f"# {section.entity.name}"])
         writer.writerow([f.name for f in fields])
         for record in records:
-            writer.writerow([record.get(f.name, "") for f in fields])
+            writer.writerow([_cell(record, f.name) for f in fields])
     return buf.getvalue()

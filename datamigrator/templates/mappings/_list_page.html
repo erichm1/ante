@@ -1,0 +1,45 @@
+{# The mappings table with search and per-row actions. Expects: mappings, q, open_tab, connections. #}
+<form method="get" class="row g-2 align-items-end mb-3">
+  <div class="col-12 col-md-5">
+    <label class="form-label small mb-1" for="mpSearch">Search</label>
+    <input id="mpSearch" type="search" name="q" class="form-control form-control-sm" placeholder="Name or description" value="{{ q }}">
+  </div>
+  <div class="col-12 col-md-auto d-flex gap-2">
+    <button type="submit" class="btn btn-sm btn-signal">Filter</button>
+    {% if q %}<a href="?" class="small align-self-center text-nowrap">Clear ×</a>{% endif %}
+  </div>
+</form>
+
+<div class="panel">
+  {% if mappings %}
+    <table class="table align-middle mb-0">
+      <thead><tr><th>Name</th><th>Origin</th><th>Destinies</th><th class="text-end">Pairs</th><th class="text-end">Runs</th><th></th></tr></thead>
+      <tbody>
+        {% for m in mappings %}
+          <tr>
+            <td>
+              <a href="{% url 'mappings:detail' m.pk %}?tab={{ open_tab }}" class="fw-medium text-decoration-none">{{ m.name }}</a>
+              {% if m.description %}<div class="small text-dim">{{ m.description|truncatechars:90 }}</div>{% endif %}
+            </td>
+            <td class="mono">{{ m.source_connection.name }}</td>
+            <td class="mono">
+              {% for d in m.destination_connections.all %}{{ d.name }}{% if not forloop.last %}, {% endif %}{% empty %}<span class="text-dim">none yet</span>{% endfor %}
+            </td>
+            <td class="text-end mono">{{ m.entity_mappings.all|length }}</td>
+            <td class="text-end mono">{{ m.runs_total }}</td>
+            <td class="text-end text-nowrap">
+              <a href="{% url 'mappings:detail' m.pk %}?tab={{ open_tab }}" class="btn btn-sm btn-outline-secondary">Open</a>
+              <button type="button" class="btn btn-sm btn-outline-secondary" data-mapping-edit="{{ m.pk }}" title="Edit" aria-label="Edit"><i class="bi-pencil"></i></button>
+              <button type="button" class="btn btn-sm btn-outline-secondary" data-mapping-duplicate="{{ m.pk }}" title="Duplicate" aria-label="Duplicate"><i class="bi-copy"></i></button>
+              <button type="button" class="btn btn-sm btn-outline-danger" data-mapping-delete="{{ m.pk }}" title="Delete" aria-label="Delete"><i class="bi-trash"></i></button>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% elif q %}
+    <p class="text-dim mb-0">No mappings match this search.</p>
+  {% else %}
+    <p class="text-dim mb-0">No mappings yet.</p>
+  {% endif %}
+</div>

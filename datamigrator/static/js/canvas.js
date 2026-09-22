@@ -1,5 +1,6 @@
 let jsp;
 const fieldMappingByPair = {};    // "sourceFieldId-targetFieldId" -> field_mapping id
+const fieldMappingInfo = {};      // field_mapping id -> the serialized field mapping (status, match score…)
 const entityMappingByPair = {};   // "sourceEntityId-targetEntityId" -> entity_mapping id
 const sourceFieldToEntity = {};   // fieldId -> entityId (source side)
 const targetFieldToEntity = {};   // fieldId -> entityId (target side)
@@ -12,8 +13,47 @@ function el(tag, cls, html) {
   return e;
 }
 
-function fieldLabel(field) {
-  return el('span', '', `<span class="mono">${field.name}</span> <span class="field-type">${field.field_type}</span>`);
+// Fields of a discovered object arrive as "address", "address.city", "address.geo.lat" (a list of objects through
+// "orders.0.sku"). Order them so members sit under their object, and work out each one's depth for the indent.
+function fieldTreeOrder(fields) {
+  const key = name => name.split('.').map(p => (/^\d+$/.test(p) ? p.padStart(6, '0') : p));
+  const sorted = [...fields].sort((a, b) => {
+    const x = key(a.name), y = key(b.name);
+    for (let i = 0; i < Math.min(x.length, y.length); i++) if (x[i] !== y[i]) return x[i] < y[i] ? -1 : 1;
+    return x.length - y.length;
+  });
+  const names = sorted.map(f => f.name);
+  return sorted.map(f => {
+    const ancestors = names.filter(n => f.name.startsWith(n + '.'));
+    const nearest = ancestors.reduce((a, b) => (b.length > a.length ? b : a), '');
+    const rel = nearest ? f.name.slice(nearest.length + 1) : f.name;
+    return { field: f, depth: ancestors.length, parent: names.some(n => n.startsWith(f.name + '.')), shown: rel.replace(/(^|\.)(\d+)(?=\.|$)/g, (_, dot, n) => `${dot}[${n}]`) };
+  });
+}
+
+function canUnfold(field, fields) {
+  return !fields.some(o => o.name.startsWith(field.name + '.'))
+    && (field.field_type === 'object' || (field.field_type === 'array' && /^\s*\[\s*\{/.test(field.sample_value || '')));
+}
+
+async function unfoldEntity(entityId) {
+  const resp = await fetch(`/api/entities/${entityId}/discover-nested/`, { method: 'POST' });
+  const body = await resp.json();
+  if (!resp.ok) { alert(body.error || 'Could not discover the fields inside this object.'); return; }
+  if (!body.added) { alert('No further fields were found inside the objects of this entity.'); return; }
+  window.location.reload();
+}
+
+function fieldLabel(field, shown, unfoldable, entityId) {
+  const label = el('span', '', `<span class="mono" title="${field.name}">${shown || field.name}</span> <span class="field-type">${field.field_type}</span>`);
+  if (unfoldable) {
+    const btn = el('button', 'entity-edit-btn', '<i class="bi-box-arrow-in-down-right"></i>');
+    btn.type = 'button';
+    btn.title = 'Discover the fields inside this object';
+    btn.addEventListener('click', e => { e.stopPropagation(); unfoldEntity(entityId); });
+    label.appendChild(btn);
+  }
+  return label;
 }
 
 function hasTransform(fm) {
@@ -56,15 +96,18 @@ function renderEntityBox(entity, side, x, y) {
     </span>
   `));
 
-  entity.fields.forEach(field => {
-    const row = el('div', 'field-row');
+  fieldTreeOrder(entity.fields).forEach(({ field, depth, parent, shown }) => {
+    const row = el('div', 'field-row' + (parent ? ' field-parent' : ''));
+    if (depth) row.style.paddingLeft = (12 + depth * 14) + 'px';
+    row.title = field.name;
     const dot = el('div', `field-endpoint${side === 'target' ? ' target' : ''}`);
     dot.id = side === 'source' ? `dot-src-${field.id}` : `dot-tgt-${field.id}`;
+    const label = fieldLabel(field, shown, canUnfold(field, entity.fields), entity.id);
     if (side === 'target') {
       row.appendChild(dot);
-      row.appendChild(fieldLabel(field));
+      row.appendChild(label);
     } else {
-      row.appendChild(fieldLabel(field));
+      row.appendChild(label);
       row.appendChild(dot);
     }
     box.appendChild(row);
@@ -214,7 +257,7 @@ function initCanvas(data) {
     sourceEntitiesById[em.source_entity_detail.id] = em.source_entity_detail;
     targetEntitiesById[em.target_entity_detail.id] = em.target_entity_detail;
     entityMappingByPair[`${em.source_entity}-${em.target_entity}`] = em.id;
-    em.field_mappings.forEach(fm => { fieldMappingByPair[`${fm.source_field}-${fm.target_field}`] = fm.id; });
+    em.field_mappings.forEach(fm => { fieldMappingByPair[`${fm.source_field}-${fm.target_field}`] = fm.id; fieldMappingInfo[fm.id] = fm; });
   });
 
   jsp = jsPlumb.getInstance({
@@ -246,9 +289,13 @@ function initCanvas(data) {
 
     data.entity_mappings.forEach(em => {
       em.field_mappings.forEach(fm => {
+        // A draft was suggested by auto-mapping and is not accepted yet: dashed, with its confidence.
+        const draft = fm.status === 'draft';
+        const overlays = hasTransform(fm) ? [['Label', { label: 'ƒ', location: 0.5, id: 'transform', cssClass: 'transform-badge' }]] : [];
+        if (draft) overlays.push(['Label', { label: `${fm.match_score == null ? '?' : fm.match_score}%`, location: 0.28, id: 'draft', cssClass: 'draft-badge' }]);
         const conn = jsp.connect({
           uuids: [`src-field-${fm.source_field}`, `tgt-field-${fm.target_field}`],
-          overlays: hasTransform(fm) ? [['Label', { label: 'ƒ', location: 0.5, id: 'transform', cssClass: 'transform-badge' }]] : [],
+          overlays, ...(draft ? { cssClass: 'draft-wire' } : {}),
         });
         if (hasTransform(fm)) {
           const overlay = conn.getOverlay('transform');
@@ -271,6 +318,7 @@ function initCanvas(data) {
     const targetFieldId = parseInt(conn.endpoints[1].getUuid().replace('tgt-field-', ''), 10);
     const key = `${sourceFieldId}-${targetFieldId}`;
     const fmId = fieldMappingByPair[key];
+    if (fmId && fieldMappingInfo[fmId] && fieldMappingInfo[fmId].status === 'draft') { openDraftWire(fieldMappingInfo[fmId]); return; }
     if (!fmId || !(await confirmModal('Remove this field mapping?'))) return;
     fetch(`/api/field-mappings/${fmId}/`, { method: 'DELETE' }).then(resp => {
       if (resp.ok) { jsp.deleteConnection(conn); delete fieldMappingByPair[key]; }
@@ -353,7 +401,37 @@ function addEntityPair() {
 
 let pollTimer = null;
 
-function runMigration() {
+// Drafts don't run — say so first, so nobody assumes the suggestions were included.
+async function confirmRunWithDrafts() {
+  const n = window.MAPPING_DRAFTS || 0;
+  if (!n) return true;
+  return confirmModal(`Not accepted yet: ${n} suggested (draft) field mapping(s). They will be left out of this run. Run anyway?`);
+}
+
+function openDraftWire(fm) {
+  const modalEl = document.getElementById('draftWireModal');
+  document.getElementById('draftWireRoute').textContent = `${fm.source_field_name} → ${fm.target_field_name}${fm.match_score == null ? '' : `  (${fm.match_score}%)`}`;
+  document.getElementById('draftWireWhy').textContent = fm.match_reason || '';
+  const instance = bootstrap.Modal.getOrCreateInstance(modalEl);
+  const act = path => () => {
+    instance.hide();
+    const req = path === 'accept'
+      ? fetch(`/api/field-mappings/${fm.id}/`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'confirmed' }) })
+      : fetch(`/api/field-mappings/${fm.id}/`, { method: 'DELETE' });
+    req.then(resp => { if (resp.ok) window.location.reload(); else alert('Could not update that field mapping.'); });
+  };
+  // fresh handlers each time: the dialog is shared by every draft wire
+  const accept = document.getElementById('draftWireAccept').cloneNode(true);
+  const reject = document.getElementById('draftWireReject').cloneNode(true);
+  document.getElementById('draftWireAccept').replaceWith(accept);
+  document.getElementById('draftWireReject').replaceWith(reject);
+  accept.addEventListener('click', act('accept'));
+  reject.addEventListener('click', act('reject'));
+  instance.show();
+}
+
+async function runMigration() {
+  if (!(await confirmRunWithDrafts())) return;
   const btn = document.getElementById('runMigrationBtn');
   btn.disabled = true;
   btn.textContent = 'Starting…';
@@ -374,7 +452,8 @@ function runMigration() {
   });
 }
 
-function scheduleMigration() {
+async function scheduleMigration() {
+  if (!(await confirmRunWithDrafts())) return;
   const errorBox = document.getElementById('scheduleError');
   errorBox.classList.add('d-none');
 
@@ -434,7 +513,7 @@ function scheduleMigration() {
       alert(`Started a batch of ${body.length} runs (one per file) — they'll run one after another.`);
       window.location.href = '/jobs/';
     } else if (body.status === 'pending' && body.scheduled_at) {
-      alert(`Run #${body.id} scheduled for ${new Date(body.scheduled_at).toLocaleString()}${body.rate_limit_per_second ? ` at up to ${rpsToRpm(body.rate_limit_per_second)} req/min` : ''}.`);
+      alert(`Run #${body.id} scheduled for ${new Date(body.scheduled_at).toLocaleString((window.anteI18n ? window.anteI18n.locale() : []))}${body.rate_limit_per_second ? ` at up to ${rpsToRpm(body.rate_limit_per_second)} req/min` : ''}.`);
     } else {
       // No schedule (or the chosen time had already passed) — go straight to run detail.
       window.location.href = `/jobs/runs/${body.id}/`;

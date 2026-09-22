@@ -416,7 +416,7 @@ code, .mono, .field-type, .endpoint-path, .schema-name {
 .auth-body { background: var(--paper); }
 
 .auth-shell {
-  min-height: 100vh;
+  min-height: calc(100vh - 60px);        /* below the 60px page header */
   display: flex;
   align-items: center;
   justify-content: center;
@@ -635,6 +635,13 @@ code, .mono, .field-type, .endpoint-path, .schema-name {
    sets its own per-status stroke color inline via jsPlumb's setPaintStyle and
    must not be overridden here. */
 #canvasSurface .jtk-connector path { stroke: var(--trace) !important; }
+
+/* Auto-mapping drafts: dashed amber until accepted, with the match confidence on the wire. */
+#canvasSurface .jtk-connector.draft-wire path { stroke: var(--signal) !important; stroke-dasharray: 8 3; }
+.jtk-overlay.draft-badge {
+  padding: 0 6px; border-radius: 9px; background: var(--panel); color: var(--signal); border: 1px solid var(--signal);
+  font-size: 0.66rem; font-family: var(--font-mono); line-height: 15px; cursor: pointer; white-space: nowrap;
+}
 
 /* "ƒ" badge on a field-mapping connector that has an active transform_rules/
    transform — a Label overlay (a plain div, not a .jtk-connector path) so it's
@@ -1599,3 +1606,19 @@ tr.run-selected td { background: color-mix(in srgb, var(--signal) 6%, transparen
 .perm-row .btn-group .btn.active.perm-on { background: var(--trace); border-color: var(--trace); color: #fff; }
 .perm-row .btn-group .btn.active.perm-off { background: var(--danger); border-color: var(--danger); color: #fff; }
 .perm-row .btn-group .btn.active.perm-inherit { background: var(--text-dim); border-color: var(--text-dim); color: #fff; }
+
+/* Language picker on the sign-in / register pages (no navbar there) */
+.lang-floating { position: fixed; top: 14px; right: 14px; z-index: 600; }
+.lang-floating .lang-btn { color: var(--text); background: var(--panel); border-color: var(--paper-line); }
+
+.field-row.field-parent .mono { font-weight: 600; }
+.field-row .mono { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Translated labels run longer (German, French…): give the navbar links a little less padding below 1600px so the last ones aren't pushed under the buttons. */
+@media (min-width: 768px) and (max-width: 1599.98px) {
+  .nav-links a { padding-left: 10px; padding-right: 10px; }
+}
+
+/* Checklists inside the mapping create/edit dialog: scroll when there are many connections */
+.crud-checklist { max-height: 200px; overflow-y: auto; }
+.crud-checklist label { padding: 2px 0; cursor: pointer; }

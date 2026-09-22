@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
@@ -18,9 +19,18 @@ class LoginView(BaseLoginView):
 
 
 class RegisterView(FormView):
+    """Open sign-up is off by default (settings.ALLOW_SELF_REGISTRATION): an administrator creates the accounts,
+    and only an existing, active account can sign in."""
+
     template_name = "accounts/register.html"
     form_class = StyledUserCreationForm
     success_url = reverse_lazy("home:index")
+
+    def dispatch(self, request, *args, **kwargs):
+        if not settings.ALLOW_SELF_REGISTRATION:
+            messages.info(request, "Accounts are created by an administrator. Ask yours for access.")
+            return redirect("accounts:login")
+        return super().dispatch(request, *args, **kwargs)
 
     def form_valid(self, form):
         user = form.save()

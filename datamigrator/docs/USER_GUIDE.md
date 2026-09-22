@@ -56,13 +56,17 @@ The usual path is: **install a connector → create connections → discover ent
 | **Logs** | Every outbound API call Ante has made. |
 | **Admin** | Django admin. Only administrators see it. |
 
-On the right of the bar: the **language** picker, the **theme** toggle (light/dark), the **bell** (notifications), your **company logo** and **photo** (both open your profile, or just decorate — see [§14](#14-your-profile)), and **Log out**.
+On the right of the bar: the **language** picker (English, Portuguese, Spanish, French, German, Italian, Japanese or Chinese — the whole app follows it), the **theme** toggle (light/dark), the **bell** (notifications), your **company logo**, your **photo** (click it to open your profile — see [§14](#14-your-profile)), and **Log out**.
 
 **A padlock next to a link** means your administrator hasn't switched that module on for you. You can still click it: Ante takes you Home with a message explaining what's missing. See [§15](#15-for-administrators-users-groups-and-permissions) if you're the one who needs to grant access.
 
 ### On a phone
 
 Ante is designed mobile-first: menus collapse into a drawer (the ☰ button), wide tables scroll inside their panel, and dialogs fit the screen. **The one exception is the Studio**, a drag-and-drop editor that needs room. On a small screen it shows a banner asking you to use a desktop or laptop; turning a tablet sideways or widening the window starts it.
+
+### Signing in
+
+Ante opens on a public front page describing the product; use **Sign in** there. There is no public sign-up: **an administrator creates your account** (see [§15](#15-for-administrators-users-groups-and-permissions)), and only existing, active accounts can sign in. If you don't have one, ask yours.
 
 ### First visit
 
@@ -121,7 +125,7 @@ Open a connection and use **Discover entities**. Pick how:
 | **From file** | It's a CSV/Excel connection. | Columns become fields. |
 | **Manual** | You know exactly what you need. | **Create entity**, then add fields yourself. |
 
-After a discovery you can review the result and adjust it. Re-discover after the system changes.
+Re-discover after the other system changes.
 
 ### Automatic token refresh
 
@@ -133,13 +137,38 @@ For token-based connections, **Automatic token refresh** keeps a token fresh on 
 
 A mapping has a **source** and a **destination**, and holds one or more **entity pairs**.
 
+### Creating, editing, duplicating and deleting mappings
+
+On the **Mappings** (or **Canvas**) page: **New mapping** asks for a name, an optional description, the origin system and one or more destinations. Each row has **Open**, ✎ **edit** (rename, describe, change destinations), ⧉ **duplicate** (a copy with all its entity pairs and field wires) and 🗑 **delete**. The same actions are in the **⋯** menu of a mapping's page and, in the Studio, in the right-click menu and **Properties**.
+
+Some rules protect what you've built: the **origin can't change once the mapping has entity pairs** (remove them, or duplicate the mapping); a **destination that a pair writes to can't be removed**; and a mapping **can't be deleted while a migration of it is running** (Kill it first). Deleting also removes its entity pairs, field mappings, run history and any plan step that used it.
+
 ### The canvas
 
 - **Add entity pair** places a source entity and a destination entity on the board.
 - Drag from a **teal dot** (source field) to an **amber dot** (destination field) to create a wire. Click a wire to edit or delete it.
 - Entity boxes are draggable and remember their position.
+- **Objects are shown in full.** If a source or destination entity has an object (an address, a list of items…), every level appears as an indented tree — `address`, `address.city`, `address.geo.lat` — and each one can be wired on its own. An object that shows nothing inside has a small button to **discover the fields inside** it; Ante also does this for you when you open a mapping.
 - Pan by dragging empty space; **Ctrl/⌘ + scroll** zooms. The **?** button in the canvas corner lists every control.
 - During and after a run, each entity shows what flowed through it (read / written / failed), and wires of a running pair carry moving dashes.
+
+### Auto-mapping: let Ante suggest the wires
+
+Instead of dragging every wire by hand, click **Auto-map** (the ✦ button on the mapping's page, or **Auto-map fields** in the Studio's canvas bar and *Design* tab). Ante looks at every entity pair of the mapping and, for each destination field, picks the source field that fits best **by name**:
+
+- the same name (`email` → `email`), or the same name ignoring case and separators (`fullName` → `full_name`);
+- the same field inside a different object (`address.city` → `location.city`);
+- common equivalents, including Portuguese ones (`telefone` ≈ `phone`, `cep` ≈ `zip`, `name` ≈ `full_name`, `lat` ≈ `latitude`);
+- shared key words and similar spellings. Names that share nothing but a generic word (`id`, `type`, `status`…) score too low to be suggested unless you choose *Loose*, and a suggestion whose types differ (a number into a text field…) is marked "types differ" and scored lower, so check those first. Objects are matched member by member (`address.city`), never as a whole, so an object isn't mapped twice.
+
+**Nothing runs because of it.** Every suggestion is saved as a **draft**: it is drawn as a **dashed amber wire** with its confidence (`88%`) on it, and it is **left out of every run** until you accept it. To review them:
+
+1. In the Studio, the **Review drafts** tab lists each suggestion with its types, a *High / Medium / Low* confidence and the reason it was suggested ("Same name", "Known equivalent names (telefone ≈ phone)"…). Tick the ones you trust and **Accept selected**, accept or reject one at a time (✓ / ✕, or click the wire), or **Accept all** / **Discard all**. Below the table, *Still not mapped* lists the fields Ante couldn't place, so you know what to wire by hand. **Preview with drafts** shows the output as if they were accepted.
+2. On the classic page, a banner above the canvas offers **Accept all**, **Review one by one** (the *Raw* tab marks each draft and has **Accept suggestion / Reject suggestion** buttons) and **Discard all**. Clicking a dashed wire opens a dialog to accept or reject that one.
+
+In the Studio, **Auto-map** asks how sure a match must be — *Strict* (same or almost the same name), *Balanced* (default; adds equivalent and related names) or *Loose* (weaker guesses) — and offers to leave target fields that are already mapped alone and to replace your earlier drafts. Wires you drew or accepted are never touched.
+
+If you press **Run migration** while drafts are waiting, Ante tells you they'll be left out and asks whether to run anyway; the run log also says how many drafts were skipped. The **Data preview** leaves drafts out by default, with an **Include drafts** switch to see what accepting them would do.
 
 ### Transforms
 
@@ -269,6 +298,8 @@ Steps can also **capture** values from their response (for example an id) so lat
 
 Any request step can send extra **headers** (the editor suggests common ones like `Authorization` and `Content-Type`) and **query parameters** (`?limit=50`). Values may use `{{placeholders}}`. They are merged with the connection's own headers, and secrets are masked in the recorded request.
 
+They are set **per step**, in the Studio's step editor and on the classic chain page (the add-step row and each step's **Edit** dialog, under *Headers* and *Query parameters*). The steps table shows how many each step sends. Use query parameters for filters — for example `situacao = A` on a list request — and remember they are repeated on every page of a next-page step. A row with a value but no name is rejected; fully blank rows are ignored.
+
 ### Running and reading a chain
 
 Press **Run**. Each step shows a tick or cross live; the results panel shows each step's request, response, response headers and captured variables. A failed step stops the chain.
@@ -371,7 +402,7 @@ Incidents are a separate module, **off by default** for ordinary users; an admin
 
 ### Logs
 
-**Logs** is the history of **every outbound API call** Ante has made, across all connections: time, connection, run, method, URL, status and duration — open one for its request and response. Use the quick filters (errors in the last hour, slow calls, and so on) or the one-line **query box**. Terms are space-separated and combined with AND; quote values containing spaces.
+**Logs** is the history of **every outbound API call** Ante has made, across all connections: time, connection, run, method, URL, status and duration. Request and response bodies are stored too, so they are searchable. Use the quick filters (errors in the last hour, slow calls, and so on) or the one-line **query box**. Terms are space-separated and combined with AND; quote values containing spaces.
 
 | Query | Finds |
 |---|---|
@@ -498,6 +529,7 @@ A page they can't use sends them Home with a warning ("You don't have permission
 - **Mapping** — source connection + destination connection + entity pairs + field wires.
 - **Entity pair** — one source entity paired with one destination entity.
 - **Wire** — a source field → destination field link, optionally with a transform.
+- **Draft wire** — a wire suggested by auto-mapping and not accepted yet; shown dashed, and left out of runs until accepted.
 - **Transform** — a small expression on `value` applied as a record is copied.
 - **Run** — one execution of a mapping.
 - **Chain** — an ordered list of steps (API calls and helpers) on one connection.

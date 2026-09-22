@@ -232,3 +232,69 @@ class FeedAndPageTests(NotificationTestBase):
     def test_writing_to_the_feed_is_not_possible(self):
         self.assertEqual(self.client.post("/notifications/feed/").status_code, 405)
         self.assertEqual(self.client.get("/notifications/read/").status_code, 405)
+
+
+class MarkAllReadTests(NotificationTestBase):
+    def setUp(self):
+        super().setUp()
+        self.other = User.objects.create_user("bob", password="pw")
+
+    def make(self, user, n=3):
+        return [Notification.objects.create(recipient=user, kind="run", outcome="success", title=f"t{i}", url="/jobs/") for i in range(n)]
+
+    def test_the_method_marks_only_that_persons_unread_ones(self):
+        mine, theirs = self.make(self.user), self.make(self.other, 2)
+        Notification.objects.filter(pk=mine[0].pk).update(read_at=timezone.now() - timezone.timedelta(days=1))
+        earlier = Notification.objects.get(pk=mine[0].pk).read_at
+        from .services import mark_all_read
+        self.assertEqual(mark_all_read(self.user), 2)                                   # the one already read isn't counted
+        self.assertFalse(Notification.objects.for_user(self.user).unread().exists())
+        self.assertEqual(Notification.objects.get(pk=mine[0].pk).read_at, earlier)       # and keeps its original time
+        self.assertEqual(Notification.objects.for_user(self.other).unread().count(), 2)
+        self.assertEqual(mark_all_read(self.user), 0)                                    # idempotent
+
+    def test_queryset_helpers(self):
+        a, b, c = self.make(self.user)
+        self.assertEqual(Notification.objects.filter(recipient=self.user).mark_read([a.pk, b.pk]), 2)
+        self.assertEqual(list(Notification.objects.for_user(self.user).unread()), [c])
+
+    def test_api_mark_all_read(self):
+        self.make(self.user), self.make(self.other)
+        resp = self.client.post("/api/notifications/mark-all-read/")
+        self.assertEqual(resp.json(), {"updated": 3, "unread": 0})
+        self.assertEqual(self.client.get("/api/notifications/unread-count/").json(), {"unread": 0})
+        self.assertEqual(Notification.objects.for_user(self.other).unread().count(), 3)
+
+    def test_api_list_filters_and_scoping(self):
+        a, b, _ = self.make(self.user)
+        Notification.objects.filter(pk=a.pk).update(read_at=timezone.now())
+        Notification.objects.filter(pk=b.pk).update(outcome="failed")
+        self.make(self.other)
+        titles = lambda q="": sorted(n["title"] for n in self.client.get(f"/api/notifications/{q}").json()["results"])
+        self.assertEqual(titles(), ["t0", "t1", "t2"])
+        self.assertEqual(titles("?unread=1"), ["t1", "t2"])
+        self.assertEqual(titles("?outcome=failed"), ["t1"])
+        row = next(n for n in self.client.get("/api/notifications/").json()["results"] if n["title"] == "t0")
+        self.assertTrue(row["read"])
+        self.assertEqual(row["open_url"], f"/notifications/{a.pk}/go/")
+
+    def test_api_read_unread_and_dismiss_one(self):
+        n = self.make(self.user, 1)[0]
+        self.assertTrue(self.client.post(f"/api/notifications/{n.pk}/read/").json()["read"])
+        self.assertFalse(self.client.post(f"/api/notifications/{n.pk}/unread/").json()["read"])
+        self.assertEqual(self.client.delete(f"/api/notifications/{n.pk}/").status_code, 204)
+        self.assertFalse(Notification.objects.filter(pk=n.pk).exists())
+
+    def test_api_cannot_touch_anyone_elses(self):
+        theirs = self.make(self.other, 1)[0]
+        for method, url in (("get", f"/api/notifications/{theirs.pk}/"), ("post", f"/api/notifications/{theirs.pk}/read/"), ("delete", f"/api/notifications/{theirs.pk}/")):
+            self.assertEqual(getattr(self.client, method)(url).status_code, 404, url)
+        self.assertTrue(Notification.objects.get(pk=theirs.pk).read_at is None)
+
+    def test_api_needs_a_login(self):
+        self.client.logout()
+        self.assertIn(self.client.post("/api/notifications/mark-all-read/").status_code, (401, 403))
+
+    def test_the_page_button_and_the_bell_use_the_same_method(self):
+        self.make(self.user, 2)
+        self.assertEqual(self.client.post("/notifications/read/").json()["updated"], 2)

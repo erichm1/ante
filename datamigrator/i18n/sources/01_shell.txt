@@ -1,0 +1,226 @@
+# Navigation shell, generic controls, sign-in pages, notifications.
+# en || pt-BR || es || fr || de || it || ja || zh
+
+# ── legacy keys that only had English ────────────────────────────────────────
+Tickets || Chamados || Tickets || Tickets || Tickets || Ticket || チケット || 工单
+Tickets — your personal support tickets, optionally linked to an incident. || Chamados — seus chamados de suporte pessoais, opcionalmente vinculados a um incidente. || Tickets — tus tickets de soporte personales, opcionalmente vinculados a un incidente. || Tickets — vos tickets de support personnels, éventuellement liés à un incident. || Tickets — Ihre persönlichen Support-Tickets, optional mit einem Vorfall verknüpft. || Ticket — i tuoi ticket di supporto personali, facoltativamente collegati a un incidente. || チケット — 個人のサポートチケット。インシデントに関連付けることもできます。 || 工单 — 您个人的支持工单，可选择关联到某个事故。
+My Tickets || Meus chamados || Mis tickets || Mes tickets || Meine Tickets || I miei ticket || 自分のチケット || 我的工单
+Track issues and requests — linked to incidents when relevant. || Acompanhe problemas e solicitações — vinculados a incidentes quando relevante. || Sigue problemas y solicitudes — vinculados a incidentes cuando corresponda. || Suivez les problèmes et demandes — liés aux incidents le cas échéant. || Verfolgen Sie Probleme und Anfragen — bei Bedarf mit Vorfällen verknüpft. || Segui problemi e richieste — collegati agli incidenti quando pertinente. || 問題やリクエストを追跡します。必要に応じてインシデントに関連付けられます。 || 跟踪问题和请求 — 相关时会关联到事故。
+New ticket || Novo chamado || Nuevo ticket || Nouveau ticket || Neues Ticket || Nuovo ticket || 新規チケット || 新建工单
+Priority || Prioridade || Prioridad || Priorité || Priorität || Priorità || 優先度 || 优先级
+Incident || Incidente || Incidente || Incident || Vorfall || Incidente || インシデント || 事故
+Opened || Aberto em || Abierto || Ouvert le || Geöffnet || Aperto il || 開始日時 || 创建时间
+Critical || Crítica || Crítica || Critique || Kritisch || Critica || 重大 || 严重
+High || Alta || Alta || Élevée || Hoch || Alta || 高 || 高
+Medium || Média || Media || Moyenne || Mittel || Media || 中 || 中
+Low || Baixa || Baja || Basse || Niedrig || Bassa || 低 || 低
+Track outages and issues affecting your integrations. || Acompanhe interrupções e problemas que afetam suas integrações. || Sigue las interrupciones y problemas que afectan a tus integraciones. || Suivez les pannes et problèmes affectant vos intégrations. || Verfolgen Sie Ausfälle und Probleme, die Ihre Integrationen betreffen. || Segui interruzioni e problemi che interessano le tue integrazioni. || 連携に影響する障害や問題を追跡します。 || 跟踪影响您集成的中断和问题。
+New incident || Novo incidente || Nuevo incidente || Nouvel incident || Neuer Vorfall || Nuovo incidente || 新規インシデント || 新建事故
+Severity || Gravidade || Gravedad || Gravité || Schweregrad || Gravità || 重大度 || 严重程度
+Resolved || Resolvido em || Resuelto || Résolu le || Gelöst || Risolto il || 解決日時 || 解决时间
+Note || Nota || Nota || Note || Notiz || Nota || メモ || 备注
+Add note || Adicionar nota || Añadir nota || Ajouter une note || Notiz hinzufügen || Aggiungi nota || メモを追加 || 添加备注
+Resolve || Resolver || Resolver || Résoudre || Lösen || Risolvi || 解決する || 解决
+Reopen || Reabrir || Reabrir || Rouvrir || Wieder öffnen || Riapri || 再開する || 重新打开
+Timeline || Linha do tempo || Cronología || Chronologie || Zeitachse || Cronologia || タイムライン || 时间线
+No notes yet — add the first update below. || Nenhuma nota ainda — adicione a primeira atualização abaixo. || Aún no hay notas: añade la primera actualización abajo. || Aucune note pour l'instant — ajoutez la première mise à jour ci-dessous. || Noch keine Notizen — fügen Sie unten das erste Update hinzu. || Ancora nessuna nota — aggiungi il primo aggiornamento qui sotto. || メモはまだありません。下から最初の更新を追加してください。 || 还没有备注 — 请在下方添加第一条更新。
+
+# ── base.html ────────────────────────────────────────────────────────────────
+Data Migrator || Data Migrator || Data Migrator || Data Migrator || Data Migrator || Data Migrator || Data Migrator || Data Migrator
+Ante || Ante || Ante || Ante || Ante || Ante || Ante || Ante
+Toggle theme || Alternar tema || Cambiar tema || Changer de thème || Design wechseln || Cambia tema || テーマを切り替え || 切换主题
+Open navigation || Abrir navegação || Abrir navegación || Ouvrir la navigation || Navigation öffnen || Apri la navigazione || ナビゲーションを開く || 打开导航
+Select language || Selecionar idioma || Seleccionar idioma || Choisir la langue || Sprache wählen || Seleziona la lingua || 言語を選択 || 选择语言
+Notice || Aviso || Aviso || Avis || Hinweis || Avviso || お知らせ || 提示
+Confirm || Confirmar || Confirmar || Confirmer || Bestätigen || Conferma || 確認 || 确认
+OK || OK || Aceptar || OK || OK || OK || OK || 确定
+Cancel || Cancelar || Cancelar || Annuler || Abbrechen || Annulla || キャンセル || 取消
+Notifications — runs, chains, plans and scheduled jobs that finished, failed, were cancelled or killed. || Notificações — execuções, cadeias, planos e tarefas agendadas que terminaram, falharam, foram canceladas ou interrompidas. || Notificaciones: ejecuciones, cadenas, planes y tareas programadas que terminaron, fallaron, se cancelaron o se detuvieron. || Notifications — exécutions, chaînes, plans et tâches planifiées terminés, échoués, annulés ou arrêtés. || Benachrichtigungen — Ausführungen, Ketten, Pläne und geplante Jobs, die beendet wurden, fehlschlugen, abgebrochen oder beendet wurden. || Notifiche — esecuzioni, catene, piani e attività pianificate terminati, falliti, annullati o interrotti. || 通知 — 完了・失敗・キャンセル・強制停止された実行、チェーン、プラン、スケジュール済みジョブ。 || 通知 — 已完成、失败、取消或被终止的运行、链、计划和定时任务。
+Notifications || Notificações || Notificaciones || Notifications || Benachrichtigungen || Notifiche || 通知 || 通知
+Notifications, {1} unread || Notificações, {1} não lidas || Notificaciones, {1} sin leer || Notifications, {1} non lues || Benachrichtigungen, {1} ungelesen || Notifiche, {1} non lette || 通知、未読 {1} 件 || 通知，{1} 条未读
+Mark all read || Marcar todas como lidas || Marcar todas como leídas || Tout marquer comme lu || Alle als gelesen markieren || Segna tutte come lette || すべて既読にする || 全部标为已读
+See all notifications || Ver todas as notificações || Ver todas las notificaciones || Voir toutes les notifications || Alle Benachrichtigungen anzeigen || Vedi tutte le notifiche || すべての通知を見る || 查看所有通知
+Nothing yet — you will be told when runs, chains and plans finish. || Nada ainda — você será avisado quando execuções, cadeias e planos terminarem. || Todavía nada: se te avisará cuando terminen ejecuciones, cadenas y planes. || Rien pour l'instant — vous serez prévenu à la fin des exécutions, chaînes et plans. || Noch nichts — Sie werden benachrichtigt, wenn Ausführungen, Ketten und Pläne enden. || Ancora niente — riceverai una notifica quando esecuzioni, catene e piani terminano. || まだありません。実行・チェーン・プランが終了すると通知されます。 || 暂无内容 — 运行、链和计划结束时会通知您。
+Loading… || Carregando… || Cargando… || Chargement… || Wird geladen… || Caricamento… || 読み込み中… || 加载中…
+just now || agora mesmo || justo ahora || à l'instant || gerade eben || proprio ora || たった今 || 刚刚
+{1} min ago || há {1} min || hace {1} min || il y a {1} min || vor {1} Min. || {1} min fa || {1} 分前 || {1} 分钟前
+{1} h ago || há {1} h || hace {1} h || il y a {1} h || vor {1} Std. || {1} h fa || {1} 時間前 || {1} 小时前
+{1} d ago || há {1} d || hace {1} d || il y a {1} j || vor {1} T. || {1} g fa || {1} 日前 || {1} 天前
+
+# ── generic controls ─────────────────────────────────────────────────────────
+Delete || Excluir || Eliminar || Supprimer || Löschen || Elimina || 削除 || 删除
+Edit || Editar || Editar || Modifier || Bearbeiten || Modifica || 編集 || 编辑
+Close || Fechar || Cerrar || Fermer || Schließen || Chiudi || 閉じる || 关闭
+Open || Abrir || Abrir || Ouvrir || Öffnen || Apri || 開く || 打开
+Add || Adicionar || Añadir || Ajouter || Hinzufügen || Aggiungi || 追加 || 添加
+Remove || Remover || Quitar || Retirer || Entfernen || Rimuovi || 削除 || 移除
+Clear || Limpar || Limpiar || Effacer || Zurücksetzen || Cancella || クリア || 清除
+Clear × || Limpar × || Limpiar × || Effacer × || Zurücksetzen × || Cancella × || クリア × || 清除 ×
+Clear filters × || Limpar filtros × || Limpiar filtros × || Effacer les filtres × || Filter zurücksetzen × || Cancella filtri × || フィルターをクリア × || 清除筛选 ×
+Actions || Ações || Acciones || Actions || Aktionen || Azioni || 操作 || 操作
+Any || Qualquer || Cualquiera || Tous || Beliebig || Qualsiasi || すべて || 任意
+None || Nenhum || Ninguno || Aucun || Keine || Nessuno || なし || 无
+Yes || Sim || Sí || Oui || Ja || Sì || はい || 是
+No || Não || No || Non || Nein || No || いいえ || 否
+Back || Voltar || Volver || Retour || Zurück || Indietro || 戻る || 返回
+Next || Próximo || Siguiente || Suivant || Weiter || Avanti || 次へ || 下一步
+Next → || Próximo → || Siguiente → || Suivant → || Weiter → || Avanti → || 次へ → || 下一页 →
+← Prev || ← Anterior || ← Anterior || ← Préc. || ← Zurück || ← Prec. || ← 前へ || ← 上一页
+← Back || ← Voltar || ← Volver || ← Retour || ← Zurück || ← Indietro || ← 戻る || ← 返回
+Done || Concluído || Hecho || Terminé || Fertig || Fine || 完了 || 完成
+Skip tour || Pular tour || Omitir recorrido || Passer la visite || Tour überspringen || Salta il tour || ツアーをスキップ || 跳过导览
+Start tour || Iniciar tour || Iniciar recorrido || Démarrer la visite || Tour starten || Avvia il tour || ツアーを開始 || 开始导览
+Retry || Tentar novamente || Reintentar || Réessayer || Wiederholen || Riprova || 再試行 || 重试
+Save changes || Salvar alterações || Guardar cambios || Enregistrer les modifications || Änderungen speichern || Salva modifiche || 変更を保存 || 保存更改
+Create account || Criar conta || Crear cuenta || Créer un compte || Konto erstellen || Crea account || アカウントを作成 || 创建账户
+Optional. || Opcional. || Opcional. || Facultatif. || Optional. || Facoltativo. || 任意。 || 可选。
+(optional) || (opcional) || (opcional) || (facultatif) || (optional) || (facoltativo) || (任意) || （可选）
+Details || Detalhes || Detalles || Détails || Details || Dettagli || 詳細 || 详情
+Title || Título || Título || Titre || Titel || Titolo || タイトル || 标题
+Status || Status || Estado || Statut || Status || Stato || ステータス || 状态
+Status: || Status: || Estado: || Statut : || Status: || Stato: || ステータス: || 状态：
+Error || Erro || Error || Erreur || Fehler || Errore || エラー || 错误
+Error: || Erro: || Error: || Erreur : || Fehler: || Errore: || エラー: || 错误：
+Warning || Aviso || Advertencia || Avertissement || Warnung || Avviso || 警告 || 警告
+Request failed ({1}) || A requisição falhou ({1}) || La solicitud falló ({1}) || La requête a échoué ({1}) || Anfrage fehlgeschlagen ({1}) || Richiesta non riuscita ({1}) || リクエストに失敗しました（{1}） || 请求失败（{1}）
+success || sucesso || éxito || succès || erfolgreich || successo || 成功 || 成功
+failed || falhou || fallido || échec || fehlgeschlagen || fallito || 失敗 || 失败
+cancelled || cancelado || cancelado || annulé || abgebrochen || annullato || キャンセル済み || 已取消
+killed || interrompido || detenido || arrêté || beendet || interrotto || 強制停止 || 已终止
+pending || pendente || pendiente || en attente || ausstehend || in attesa || 保留中 || 待处理
+running || em execução || en ejecución || en cours || läuft || in esecuzione || 実行中 || 运行中
+draft || rascunho || borrador || brouillon || Entwurf || bozza || 下書き || 草稿
+executing || executando || ejecutando || en exécution || wird ausgeführt || in esecuzione || 実行中 || 执行中
+scheduled || agendado || programado || planifié || geplant || pianificato || 予定済み || 已调度
+open || aberto || abierto || ouvert || offen || aperto || 未対応 || 未解决
+closed || fechado || cerrado || fermé || geschlossen || chiuso || クローズ済み || 已关闭
+resolved || resolvido || resuelto || résolu || gelöst || risolto || 解決済み || 已解决
+identified || identificado || identificado || identifié || identifiziert || identificato || 特定済み || 已定位
+investigating || investigando || investigando || en cours d'analyse || wird untersucht || in analisi || 調査中 || 调查中
+in_progress || em andamento || en curso || en cours || in Bearbeitung || in corso || 対応中 || 处理中
+connected || conectado || conectado || connecté || verbunden || connesso || 接続済み || 已连接
+not connected yet || ainda não conectado || aún no conectado || pas encore connecté || noch nicht verbunden || non ancora connesso || 未接続 || 尚未连接
+info || info || info || info || Info || info || 情報 || 信息
+warn || aviso || aviso || alerte || Warnung || avviso || 警告 || 警告
+required || obrigatório || obligatorio || obligatoire || erforderlich || obbligatorio || 必須 || 必填
+Enabled || Ativado || Activado || Activé || Aktiviert || Attivato || 有効 || 已启用
+Dismiss || Dispensar || Descartar || Ignorer || Verwerfen || Ignora || 閉じる || 忽略
+View all || Ver todos || Ver todo || Tout voir || Alle anzeigen || Vedi tutto || すべて表示 || 查看全部
+Older → || Mais antigas → || Más antiguas → || Plus anciennes → || Älter → || Meno recenti → || 古い通知 → || 更早 →
+← Newer || ← Mais recentes || ← Más recientes || ← Plus récentes || ← Neuer || ← Più recenti || ← 新しい通知 || ← 更新
+Page {1} of {2} || Página {1} de {2} || Página {1} de {2} || Page {1} sur {2} || Seite {1} von {2} || Pagina {1} di {2} || {1} / {2} ページ || 第 {1} 页，共 {2} 页
+Page {1} of {2} ({3} {4}) || Página {1} de {2} ({3} {4}) || Página {1} de {2} ({3} {4}) || Page {1} sur {2} ({3} {4}) || Seite {1} von {2} ({3} {4}) || Pagina {1} di {2} ({3} {4}) || {1} / {2} ページ（{3} {4}） || 第 {1} 页，共 {2} 页（{3} {4}）
+runs || execuções || ejecuciones || exécutions || Ausführungen || esecuzioni || 件の実行 || 次运行
+plans || planos || planes || plans || Pläne || piani || 件のプラン || 个计划
+
+# ── sign in / register ───────────────────────────────────────────────────────
+Log in || Entrar || Iniciar sesión || Se connecter || Anmelden || Accedi || ログイン || 登录
+Username || Usuário || Usuario || Nom d'utilisateur || Benutzername || Nome utente || ユーザー名 || 用户名
+Password || Senha || Contraseña || Mot de passe || Passwort || Password || パスワード || 密码
+No account yet? || Ainda não tem conta? || ¿Aún no tienes cuenta? || Pas encore de compte ? || Noch kein Konto? || Non hai ancora un account? || アカウントをお持ちでないですか？ || 还没有账户？
+Register || Cadastrar-se || Registrarse || S'inscrire || Registrieren || Registrati || 新規登録 || 注册
+Create an account || Criar uma conta || Crear una cuenta || Créer un compte || Konto erstellen || Crea un account || アカウントを作成 || 创建账户
+Already have an account? || Já tem uma conta? || ¿Ya tienes una cuenta? || Vous avez déjà un compte ? || Sie haben bereits ein Konto? || Hai già un account? || すでにアカウントをお持ちですか？ || 已有账户？
+Password confirmation || Confirmação da senha || Confirmación de contraseña || Confirmation du mot de passe || Passwortbestätigung || Conferma password || パスワード（確認） || 确认密码
+Please enter a correct username and password. Note that both fields may be case-sensitive. || Informe um usuário e senha corretos. Observe que ambos os campos podem diferenciar maiúsculas de minúsculas. || Introduce un usuario y contraseña correctos. Ten en cuenta que ambos campos pueden distinguir mayúsculas de minúsculas. || Saisissez un nom d'utilisateur et un mot de passe valides. Notez que les deux champs peuvent être sensibles à la casse. || Bitte geben Sie einen gültigen Benutzernamen und ein gültiges Passwort ein. Beachten Sie, dass beide Felder Groß- und Kleinschreibung unterscheiden können. || Inserisci un nome utente e una password corretti. Nota che entrambi i campi potrebbero distinguere tra maiuscole e minuscole. || 正しいユーザー名とパスワードを入力してください。どちらも大文字と小文字が区別される場合があります。 || 请输入正确的用户名和密码。注意两个字段都可能区分大小写。
+
+# ── profile ──────────────────────────────────────────────────────────────────
+Profile updated. || Perfil atualizado. || Perfil actualizado. || Profil mis à jour. || Profil aktualisiert. || Profilo aggiornato. || プロフィールを更新しました。 || 个人资料已更新。
+(e.g. CNPJ) || (ex.: CNPJ) || (p. ej., CIF) || (p. ex. SIREN) || (z. B. USt-IdNr.) || (es. P. IVA) || （例：法人番号） || （例如：税号）
+Currently: || Atualmente: || Actualmente: || Actuellement : || Derzeit: || Attualmente: || 現在: || 当前：
+Change: || Alterar: || Cambiar: || Modifier : || Ändern: || Modifica: || 変更: || 更改：
+Administration || Administração || Administración || Administration || Verwaltung || Amministrazione || 管理 || 管理
+Users || Usuários || Usuarios || Utilisateurs || Benutzer || Utenti || ユーザー || 用户
+Groups || Grupos || Grupos || Groupes || Gruppen || Gruppi || グループ || 用户组
+Departments || Departamentos || Departamentos || Départements || Abteilungen || Reparti || 部門 || 部门
+Members || Membros || Miembros || Membres || Mitglieder || Membri || メンバー || 成员
+Modules || Módulos || Módulos || Modules || Module || Moduli || モジュール || 模块
+User || Usuário || Usuario || Utilisateur || Benutzer || Utente || ユーザー || 用户
+Group || Grupo || Grupo || Groupe || Gruppe || Gruppo || グループ || 用户组
+Department || Departamento || Departamento || Département || Abteilung || Reparto || 部門 || 部门
+New user || Novo usuário || Nuevo usuario || Nouvel utilisateur || Neuer Benutzer || Nuovo utente || 新規ユーザー || 新建用户
+New group || Novo grupo || Nuevo grupo || Nouveau groupe || Neue Gruppe || Nuovo gruppo || 新規グループ || 新建用户组
+New department || Novo departamento || Nuevo departamento || Nouveau département || Neue Abteilung || Nuovo reparto || 新規部門 || 新建部门
+Name, username or email || Nome, usuário ou e-mail || Nombre, usuario o correo || Nom, identifiant ou e-mail || Name, Benutzername oder E-Mail || Nome, nome utente o e-mail || 名前、ユーザー名、またはメール || 姓名、用户名或邮箱
+Who can sign in, which department they are in and — module by module — what they may use. Visible to administrators only. || Quem pode entrar, em qual departamento está e — módulo a módulo — o que pode usar. Visível apenas para administradores. || Quién puede iniciar sesión, en qué departamento está y, módulo por módulo, qué puede usar. Solo visible para administradores. || Qui peut se connecter, dans quel département, et — module par module — ce qu'il peut utiliser. Visible uniquement des administrateurs. || Wer sich anmelden darf, in welcher Abteilung er ist und — Modul für Modul — was er nutzen darf. Nur für Administratoren sichtbar. || Chi può accedere, in quale reparto si trova e — modulo per modulo — cosa può usare. Visibile solo agli amministratori. || ログインできるユーザー、所属部門、そして（モジュールごとに）利用できる機能を管理します。管理者にのみ表示されます。 || 谁可以登录、属于哪个部门，以及（按模块）可以使用什么。仅管理员可见。
+A group is a named set of modules switched on. Members get all of their groups' modules. || Um grupo é um conjunto nomeado de módulos ativados. Os membros recebem os módulos de todos os seus grupos. || Un grupo es un conjunto con nombre de módulos activados. Los miembros reciben los módulos de todos sus grupos. || Un groupe est un ensemble nommé de modules activés. Les membres reçoivent les modules de tous leurs groupes. || Eine Gruppe ist eine benannte Menge aktivierter Module. Mitglieder erhalten die Module aller ihrer Gruppen. || Un gruppo è un insieme con nome di moduli attivati. I membri ottengono i moduli di tutti i loro gruppi. || グループは、有効にしたモジュールをまとめた名前付きのセットです。メンバーは所属するすべてのグループのモジュールを利用できます。 || 用户组是一组已启用模块的命名集合。成员会获得其所有用户组的模块。
+Where people sit in the organisation. A label — permissions come from groups and per-user switches. || Onde as pessoas estão na organização. Apenas um rótulo — as permissões vêm dos grupos e das chaves por usuário. || Dónde se ubican las personas en la organización. Es solo una etiqueta: los permisos provienen de los grupos y de los interruptores por usuario. || Où se situent les personnes dans l'organisation. Simple étiquette — les permissions viennent des groupes et des réglages par utilisateur. || Wo die Personen in der Organisation angesiedelt sind. Nur ein Label — Berechtigungen kommen aus Gruppen und benutzerspezifischen Schaltern. || Dove si collocano le persone nell'organizzazione. Solo un'etichetta: i permessi derivano dai gruppi e dagli interruttori per utente. || 組織内での所属を表します。単なるラベルで、権限はグループとユーザーごとの設定で決まります。 || 表示人员在组织中的位置。仅为标签 — 权限来自用户组和按用户的开关。
+Search || Pesquisar || Buscar || Rechercher || Suchen || Cerca || 検索 || 搜索
+User || Usuário || Usuario || Utilisateur || Benutzer || Utente || ユーザー || 用户
+Full Django-admin rights as well. || Também com direitos completos no admin do Django. || También con todos los derechos del admin de Django. || Également tous les droits de l'admin Django. || Auch volle Django-Admin-Rechte. || Anche pieni diritti nell'admin di Django. || Django 管理画面の全権限も付与されます。 || 同时拥有 Django 管理后台的全部权限。
+Sees every module and manages users, groups and departments. || Vê todos os módulos e gerencia usuários, grupos e departamentos. || Ve todos los módulos y gestiona usuarios, grupos y departamentos. || Voit tous les modules et gère utilisateurs, groupes et départements. || Sieht alle Module und verwaltet Benutzer, Gruppen und Abteilungen. || Vede tutti i moduli e gestisce utenti, gruppi e reparti. || すべてのモジュールを利用でき、ユーザー・グループ・部門を管理します。 || 可查看所有模块，并管理用户、用户组和部门。
+Only a superuser can change this. || Somente um superusuário pode alterar isto. || Solo un superusuario puede cambiar esto. || Seul un superutilisateur peut modifier ceci. || Nur ein Superuser kann dies ändern. || Solo un superutente può modificarlo. || 変更できるのはスーパーユーザーのみです。 || 只有超级用户可以更改此项。
+You can’t deactivate your own account. || Você não pode desativar sua própria conta. || No puedes desactivar tu propia cuenta. || Vous ne pouvez pas désactiver votre propre compte. || Sie können Ihr eigenes Konto nicht deaktivieren. || Non puoi disattivare il tuo account. || 自分のアカウントは無効にできません。 || 您不能停用自己的账户。
+You can’t remove your own administrator access. || Você não pode remover seu próprio acesso de administrador. || No puedes quitar tu propio acceso de administrador. || Vous ne pouvez pas retirer votre propre accès administrateur. || Sie können Ihren eigenen Administratorzugriff nicht entfernen. || Non puoi rimuovere il tuo accesso da amministratore. || 自分の管理者権限は削除できません。 || 您不能移除自己的管理员权限。
+You can’t delete your own account || Você não pode excluir sua própria conta || No puedes eliminar tu propia cuenta || Vous ne pouvez pas supprimer votre propre compte || Sie können Ihr eigenes Konto nicht löschen || Non puoi eliminare il tuo account || 自分のアカウントは削除できません || 您不能删除自己的账户
+Active — may sign in || Ativo — pode entrar || Activo: puede iniciar sesión || Actif — peut se connecter || Aktiv — darf sich anmelden || Attivo — può accedere || 有効 — ログイン可能 || 启用 — 可登录
+Add to every newly created user || Adicionar a todo usuário novo || Añadir a cada usuario nuevo || Ajouter à chaque nouvel utilisateur || Jedem neu erstellten Benutzer hinzufügen || Aggiungi a ogni nuovo utente || 新規作成するすべてのユーザーに追加 || 添加给每个新建用户
+Existing users are not affected. || Os usuários existentes não são afetados. || Los usuarios existentes no se ven afectados. || Les utilisateurs existants ne sont pas concernés. || Bestehende Benutzer sind nicht betroffen. || Gli utenti esistenti non sono interessati. || 既存のユーザーには影響しません。 || 现有用户不受影响。
+Administrator || Administrador || Administrador || Administrateur || Administrator || Amministratore || 管理者 || 管理员
+Superuser || Superusuário || Superusuario || Superutilisateur || Superuser || Superutente || スーパーユーザー || 超级用户
+Admin || Admin || Admin || Admin || Admin || Admin || 管理者 || 管理员
+Inactive || Inativo || Inactivo || Inactif || Inaktiv || Inattivo || 無効 || 已停用
+You || Você || Tú || Vous || Sie || Tu || あなた || 您
+All on || Ativar todos || Activar todos || Tout activer || Alle an || Attiva tutti || すべてオン || 全部开启
+All off || Desativar todos || Desactivar todos || Tout désactiver || Alle aus || Disattiva tutti || すべてオフ || 全部关闭
+All ({1}) || Todos ({1}) || Todos ({1}) || Tous ({1}) || Alle ({1}) || Tutti ({1}) || すべて（{1}） || 全部（{1}）
+Inherit || Herdar || Heredar || Hériter || Erben || Eredita || 継承 || 继承
+On || Ligado || Activado || Activé || An || Attivo || オン || 开启
+Off || Desligado || Desactivado || Désactivé || Aus || Disattivo || オフ || 关闭
+Admin — always on || Admin — sempre ligado || Admin: siempre activado || Admin — toujours activé || Admin — immer an || Admin — sempre attivo || 管理者 — 常にオン || 管理员 — 始终开启
+On via group || Ligado pelo grupo || Activado por grupo || Activé via un groupe || An über Gruppe || Attivo tramite gruppo || グループ経由でオン || 通过用户组开启
+On (set for this user) || Ligado (definido para este usuário) || Activado (definido para este usuario) || Activé (défini pour cet utilisateur) || An (für diesen Benutzer gesetzt) || Attivo (impostato per questo utente) || オン（このユーザーに設定） || 开启（为该用户设置）
+Off (set for this user) || Desligado (definido para este usuário) || Desactivado (definido para este usuario) || Désactivé (défini pour cet utilisateur) || Aus (für diesen Benutzer gesetzt) || Disattivo (impostato per questo utente) || オフ（このユーザーに設定） || 关闭（为该用户设置）
+Default for new users || Padrão para novos usuários || Predeterminado para usuarios nuevos || Par défaut pour les nouveaux utilisateurs || Standard für neue Benutzer || Predefinito per i nuovi utenti || 新規ユーザーの既定 || 新用户默认
+Modules this group switches on || Módulos que este grupo ativa || Módulos que activa este grupo || Modules activés par ce groupe || Module, die diese Gruppe aktiviert || Moduli che questo gruppo attiva || このグループが有効にするモジュール || 该用户组启用的模块
+Modules — on / off for this user || Módulos — ligar / desligar para este usuário || Módulos: activar / desactivar para este usuario || Modules — activer / désactiver pour cet utilisateur || Module — für diesen Benutzer an / aus || Moduli — attiva / disattiva per questo utente || モジュール — このユーザーのオン / オフ || 模块 — 为该用户开启 / 关闭
+Inherit uses what the user’s groups give. On or Off overrides that for this user only; Off always wins. || «Herdar» usa o que os grupos do usuário concedem. «Ligado» ou «Desligado» substitui isso apenas para este usuário; «Desligado» sempre vence. || «Heredar» usa lo que conceden los grupos del usuario. «Activado» o «Desactivado» lo sustituye solo para este usuario; «Desactivado» siempre gana. || « Hériter » utilise ce que donnent les groupes de l'utilisateur. « Activé » ou « Désactivé » le remplace pour cet utilisateur seulement ; « Désactivé » l'emporte toujours. || „Erben“ übernimmt, was die Gruppen des Benutzers gewähren. „An“ oder „Aus“ überschreibt das nur für diesen Benutzer; „Aus“ gewinnt immer. || «Eredita» usa ciò che concedono i gruppi dell'utente. «Attivo» o «Disattivo» lo sostituisce solo per questo utente; «Disattivo» prevale sempre. || 「継承」はユーザーのグループの設定に従います。「オン」「オフ」はこのユーザーのみ上書きし、「オフ」が常に優先されます。 || “继承”使用用户所在用户组的设置。“开启”或“关闭”仅对该用户覆盖，且“关闭”始终优先。
+Leave blank to keep the current one || Deixe em branco para manter a atual || Déjalo en blanco para mantener la actual || Laissez vide pour conserver l'actuel || Leer lassen, um das aktuelle beizubehalten || Lascia vuoto per mantenere quella attuale || 空欄のままにすると現在のものを維持します || 留空则保持当前设置
+New password || Nova senha || Nueva contraseña || Nouveau mot de passe || Neues Passwort || Nuova password || 新しいパスワード || 新密码
+Create user || Criar usuário || Crear usuario || Créer l'utilisateur || Benutzer erstellen || Crea utente || ユーザーを作成 || 创建用户
+Edit department || Editar departamento || Editar departamento || Modifier le département || Abteilung bearbeiten || Modifica reparto || 部門を編集 || 编辑部门
+Edit group || Editar grupo || Editar grupo || Modifier le groupe || Gruppe bearbeiten || Modifica gruppo || グループを編集 || 编辑用户组
+Edit {1} || Editar {1} || Editar {1} || Modifier {1} || {1} bearbeiten || Modifica {1} || {1} を編集 || 编辑 {1}
+No users match. || Nenhum usuário encontrado. || Ningún usuario coincide. || Aucun utilisateur ne correspond. || Keine passenden Benutzer. || Nessun utente corrisponde. || 該当するユーザーがいません。 || 没有匹配的用户。
+No groups yet. || Nenhum grupo ainda. || Aún no hay grupos. || Aucun groupe pour l'instant. || Noch keine Gruppen. || Ancora nessun gruppo. || グループはまだありません。 || 还没有用户组。
+No groups yet — create one in the Groups tab. || Nenhum grupo ainda — crie um na aba Grupos. || Aún no hay grupos: crea uno en la pestaña Grupos. || Aucun groupe pour l'instant — créez-en un dans l'onglet Groupes. || Noch keine Gruppen — erstellen Sie eine im Reiter „Gruppen“. || Ancora nessun gruppo — creane uno nella scheda Gruppi. || グループはまだありません。「グループ」タブで作成してください。 || 还没有用户组 — 请在“用户组”标签页中创建。
+No departments yet. || Nenhum departamento ainda. || Aún no hay departamentos. || Aucun département pour l'instant. || Noch keine Abteilungen. || Ancora nessun reparto. || 部門はまだありません。 || 还没有部门。
+No modules || Nenhum módulo || Ningún módulo || Aucun module || Keine Module || Nessun modulo || モジュールなし || 无模块
+— none — || — nenhum — || — ninguno — || — aucun — || — keine — || — nessuno — || — なし — || — 无 —
+Delete the department “{1}”? {2} || Excluir o departamento “{1}”? {2} || ¿Eliminar el departamento «{1}»? {2} || Supprimer le département « {1} » ? {2} || Abteilung „{1}“ löschen? {2} || Eliminare il reparto «{1}»? {2} || 部門「{1}」を削除しますか？{2} || 删除部门“{1}”？{2}
+Delete the group “{1}”? {2} || Excluir o grupo “{1}”? {2} || ¿Eliminar el grupo «{1}»? {2} || Supprimer le groupe « {1} » ? {2} || Gruppe „{1}“ löschen? {2} || Eliminare il gruppo «{1}»? {2} || グループ「{1}」を削除しますか？{2} || 删除用户组“{1}”？{2}
+{1} member(s) will simply be left without a department. || {1} membro(s) simplesmente ficará(ão) sem departamento. || {1} miembro(s) se quedarán simplemente sin departamento. || {1} membre(s) se retrouveront simplement sans département. || {1} Mitglied(er) haben dann einfach keine Abteilung. || {1} membro/i resteranno semplicemente senza reparto. || {1} 人のメンバーは部門なしになります。 || {1} 名成员将不再属于任何部门。
+{1} member(s) will lose the access it gave them. || {1} membro(s) perderá(ão) o acesso que ele concedia. || {1} miembro(s) perderán el acceso que les daba. || {1} membre(s) perdront l'accès qu'il leur donnait. || {1} Mitglied(er) verlieren den damit gewährten Zugriff. || {1} membro/i perderanno l'accesso che concedeva. || {1} 人のメンバーはこのグループで得ていたアクセス権を失います。 || {1} 名成员将失去该用户组授予的访问权限。
+Delete the user “{1}”? This cannot be undone. (To keep their history but stop them signing in, deactivate them instead.) || Excluir o usuário “{1}”? Isso não pode ser desfeito. (Para manter o histórico mas impedir o login, desative-o.) || ¿Eliminar al usuario «{1}»? No se puede deshacer. (Para conservar su historial pero impedir que inicie sesión, desactívalo.) || Supprimer l'utilisateur « {1} » ? Cette action est irréversible. (Pour conserver son historique tout en l'empêchant de se connecter, désactivez-le.) || Benutzer „{1}“ löschen? Das kann nicht rückgängig gemacht werden. (Um den Verlauf zu behalten, aber die Anmeldung zu sperren, deaktivieren Sie den Benutzer stattdessen.) || Eliminare l'utente «{1}»? L'operazione non può essere annullata. (Per conservarne la cronologia ma impedirne l'accesso, disattivalo.) || ユーザー「{1}」を削除しますか？この操作は元に戻せません。（履歴は残したままログインだけ止めたい場合は、無効にしてください。） || 删除用户“{1}”？此操作无法撤销。（若想保留其历史记录但禁止登录，请改为停用。）
+
+# ── notifications page + titles the server generates ─────────────────────────
+Every run, chain, plan and scheduled job that finished, failed, was cancelled or was killed. || Toda execução, cadeia, plano e tarefa agendada que terminou, falhou, foi cancelada ou interrompida. || Cada ejecución, cadena, plan y tarea programada que terminó, falló, se canceló o se detuvo. || Chaque exécution, chaîne, plan et tâche planifiée terminé, échoué, annulé ou arrêté. || Jede Ausführung, Kette, jeder Plan und geplante Job, der beendet wurde, fehlschlug, abgebrochen oder beendet wurde. || Ogni esecuzione, catena, piano e attività pianificata che è terminata, fallita, annullata o interrotta. || 完了・失敗・キャンセル・強制停止されたすべての実行、チェーン、プラン、スケジュール済みジョブ。 || 每个已完成、失败、被取消或被终止的运行、链、计划和定时任务。
+Mark all {1} as read || Marcar todas as {1} como lidas || Marcar las {1} como leídas || Marquer les {1} comme lues || Alle {1} als gelesen markieren || Segna tutte le {1} come lette || {1} 件すべてを既読にする || 将 {1} 条全部标为已读
+Nothing here yet. You'll be told when runs, chains, plans and scheduled jobs finish. || Nada aqui ainda. Você será avisado quando execuções, cadeias, planos e tarefas agendadas terminarem. || Aquí no hay nada todavía. Se te avisará cuando terminen ejecuciones, cadenas, planes y tareas programadas. || Rien ici pour l'instant. Vous serez prévenu à la fin des exécutions, chaînes, plans et tâches planifiées. || Hier ist noch nichts. Sie werden benachrichtigt, wenn Ausführungen, Ketten, Pläne und geplante Jobs enden. || Ancora niente qui. Riceverai una notifica quando esecuzioni, catene, piani e attività pianificate terminano. || まだありません。実行・チェーン・プラン・スケジュール済みジョブが終了すると通知されます。 || 这里还没有内容。运行、链、计划和定时任务结束时会通知您。
+Outcome || Resultado || Resultado || Résultat || Ergebnis || Esito || 結果 || 结果
+Unread only || Somente não lidas || Solo sin leer || Non lues uniquement || Nur ungelesene || Solo non lette || 未読のみ || 仅未读
+Type || Tipo || Tipo || Type || Typ || Tipo || 種類 || 类型
+Migration run || Execução de migração || Ejecución de migración || Exécution de migration || Migrationslauf || Esecuzione di migrazione || マイグレーション実行 || 迁移运行
+Chain run || Execução de cadeia || Ejecución de cadena || Exécution de chaîne || Kettenlauf || Esecuzione di catena || チェーン実行 || 链运行
+Plan || Plano || Plan || Plan || Plan || Piano || プラン || 计划
+Run #{1} · {2} succeeded || Execução #{1} · {2} concluída com sucesso || Ejecución #{1} · {2} completada con éxito || Exécution #{1} · {2} réussie || Ausführung #{1} · {2} erfolgreich || Esecuzione #{1} · {2} riuscita || 実行 #{1} · {2} が成功しました || 运行 #{1} · {2} 已成功
+Run #{1} · {2} failed || Execução #{1} · {2} falhou || La ejecución #{1} · {2} falló || Exécution #{1} · {2} échouée || Ausführung #{1} · {2} fehlgeschlagen || Esecuzione #{1} · {2} fallita || 実行 #{1} · {2} が失敗しました || 运行 #{1} · {2} 已失败
+Run #{1} · {2} was cancelled || Execução #{1} · {2} foi cancelada || La ejecución #{1} · {2} se canceló || Exécution #{1} · {2} annulée || Ausführung #{1} · {2} wurde abgebrochen || Esecuzione #{1} · {2} annullata || 実行 #{1} · {2} がキャンセルされました || 运行 #{1} · {2} 已取消
+Run #{1} · {2} was killed || Execução #{1} · {2} foi interrompida || La ejecución #{1} · {2} se detuvo || Exécution #{1} · {2} arrêtée || Ausführung #{1} · {2} wurde beendet || Esecuzione #{1} · {2} interrotta || 実行 #{1} · {2} が強制停止されました || 运行 #{1} · {2} 已被终止
+Run #{1} · {2} (scheduled) succeeded || Execução #{1} · {2} (agendada) concluída com sucesso || Ejecución #{1} · {2} (programada) completada con éxito || Exécution #{1} · {2} (planifiée) réussie || Ausführung #{1} · {2} (geplant) erfolgreich || Esecuzione #{1} · {2} (pianificata) riuscita || 実行 #{1} · {2}（スケジュール）が成功しました || 运行 #{1} · {2}（定时）已成功
+Run #{1} · {2} (scheduled) failed || Execução #{1} · {2} (agendada) falhou || La ejecución #{1} · {2} (programada) falló || Exécution #{1} · {2} (planifiée) échouée || Ausführung #{1} · {2} (geplant) fehlgeschlagen || Esecuzione #{1} · {2} (pianificata) fallita || 実行 #{1} · {2}（スケジュール）が失敗しました || 运行 #{1} · {2}（定时）已失败
+Run #{1} · {2} (scheduled) was cancelled || Execução #{1} · {2} (agendada) foi cancelada || La ejecución #{1} · {2} (programada) se canceló || Exécution #{1} · {2} (planifiée) annulée || Ausführung #{1} · {2} (geplant) wurde abgebrochen || Esecuzione #{1} · {2} (pianificata) annullata || 実行 #{1} · {2}（スケジュール）がキャンセルされました || 运行 #{1} · {2}（定时）已取消
+Run #{1} · {2} (scheduled) was killed || Execução #{1} · {2} (agendada) foi interrompida || La ejecución #{1} · {2} (programada) se detuvo || Exécution #{1} · {2} (planifiée) arrêtée || Ausführung #{1} · {2} (geplant) wurde beendet || Esecuzione #{1} · {2} (pianificata) interrotta || 実行 #{1} · {2}（スケジュール）が強制停止されました || 运行 #{1} · {2}（定时）已被终止
+{1} read · {2} written · {3} failed || {1} lidos · {2} gravados · {3} falharam || {1} leídos · {2} escritos · {3} fallidos || {1} lus · {2} écrits · {3} en échec || {1} gelesen · {2} geschrieben · {3} fehlgeschlagen || {1} letti · {2} scritti · {3} falliti || 読み取り {1} · 書き込み {2} · 失敗 {3} || 读取 {1} · 写入 {2} · 失败 {3}
+Chain “{1}” run #{2} succeeded || Cadeia “{1}” execução #{2} concluída com sucesso || Cadena «{1}» ejecución #{2} completada con éxito || Chaîne « {1} » exécution #{2} réussie || Kette „{1}“ Ausführung #{2} erfolgreich || Catena «{1}» esecuzione #{2} riuscita || チェーン「{1}」の実行 #{2} が成功しました || 链“{1}”运行 #{2} 已成功
+Chain “{1}” run #{2} failed || Cadeia “{1}” execução #{2} falhou || Cadena «{1}» ejecución #{2} falló || Chaîne « {1} » exécution #{2} échouée || Kette „{1}“ Ausführung #{2} fehlgeschlagen || Catena «{1}» esecuzione #{2} fallita || チェーン「{1}」の実行 #{2} が失敗しました || 链“{1}”运行 #{2} 已失败
+Chain “{1}” run #{2} was cancelled || Cadeia “{1}” execução #{2} foi cancelada || Cadena «{1}» ejecución #{2} se canceló || Chaîne « {1} » exécution #{2} annulée || Kette „{1}“ Ausführung #{2} wurde abgebrochen || Catena «{1}» esecuzione #{2} annullata || チェーン「{1}」の実行 #{2} がキャンセルされました || 链“{1}”运行 #{2} 已取消
+Chain “{1}” run #{2} was killed || Cadeia “{1}” execução #{2} foi interrompida || Cadena «{1}» ejecución #{2} se detuvo || Chaîne « {1} » exécution #{2} arrêtée || Kette „{1}“ Ausführung #{2} wurde beendet || Catena «{1}» esecuzione #{2} interrotta || チェーン「{1}」の実行 #{2} が強制停止されました || 链“{1}”运行 #{2} 已被终止
+{1} of {2} step(s) ok || {1} de {2} etapa(s) ok || {1} de {2} paso(s) correcto(s) || {1} étape(s) sur {2} réussie(s) || {1} von {2} Schritt(en) erfolgreich || {1} passo/i su {2} riusciti || {2} ステップ中 {1} ステップが成功 || {2} 个步骤中 {1} 个成功
+{1} of {2} step(s) ok · “{3}”: {4} || {1} de {2} etapa(s) ok · “{3}”: {4} || {1} de {2} paso(s) correcto(s) · «{3}»: {4} || {1} étape(s) sur {2} réussie(s) · « {3} » : {4} || {1} von {2} Schritt(en) erfolgreich · „{3}“: {4} || {1} passo/i su {2} riusciti · «{3}»: {4} || {2} ステップ中 {1} ステップが成功 · 「{3}」: {4} || {2} 个步骤中 {1} 个成功 · “{3}”：{4}
+Plan “{1}” succeeded || Plano “{1}” concluído com sucesso || Plan «{1}» completado con éxito || Plan « {1} » réussi || Plan „{1}“ erfolgreich || Piano «{1}» riuscito || プラン「{1}」が成功しました || 计划“{1}”已成功
+Plan “{1}” failed || Plano “{1}” falhou || El plan «{1}» falló || Plan « {1} » échoué || Plan „{1}“ fehlgeschlagen || Piano «{1}» fallito || プラン「{1}」が失敗しました || 计划“{1}”已失败
+Plan “{1}” was cancelled || Plano “{1}” foi cancelado || El plan «{1}» se canceló || Plan « {1} » annulé || Plan „{1}“ wurde abgebrochen || Piano «{1}» annullato || プラン「{1}」がキャンセルされました || 计划“{1}”已取消
+Plan “{1}” was killed || Plano “{1}” foi interrompido || El plan «{1}» se detuvo || Plan « {1} » arrêté || Plan „{1}“ wurde beendet || Piano «{1}» interrotto || プラン「{1}」が強制停止されました || 计划“{1}”已被终止
+{1} step(s) completed || {1} etapa(s) concluída(s) || {1} paso(s) completado(s) || {1} étape(s) terminée(s) || {1} Schritt(e) abgeschlossen || {1} passo/i completati || {1} ステップが完了 || 已完成 {1} 个步骤
+{1} of {2} step(s) reached || {1} de {2} etapa(s) alcançada(s) || {1} de {2} paso(s) alcanzado(s) || {1} étape(s) sur {2} atteinte(s) || {1} von {2} Schritt(en) erreicht || {1} passo/i su {2} raggiunti || {2} ステップ中 {1} ステップに到達 || 已到达 {2} 个步骤中的 {1} 个

@@ -347,3 +347,76 @@ class AdminUserTests(AdminApiBase):
         ada = self.make_user()
         self.assertEqual(self.call("delete", f"/api/admin-users/{ada.pk}/").status_code, 204)
         self.assertFalse(User.objects.filter(pk=ada.pk).exists())
+
+
+# ═══ Who can sign in ═════════════════════════════════════════════════════════════════════════════════════════
+from django.test import override_settings
+
+
+class SignInPolicyTests(TestCase):
+    """Only an account that already exists — created by an administrator — can sign in."""
+
+    def setUp(self):
+        self.user = User.objects.create_user("ada", password="Correct-horse-9battery")
+
+    def sign_in(self, username, password):
+        return self.client.post("/accounts/login/", {"username": username, "password": password})
+
+    def test_an_existing_account_signs_in(self):
+        resp = self.sign_in("ada", "Correct-horse-9battery")
+        self.assertRedirects(resp, "/home/", fetch_redirect_response=False)
+        self.assertEqual(self.client.get("/home/").status_code, 200)
+
+    def test_an_account_that_does_not_exist_cannot(self):
+        resp = self.sign_in("nobody", "Correct-horse-9battery")
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "correct username and password")
+        self.assertEqual(self.client.get("/home/").status_code, 302)
+
+    def test_a_deactivated_account_cannot(self):
+        User.objects.filter(pk=self.user.pk).update(is_active=False)
+        resp = self.sign_in("ada", "Correct-horse-9battery")
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "correct username and password")
+
+    def test_the_error_does_not_reveal_which_usernames_exist(self):
+        wrong_password = self.sign_in("ada", "wrong").content.decode()
+        unknown_user = self.sign_in("ghost", "wrong").content.decode()
+        message = "Please enter a correct username and password."
+        self.assertIn(message, wrong_password)
+        self.assertIn(message, unknown_user)
+
+    def test_public_sign_up_is_closed_by_default(self):
+        resp = self.client.get("/accounts/register/", follow=True)
+        self.assertRedirects(resp, "/accounts/login/")
+        self.assertContains(resp, "Accounts are created by an administrator")
+        made = self.client.post("/accounts/register/", {"username": "mallory", "password1": "Correct-horse-9battery", "password2": "Correct-horse-9battery"})
+        self.assertEqual(made.status_code, 302)
+        self.assertFalse(User.objects.filter(username="mallory").exists())
+
+    def test_the_sign_in_page_no_longer_offers_a_register_link(self):
+        html = self.client.get("/accounts/login/").content.decode()
+        self.assertNotIn("/accounts/register/", html)
+        self.assertIn("Accounts are created by an administrator", html)
+
+    @override_settings(ALLOW_SELF_REGISTRATION=True)
+    def test_open_sign_up_can_be_switched_back_on(self):
+        html = self.client.get("/accounts/login/").content.decode()
+        self.assertIn("/accounts/register/", html)
+        self.assertEqual(self.client.get("/accounts/register/").status_code, 200)
+        made = self.client.post("/accounts/register/", {"username": "grace", "password1": "Correct-horse-9battery", "password2": "Correct-horse-9battery"})
+        self.assertEqual(made.status_code, 302)
+        self.assertTrue(User.objects.filter(username="grace").exists())
+
+    def test_an_administrator_created_account_can_sign_in(self):
+        admin = User.objects.create_user("root", password="pw", is_staff=True)
+        self.client.force_login(admin)
+        made = self.client.post("/api/admin-users/", '{"username": "newhire", "password": "Correct-horse-9battery"}', content_type="application/json")
+        self.assertEqual(made.status_code, 201)
+        self.client.logout()
+        self.assertRedirects(self.sign_in("newhire", "Correct-horse-9battery"), "/home/", fetch_redirect_response=False)
+
+    def test_logging_out_lands_on_the_public_front_page(self):
+        self.client.force_login(self.user)
+        resp = self.client.post("/accounts/logout/")
+        self.assertRedirects(resp, "/", fetch_redirect_response=False)

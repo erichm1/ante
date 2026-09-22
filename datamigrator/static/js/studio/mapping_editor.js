@@ -82,6 +82,7 @@
       if (this.isActive()) this.startPollingIfNeeded();
       this.changed();
       if (S.active === this) S.renderPalette();   // the palette depends on data that just arrived
+      this.unfoldAll();                            // objects discovered flat before get their inner fields, in the background
     }
 
     isActive() { return this.runs.some(r => r.status === 'running' || (r.status === 'pending' && !r.scheduled_at)); }
@@ -92,6 +93,39 @@
       this.renderMapTab();
       this.renderMetrics();
       S.refreshTree();
+    }
+
+    // Objects are shown in full so any level can be wired. An entity discovered before that was possible lists an
+    // object as one field with nothing inside: ask the server to sample it again and add the inner fields. Each
+    // entity is tried once per open editor on its own (the button forces it) so an entity that can't be sampled
+    // isn't retried on every redraw.
+    entitiesToUnfold() {
+      const seen = new Map();
+      this.pairs.forEach(p => [p.source_entity_detail, p.target_entity_detail].forEach(e => {
+        if (e && e.fields.some(f => S.canUnfold(f, e.fields))) seen.set(e.id, e);
+      }));
+      return [...seen.keys()];
+    }
+
+    async unfold(entityId, manual) {
+      this.unfoldTried = this.unfoldTried || new Set();
+      if (!manual && this.unfoldTried.has(entityId)) return 0;
+      this.unfoldTried.add(entityId);
+      try {
+        const r = await S.api(`/api/entities/${entityId}/discover-nested/`, { method: 'POST' });
+        if (r.added) { S.toast(`Discovered ${r.added} field${r.added === 1 ? '' : 's'} inside the objects of “${r.entity.name}”.`, 'ok'); await this.reloadStructure(); }
+        else if (manual) S.toast('No further fields were found inside the objects of this entity.');
+        return r.added;
+      } catch (e) {
+        if (manual) S.fail(e);
+        return 0;
+      }
+    }
+
+    async unfoldAll() {
+      let added = 0;
+      for (const id of this.entitiesToUnfold()) added += await this.unfold(id, false);
+      return added;
     }
 
     statusText() {
@@ -141,7 +175,9 @@
         h('i', { class: 'bi-diagram-2' }),
         h('span', {}, h('span', { class: 'mono', text: this.mapping.source_connection_name }), ' → ',
           (this.mapping.destination_connections_detail || []).map((d, i) => [i ? ', ' : '', h('span', { class: 'mono', text: d.name })]).flat()),
-        h('span', { text: '· drag teal → amber dots to map · click a wire for options' }));
+        h('span', { text: '· drag teal → amber dots to map · click a wire for options' }),
+        this.pairs.length ? h('button', { class: 'st-mini', title: 'Suggest field mappings from the fields’ names, as drafts to review', onclick: () => this.autoMapDialog() }, h('i', { class: 'bi-stars' }), ' Auto-map fields') : null,
+        this.draftCount() ? h('button', { class: 'st-mini st-mini-accent', onclick: () => this.tabs.select('review') }, h('i', { class: 'bi-clipboard-check' }), ` Review ${this.draftCount()} draft(s)`) : null);
       this.applyRunStatuses();
     }
 
@@ -163,10 +199,15 @@
           h('span', { class: 'd-flex align-items-center gap-2' },
             h('small', { text: ent.connection_name }),
             h('button', { title: 'Edit entity and its fields', onclick: () => this.editEntity(ent.id) }, h('i', { class: 'bi-pencil' })))),
-        ent.fields.map(f => {
+        S.fieldTree(ent.fields).map(({ field: f, depth, hasChildren, label: shown }) => {
           const dot = h('div', { class: `st-dotp ${side === 'target' ? 'target' : ''}`, dataset: { field: f.id } });
-          const label = h('span', {}, h('span', { class: 'fname', text: f.name }), f.required ? h('span', { class: 'req', text: '*' }) : null, ' ', h('span', { class: 'ftype', text: f.field_type }));
-          return h('div', { class: 'st-field' }, side === 'target' ? [dot, label] : [label, dot]);
+          const unfold = S.canUnfold(f, ent.fields)
+            ? h('button', { class: 'st-row-disc', title: 'Discover the fields inside this object', onclick: e => { e.stopPropagation(); this.unfold(ent.id, true); } }, h('i', { class: 'bi-box-arrow-in-down-right' }))
+            : null;
+          const label = h('span', { class: 'st-flabel' }, h('span', { class: 'fname', text: shown, title: f.name }), f.required ? h('span', { class: 'req', text: '*' }) : null, ' ',
+            h('span', { class: 'ftype', text: f.field_type }), unfold);
+          return h('div', { class: `st-field ${hasChildren ? 'is-parent' : ''} ${depth ? 'is-nested' : ''}`, style: depth ? `padding-left:${10 + depth * 14}px` : null, title: f.name },
+            side === 'target' ? [dot, label] : [label, dot]);
         }));
       this.placeNode(node, x, y, {
         onMoved: (nx, ny) => S.api(`/api/entities/${ent.id}/position/`, { method: 'PATCH', body: { canvas_x: Math.round(nx), canvas_y: Math.round(ny) } }).catch(() => {}),
@@ -189,13 +230,18 @@
     }
 
     addWire(fm) {
+      const draft = fm.status === 'draft';       // suggested by auto-mapping and not reviewed yet: dashed, with its confidence
+      const overlays = [];
+      if (hasTransform(fm)) overlays.push(['Label', { label: 'ƒ', location: 0.5, cssClass: 'st-fx', id: 'fx' }]);
+      if (draft) overlays.push(['Label', { label: `${fm.match_score == null ? '?' : fm.match_score}%`, location: 0.28, cssClass: 'st-draft-tag', id: 'draft' }]);
       const conn = this.jsp.connect({
         uuids: [uid(this.id, 'source', 'f', fm.source_field), uid(this.id, 'target', 'f', fm.target_field)],
-        overlays: hasTransform(fm) ? [['Label', { label: 'ƒ', location: 0.5, cssClass: 'st-fx', id: 'fx' }]] : [],
+        overlays, ...(draft ? { cssClass: 'st-wire-draft' } : {}),
       });
       if (!conn) return;
       this.connFm.set(conn, fm);
       if (hasTransform(fm)) { const o = conn.getOverlay('fx'); if (o && o.canvas) o.canvas.title = transformSummary(fm); }
+      if (draft) { const o = conn.getOverlay('draft'); if (o && o.canvas) o.canvas.title = `Draft — ${fm.match_reason || 'suggested from the names'}. Click to accept or reject.`; }
     }
 
     fieldIdsOf(conn) {
@@ -226,14 +272,18 @@
       const fm = this.connFm.get(conn);
       if (!fm) return;
       S.menu(ev.clientX, ev.clientY, [
-        { head: `${fm.source_field_name} → ${fm.target_field_name}` },
+        { head: `${fm.source_field_name} → ${fm.target_field_name}${fm.status === 'draft' ? '  (draft)' : ''}` },
+        ...(fm.status === 'draft' ? [
+          { label: 'Accept this suggestion', icon: 'bi-check-lg', onClick: () => this.acceptDrafts([fm.id]) },
+          { label: 'Reject this suggestion', icon: 'bi-x-lg', danger: true, onClick: () => this.discardDrafts([fm.id]) },
+        ] : []),
         { label: 'Edit transform…', icon: 'bi-magic', onClick: () => this.editTransform(fm) },
         { label: 'Remove mapping', icon: 'bi-trash', danger: true, onClick: () => this.removeWire(fm) },
       ]);
     }
 
     async removeWire(fm) {
-      if (!(await confirmModal('Remove this field mapping?'))) return;
+      if (fm.status !== 'draft' && !(await confirmModal('Remove this field mapping?'))) return;
       try {
         await S.api(`/api/field-mappings/${fm.id}/`, { method: 'DELETE' });
         this.pairs.forEach(p => { p.field_mappings = p.field_mappings.filter(x => x.id !== fm.id); });
@@ -242,10 +292,125 @@
       } catch (e) { S.fail(e); }
     }
 
+    // ── Auto-mapping: suggestions become drafts that are reviewed before they can run ─────────
+    draftCount() { return this.pairs.reduce((n, p) => n + p.field_mappings.filter(f => f.status === 'draft').length, 0); }
+
+    autoMapDialog() {
+      if (!this.pairs.length) { S.toast('Add an entity pair first — auto-mapping matches the fields of its two entities.', 'err'); return; }
+      const opt = (v, t, sel) => `<option value="${v}" ${sel ? 'selected' : ''}>${S.esc(t)}</option>`;
+      S.dialog({
+        title: 'Auto-map fields',
+        body: h('div', {},
+          h('p', { class: 'text-dim small', text: 'Matches each target field to the source field with the same or a similar name — ignoring case and separators, understanding common equivalents (telefone ≈ phone, cep ≈ zip…) and checking that the types fit. The matches are saved as drafts: they appear dashed on the canvas and are left out of runs until you review and accept them.' }),
+          h('div', { class: 'mb-3' }, h('label', { class: 'form-label', for: 'am_score', text: 'How sure must a match be?' }),
+            h('select', { class: 'form-select', id: 'am_score', html: opt(85, 'Strict — same or almost the same name', false) + opt(60, 'Balanced — also equivalent and related names', true) + opt(45, 'Loose — include weaker guesses', false) })),
+          h('label', { class: 'd-flex gap-2 align-items-center mb-2' }, h('input', { type: 'checkbox', class: 'form-check-input mt-0', id: 'am_unmapped', checked: true }), 'Leave target fields that are already mapped alone'),
+          h('label', { class: 'd-flex gap-2 align-items-center' }, h('input', { type: 'checkbox', class: 'form-check-input mt-0', id: 'am_replace', checked: true }), 'Replace my earlier drafts')),
+        actions: [{ label: 'Cancel' }, {
+          label: 'Suggest drafts', primary: true, onClick: async d => {
+            await this.autoMap({ min_score: Number(d.$('#am_score').value), only_unmapped: d.$('#am_unmapped').checked, replace_drafts: d.$('#am_replace').checked });
+          },
+        }],
+      });
+    }
+
+    async autoMap(options) {
+      const r = await S.api(`/api/mappings/${this.id}/auto-map/`, { method: 'POST', body: options });
+      await this.reloadStructure();
+      if (r.created) { S.toast(`Suggested ${r.created} draft field mapping(s) — review them before running.`, 'ok', 6000); this.tabs.select('review'); }
+      else S.toast('No matching field names were found. Try a looser setting, or wire the fields by hand.');
+      return r;
+    }
+
+    async acceptDrafts(ids) {
+      try {
+        const r = await S.api(`/api/mappings/${this.id}/confirm-drafts/`, { method: 'POST', body: ids ? { ids } : {} });
+        await this.reloadStructure();
+        S.toast(`Accepted ${r.confirmed} field mapping(s).`, 'ok');
+      } catch (e) { S.fail(e); }
+    }
+
+    async discardDrafts(ids) {
+      try {
+        await S.api(`/api/mappings/${this.id}/discard-drafts/`, { method: 'POST', body: ids ? { ids } : {} });
+        await this.reloadStructure();
+      } catch (e) { S.fail(e); }
+    }
+
+    // A run leaves drafts out — say so first, so nobody assumes the suggestions ran.
+    async confirmRunWithDrafts() {
+      const n = this.draftCount();
+      if (!n) return true;
+      return confirmModal(`Not accepted yet: ${n} suggested (draft) field mapping(s). They will be left out of this run. Run anyway?`);
+    }
+
+    renderReviewTab() {
+      const total = this.draftCount();
+      this.tabs.setVisible('review', total > 0);
+      if (!total) return;
+      this.tabs.setLabel('review', `Review drafts (${total})`);
+      const page = this.tabs.page('review');
+      this.reviewOff = this.reviewOff || new Set();                 // ids the reviewer unticked
+      const fieldOf = (pair, side, id) => (side === 'source' ? pair.source_entity_detail : pair.target_entity_detail).fields.find(f => f.id === id);
+      const band = score => (score >= 85 ? ['high', 'High'] : score >= 70 ? ['mid', 'Medium'] : ['low', 'Low']);
+      const draftsOf = p => p.field_mappings.filter(f => f.status === 'draft').sort((a, b) => (b.match_score || 0) - (a.match_score || 0));
+      const allDrafts = this.pairs.flatMap(draftsOf);
+      const checked = allDrafts.filter(f => !this.reviewOff.has(f.id)).map(f => f.id);
+
+      const bar = h('div', { class: 'st-review-bar' },
+        h('button', { class: 'st-mini st-mini-accent', disabled: checked.length ? null : '', onclick: () => this.acceptDrafts(checked) }, h('i', { class: 'bi-check-lg' }), ` Accept selected (${checked.length})`),
+        h('button', { class: 'st-mini', onclick: () => this.acceptDrafts(null) }, 'Accept all'),
+        h('button', { class: 'st-mini danger', onclick: () => this.discardDrafts(null) }, 'Discard all'),
+        h('button', { class: 'st-mini', onclick: () => this.autoMapDialog() }, h('i', { class: 'bi-stars' }), ' Auto-map again…'),
+        h('button', { class: 'st-mini', onclick: () => { this.previewDrafts = true; this.tabs.select('data'); this.ensurePreview(true); } }, h('i', { class: 'bi-eye' }), ' Preview with drafts'),
+        h('span', { class: 'spacer' }),
+        h('span', { class: 'text-dim', text: 'Drafts don’t run until accepted. Check each match — and its types — first.' }));
+
+      const rows = [];
+      this.pairs.forEach(p => {
+        const drafts = draftsOf(p);
+        if (!drafts.length) return;
+        rows.push(h('tr', { class: 'st-group' }, h('td', { colspan: '5' }, h('b', { text: p.source_entity_detail.name }), ' → ', h('b', { text: p.target_entity_detail.name }))));
+        drafts.forEach(fm => {
+          const sf = fieldOf(p, 'source', fm.source_field), tf = fieldOf(p, 'target', fm.target_field);
+          const [cls, label] = band(fm.match_score || 0);
+          rows.push(h('tr', {},
+            h('td', { style: 'width:28px' }, h('input', { type: 'checkbox', class: 'form-check-input', checked: !this.reviewOff.has(fm.id), 'aria-label': 'Select', onchange: e => { e.target.checked ? this.reviewOff.delete(fm.id) : this.reviewOff.add(fm.id); this.renderReviewTab(); } })),
+            h('td', {}, h('span', { class: 'mono', text: fm.source_field_name }), sf ? h('span', { class: 'ftype ms-1', text: sf.field_type }) : null,
+              h('span', { class: 'text-dim mx-2', text: '→' }), h('span', { class: 'mono', text: fm.target_field_name }), tf ? h('span', { class: 'ftype ms-1', text: tf.field_type }) : null),
+            h('td', {}, h('span', { class: `st-conf ${cls}`, title: fm.match_reason || '', text: `${label} · ${fm.match_score == null ? '?' : fm.match_score}%` })),
+            h('td', { class: 'text-dim', text: fm.match_reason || '' }),
+            h('td', { class: 'st-actions' },
+              h('button', { class: 'st-mini', title: 'Accept this suggestion', 'aria-label': 'Accept this suggestion', onclick: () => this.acceptDrafts([fm.id]) }, h('i', { class: 'bi-check-lg' })), ' ',
+              h('button', { class: 'st-mini', onclick: () => this.editTransform(fm), text: 'Transform' }), ' ',
+              h('button', { class: 'st-mini danger', title: 'Reject this suggestion', 'aria-label': 'Reject this suggestion', onclick: () => this.discardDrafts([fm.id]) }, h('i', { class: 'bi-x-lg' })))));
+        });
+      });
+
+      // What auto-mapping could not place — the reviewer maps these by hand (or accepts they stay empty).
+      const leaves = ent => ent.fields.filter(f => !ent.fields.some(o => o.name.startsWith(f.name + '.')));
+      const chips = (list, cls) => h('span', { class: 'st-chips-inline' }, list.slice(0, 14).map(n => h('span', { class: `st-tag ${cls}`, text: n })), list.length > 14 ? h('span', { class: 'text-dim', text: ` +${list.length - 14} more` }) : null);
+      const notes = this.pairs.map(p => {
+        const wired = new Set(p.field_mappings.flatMap(f => [`s${f.source_field}`, `t${f.target_field}`]));
+        const noTarget = leaves(p.target_entity_detail).filter(f => !wired.has(`t${f.id}`)).map(f => f.name);
+        const noSource = leaves(p.source_entity_detail).filter(f => !wired.has(`s${f.id}`)).map(f => f.name);
+        if (!noTarget.length && !noSource.length) return null;
+        return h('div', { class: 'st-review-unmatched' },
+          h('b', { text: `${p.source_entity_detail.name} → ${p.target_entity_detail.name}` }),
+          noTarget.length ? h('div', {}, h('span', { class: 'text-dim', text: 'Target fields with no source yet: ' }), chips(noTarget, 'warn')) : null,
+          noSource.length ? h('div', {}, h('span', { class: 'text-dim', text: 'Source fields not used: ' }), chips(noSource, '')) : null);
+      }).filter(Boolean);
+
+      page.replaceChildren(bar,
+        h('table', { class: 'st-table' }, h('thead', {}, h('tr', {}, h('th', {}), h('th', { text: 'Suggested mapping' }), h('th', { text: 'Confidence' }), h('th', { text: 'Why' }), h('th', {}))), h('tbody', {}, rows)),
+        notes.length ? h('div', { class: 'st-review-notes' }, h('div', { class: 'st-review-notes-title', text: 'Still not mapped' }), notes) : null);
+    }
+
     helpSections() {
       return [{ title: 'This mapping', items: [
         [['Drag'], 'from a teal dot (a source field) to an amber dot (a target field) to map it — one source can feed several targets'],
-        [['Click'], 'a wire to edit its transform or remove it'],
+        [['Click'], 'a wire to edit its transform or remove it (a dashed amber wire is a draft: accept or reject it)'],
+        [['Auto-map'], 'suggests wires from the fields’ names as drafts — review them in the “Review drafts” tab before running'],
         [['✎'], 'on an entity header to edit the entity and its fields'],
         [['Design'], 'tab → Entity pair adds another source and destination'],
         [['Run'], 'starts a migration — boxes turn green or red and show what flowed through'],
@@ -258,6 +423,9 @@
         h('div', { class: 'st-pal-group', text: 'Mapping' }),
         S.paletteItem('bi-columns-gap', 'Entity pair', 'source → target', null, null, () => this.addPairDialog()),
         h('div', { class: 'st-pal-hint', text: 'Places one source entity and one destination entity on the canvas, so their fields can be wired together. A source entity can be paired with several destinations.' }),
+        h('div', { class: 'st-pal-group', text: 'Auto-map' }),
+        S.paletteItem('bi-stars', 'Auto-map fields', 'suggest as drafts', null, null, () => this.autoMapDialog()),
+        h('div', { class: 'st-pal-hint', text: 'Matches fields by name (and type) across every entity pair and saves the matches as drafts. They stay out of runs until you accept them in the Review drafts tab.' }),
         h('div', { class: 'st-pal-group', text: 'Manage entities' }),
         ...[{ id: this.mapping && this.mapping.source_connection, name: this.mapping && this.mapping.source_connection_name }]
           .concat(((this.mapping && this.mapping.destination_connections_detail) || []))
@@ -293,6 +461,7 @@
             if (!tgt) { d.error('Pick a destination entity.'); return false; }
             await S.api('/api/entity-mappings/', { method: 'POST', body: { mapping: this.id, source_entity: d.$('#ap_src').value, target_entity: tgt, write_method: d.$('#ap_method').value } });
             await this.reloadStructure();
+            this.unfoldAll();          // best effort, in the background: show the objects in full so the right inner field can be wired
           },
         }],
       });
@@ -419,7 +588,7 @@
     // ── Properties / delete ──────────────────────────────────────────────
     properties() {
       const m = this.mapping;
-      const conns = S.tree.connections.filter(c => c.id !== m.source_connection);
+      const conns = S.tree.connections.filter(c => c.id !== m.source_connection);   // (with no pairs yet the origin can change: see below)
       const inUse = new Set(this.pairs.map(p => p.target_entity_detail.connection));
       const chosen = new Set(m.destination_connections);
       S.dialog({
@@ -427,8 +596,12 @@
         body: h('div', {},
           h('div', { class: 'mb-3' }, h('label', { class: 'form-label', text: 'Name' }), h('input', { class: 'form-control', id: 'mp_name', value: m.name })),
           h('div', { class: 'mb-3' }, h('label', { class: 'form-label', text: 'Description' }), h('textarea', { class: 'form-control', id: 'mp_desc', rows: '2', text: m.description || '' })),
-          h('div', { class: 'mb-2' }, h('label', { class: 'form-label', text: 'Integration origin' }), h('div', { class: 'mono', text: m.source_connection_name }),
-            h('div', { class: 'form-text', text: "The origin can't change — its entities are already placed on the canvas." })),
+          // The origin can be changed only while nothing is wired yet — the pairs' source entities belong to it.
+          h('div', { class: 'mb-2' }, h('label', { class: 'form-label', text: 'Integration origin' }),
+            this.pairs.length
+              ? h('div', {}, h('div', { class: 'mono', text: m.source_connection_name }),
+                h('div', { class: 'form-text', text: "The origin can't change — its entities are already placed on the canvas." }))
+              : h('select', { class: 'form-select', id: 'mp_origin', html: S.tree.connections.map(c => `<option value="${c.id}" ${c.id === m.source_connection ? 'selected' : ''}>${S.esc(c.name)}</option>`).join('') })),
           h('label', { class: 'form-label', text: 'Integration destinations' }),
           h('div', { class: 'st-checklist' }, conns.map(c => h('label', { class: 'd-flex gap-2 align-items-center' },
             h('input', { type: 'checkbox', class: 'form-check-input mt-0', value: c.id, checked: chosen.has(c.id), disabled: inUse.has(c.id) }),
@@ -438,7 +611,8 @@
             const name = d.$('#mp_name').value.trim();
             if (!name) { d.error('Name is required.'); return false; }
             const dests = [...d.el.querySelectorAll('.st-checklist input')].filter(i => i.checked || i.disabled && inUse.has(Number(i.value))).map(i => Number(i.value));
-            this.mapping = await S.api(`/api/mappings/${this.id}/`, { method: 'PATCH', body: { name, description: d.$('#mp_desc').value, destination_connections: dests } });
+            const origin = d.$('#mp_origin');
+            this.mapping = await S.api(`/api/mappings/${this.id}/`, { method: 'PATCH', body: { name, description: d.$('#mp_desc').value, destination_connections: dests.filter(x => !origin || x !== Number(origin.value)), ...(origin ? { source_connection: Number(origin.value) } : {}) } });
             this.setTitle(this.mapping.name);
             this.rerender();
             S.renderPalette();
@@ -473,8 +647,8 @@
       } catch (e) { S.fail(e); }
     }
 
-    async run() { await this.startRun({}); }
-    runOptions() { S.runOptionsDialog({ title: 'Run options', fields: ['schedule', 'rate', 'files'], onStart: opts => this.startRun(opts) }); }
+    async run() { if (await this.confirmRunWithDrafts()) await this.startRun({}); }
+    runOptions() { S.runOptionsDialog({ title: 'Run options', fields: ['schedule', 'rate', 'files'], onStart: async opts => { if (await this.confirmRunWithDrafts()) return this.startRun(opts); return false; } }); }
 
     async startRun({ scheduled_at, rate_limit_per_second, files = [] }) {
       let resp;
@@ -499,7 +673,7 @@
       }
       const first = Array.isArray(resp) ? resp[0] : resp;
       if (Array.isArray(resp)) S.toast(`Started a batch of ${resp.length} runs — they run one after another.`, 'ok');
-      else if (first.status === 'pending' && first.scheduled_at) S.toast(`Run #${first.id} scheduled for ${new Date(first.scheduled_at).toLocaleString()}.`, 'ok');
+      else if (first.status === 'pending' && first.scheduled_at) S.toast(`Run #${first.id} scheduled for ${new Date(first.scheduled_at).toLocaleString(window.anteI18n ? window.anteI18n.locale() : [])}.`, 'ok');
       await this.loadRuns();
       await this.selectRun(first.id);
       this.startPollingIfNeeded();
@@ -616,10 +790,11 @@
     // ── Results panel ────────────────────────────────────────────────────
     buildResults() {
       this.tabs = S.makeTabs([
-        { id: 'map', label: 'Field mappings' }, { id: 'data', label: 'Data preview' }, { id: 'runs', label: 'Runs' },
+        { id: 'map', label: 'Field mappings' }, { id: 'review', label: 'Review drafts' }, { id: 'data', label: 'Data preview' }, { id: 'runs', label: 'Runs' },
         { id: 'metrics', label: 'Step metrics' }, { id: 'log', label: 'Logging' },
       ]);
       this.tabs.onSelect = id => { if (id === 'data') this.ensurePreview(); };
+      this.tabs.setVisible('review', false);          // appears while there are suggestions to review
       this.resultsEl.replaceChildren(this.tabs.root);
     }
 
@@ -654,6 +829,7 @@
         h('tbody', {}, rows)));
       const fields = this.pairs.reduce((n, p) => n + p.field_mappings.length, 0);
       this.tabs.setNote(`${this.pairs.length} pair(s) · ${fields} field mapping(s)`);
+      this.renderReviewTab();
       this.invalidatePreview();      // pairs, wires and transforms all feed the preview
     }
 
@@ -672,7 +848,7 @@
       this.previewError = null;
       this.renderData();                     // keeps the previous frame, dimmed, while refetching
       try {
-        this.preview = await S.api(`/api/mappings/${this.id}/preview/?limit=${this.previewLimit}`);
+        this.preview = await S.api(`/api/mappings/${this.id}/preview/?limit=${this.previewLimit}${this.previewDrafts ? '&drafts=1' : ''}`);
         this.previewStale = false;
       } catch (e) { this.previewError = e.message; }
       this.previewLoading = false;
@@ -698,6 +874,10 @@
           html: [5, 10, 25].map(n => `<option value="${n}" ${n === this.previewLimit ? 'selected' : ''}>${n} rows</option>`).join(''),
         }),
         h('button', { class: 'st-mini', disabled: this.previewLoading ? '' : null, onclick: () => this.ensurePreview(true) }, h('i', { class: 'bi-arrow-clockwise' }), ' Refresh'),
+        // Drafts don't run, so the preview leaves them out — unless you want to see what accepting them would do.
+        (entry && entry.draft_count) || this.previewDrafts ? h('label', { class: 'd-flex gap-1 align-items-center', title: 'Show the output as if the draft field mappings were accepted' },
+          h('input', { type: 'checkbox', class: 'form-check-input mt-0', checked: !!this.previewDrafts, onchange: e => { this.previewDrafts = e.target.checked; this.ensurePreview(true); } }),
+          `Include ${entry && entry.draft_count ? entry.draft_count : this.draftCount()} draft(s)`) : null,
         h('span', { class: 'spacer' }),
         h('span', {}, h('i', { class: 'bi-shield-check me-1' }), 'Dry run — reads a sample and applies your transforms; nothing is written.'));
 

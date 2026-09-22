@@ -17,6 +17,11 @@ log = logging.getLogger(__name__)
 VERB = {"success": "succeeded", "failed": "failed", "cancelled": "was cancelled", "killed": "was killed"}
 
 
+def mark_all_read(user) -> int:
+    """Mark every unread notification of `user` as read. Returns how many were marked."""
+    return Notification.objects.for_user(user).mark_all_read()
+
+
 def notify(kind, outcome, title, message, url, module, source_id=None):
     """Create one Notification per user who may see `module`. Returns how many were created."""
     try:

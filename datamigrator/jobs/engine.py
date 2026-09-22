@@ -21,6 +21,7 @@ from django.utils import timezone
 from connections.client import ConnectionClient
 from schemas import discovery
 from schemas.models import Field
+from schemas.paths import get_path, set_path
 
 from .models import MigrationLog, MigrationRun, RunStepStatus
 
@@ -135,13 +136,9 @@ def _assign_nested(out: dict, dotted_name: str, value) -> None:
     in the write payload instead of a literal 'precos.preco' key — lets a flat
     CSV/XLSX source (or any flat source) map into an API that expects nested
     JSON (Tiny ERP's /produtos, e.g. marca.id, categoria.id, precos.preco),
-    without needing a real nested source to walk. A plain name (no dot) keeps
-    today's exact behavior: a single top-level key."""
-    parts = dotted_name.split(".")
-    container = out
-    for part in parts[:-1]:
-        container = container.setdefault(part, {})
-    container[parts[-1]] = value
+    and a numeric segment ('items.0.sku') builds a list. A plain name (no dot)
+    keeps today's exact behavior: a single top-level key."""
+    set_path(out, dotted_name, value)
 
 
 def transform_field(record: dict, field_mapping):
@@ -149,7 +146,7 @@ def transform_field(record: dict, field_mapping):
     then the advanced expression, then type coercion, in the same order a real
     run applies them. Returns (raw_value, final_value); the pair lets the
     Studio's data preview show which cells a transform actually changed."""
-    raw_value = record.get(field_mapping.source_field.name)
+    raw_value = get_path(record, field_mapping.source_field.name)      # 'address.city' reaches into nested objects
     value = _apply_rules(raw_value, field_mapping.transform_rules)
     value = _apply_transform(value, field_mapping.transform)
     return raw_value, _coerce_to_field_type(value, field_mapping.target_field.field_type)
@@ -278,7 +275,13 @@ def run_migration(run: MigrationRun, entity_mapping_ids=None) -> MigrationRun:
                 target_connection = entity_mapping.target_entity.connection
                 target_client = target_client_for(target_connection)
 
-                field_mappings = list(entity_mapping.field_mappings.select_related("source_field", "target_field"))
+                # Draft wires (suggested by auto-mapping, not yet reviewed) never run.
+                all_wires = entity_mapping.field_mappings.select_related("source_field", "target_field")
+                field_mappings = list(all_wires.exclude(status="draft"))
+                drafts = all_wires.filter(status="draft").count()
+                if drafts:
+                    _log(run, f"{entity_mapping}: {drafts} draft field mapping(s) are not included — review and accept them first.",
+                         level=MigrationLog.LEVEL_WARNING)
                 if not field_mappings:
                     _log(
                         run,
@@ -286,7 +289,7 @@ def run_migration(run: MigrationRun, entity_mapping_ids=None) -> MigrationRun:
                         level=MigrationLog.LEVEL_WARNING,
                     )
                     step.status = RunStepStatus.STATUS_FAILED
-                    step.error_message = "No field mappings configured."
+                    step.error_message = ("Only draft field mappings — accept them first." if drafts else "No field mappings configured.")
                     step.records_read = len(records)
                     step.finished_at = timezone.now()
                     step.save()

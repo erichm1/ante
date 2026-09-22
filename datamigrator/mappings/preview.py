@@ -20,7 +20,7 @@ def clamp_limit(raw):
         return DEFAULT_LIMIT
 
 
-def preview_mapping(mapping, limit=DEFAULT_LIMIT):
+def preview_mapping(mapping, limit=DEFAULT_LIMIT, include_drafts=False):
     """One entry per entity pair, in canvas order. A source that can't be read
     yields an entry with `error` set rather than failing the whole preview —
     one unreachable system shouldn't blank the pairs that are fine."""
@@ -33,7 +33,10 @@ def preview_mapping(mapping, limit=DEFAULT_LIMIT):
 
     for pair in pairs:
         source, target = pair.source_entity, pair.target_entity
-        field_mappings = list(pair.field_mappings.all())
+        wires = list(pair.field_mappings.all())
+        drafts = [fm for fm in wires if fm.status == "draft"]
+        # A run only uses confirmed wires; `include_drafts` shows what the suggestions would add.
+        field_mappings = wires if include_drafts else [fm for fm in wires if fm.status != "draft"]
 
         if source.id not in source_cache:
             try:
@@ -67,10 +70,12 @@ def preview_mapping(mapping, limit=DEFAULT_LIMIT):
             "target_connection": target.connection.name,
             "target_endpoint": target.endpoint_path,
             "write_method": pair.write_method,
+            "draft_count": len(drafts),
+            "drafts_included": include_drafts,
             "total": len(records),
             "sample_size": len(sample),
             "source_columns": columns,
-            "mapped_source": sorted({fm.source_field.name for fm in field_mappings}),
+            "mapped_source": sorted({n for fm in field_mappings for n in (fm.source_field.name, fm.source_field.name.split(".")[0])}),   # a nested field also marks its top-level column as used
             "target_columns": [fm.target_field.name for fm in field_mappings],
             "source_of": {fm.target_field.name: fm.source_field.name for fm in field_mappings},   # target column -> where it came from
             "rows": sample,

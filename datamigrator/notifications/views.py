@@ -6,6 +6,7 @@ from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
 
 from .models import Notification
+from .services import mark_all_read
 
 FEED_SIZE = 12
 
@@ -33,8 +34,7 @@ def feed(request):
 @require_POST
 def mark_read(request):
     """Mark every notification of the caller's read (the bell's "Mark all read")."""
-    updated = _mine(request).filter(read_at__isnull=True).update(read_at=timezone.now())
-    return JsonResponse({"updated": updated})
+    return JsonResponse({"updated": mark_all_read(request.user)})
 
 
 @login_required

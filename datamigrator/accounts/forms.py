@@ -16,7 +16,13 @@ class BootstrapFormMixin:
 
 
 class StyledAuthenticationForm(BootstrapFormMixin, AuthenticationForm):
-    pass
+    """Sign-in for accounts that already exist. Django's backend refuses unknown and deactivated users; the error
+    is the same generic one either way, so it doesn't reveal which usernames exist."""
+
+    error_messages = {
+        **AuthenticationForm.error_messages,
+        "inactive": "Please enter a correct username and password. Note that both fields may be case-sensitive.",
+    }
 
 
 class StyledUserCreationForm(BootstrapFormMixin, UserCreationForm):

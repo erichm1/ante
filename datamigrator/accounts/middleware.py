@@ -16,13 +16,13 @@ class LoginRequiredMiddleware:
     (a redirect would hand a fetch() caller an HTML login page where it
     expects JSON) and gets a plain 401 instead — in normal use this never
     fires, since every page that calls the API already required login to
-    reach."""
+    reach. The one page open to everybody is "/" — the public landing page."""
 
     def __init__(self, get_response):
         self.get_response = get_response
 
     def __call__(self, request):
-        if not request.user.is_authenticated and not request.path.startswith(OPEN_PATH_PREFIXES):
+        if not request.user.is_authenticated and request.path != "/" and not request.path.startswith(OPEN_PATH_PREFIXES):
             if request.path.startswith("/api/"):
                 return JsonResponse({"detail": "Authentication required."}, status=401)
             return redirect(f"{resolve_url(settings.LOGIN_URL)}?next={request.path}")

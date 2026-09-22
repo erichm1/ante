@@ -1,0 +1,267 @@
+{% load static %}<!DOCTYPE html>
+<html lang="{{ LANGUAGE_CODE|default:'en' }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ante — Move data between systems, visually</title>
+  <meta name="description" content="Ante connects REST APIs, CSV and Excel files. Map fields on a canvas, preview every payload, run live and stop whenever you need.">
+  <link rel="icon" type="image/svg+xml" href="{% static 'img/logo.svg' %}">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="{% static 'css/app.css' %}" rel="stylesheet">
+  <link href="{% static 'css/landing.css' %}" rel="stylesheet">
+</head>
+<body class="lp">
+
+  <header class="lp-header">
+    <div class="lp-wrap lp-header-in">
+      <a href="{% url 'landing' %}" class="lp-brand"><img src="{% static 'img/logo.svg' %}" alt=""><span>Ante</span></a>
+      <nav class="lp-nav" aria-label="Sections">
+        <a href="#features">Features</a>
+        <a href="#how">How it works</a>
+        <a href="#control">Security &amp; control</a>
+      </nav>
+      <div class="lp-header-end" data-lang-host>
+        <a class="lp-btn lp-btn-amber lp-btn-sm" href="{% url 'accounts:login' %}">Sign in</a>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <!-- Hero -->
+    <section class="lp-hero">
+      <div class="lp-wrap">
+        <div class="lp-hero-copy">
+          <p class="lp-eyebrow">Data migration, made visual</p>
+          <h1>Move data between any two systems — without writing glue code.</h1>
+          <p class="lp-lead">Ante connects REST APIs, CSV and Excel files. Wire fields on a canvas, preview every payload before it is sent, watch runs live and stop them the moment you need to.</p>
+          <div class="lp-cta">
+            <a class="lp-btn lp-btn-amber" href="{% url 'accounts:login' %}">Sign in</a>
+            <a class="lp-btn lp-btn-ghost" href="#features">See what it does</a>
+          </div>
+          <ul class="lp-chips" aria-label="Highlights">
+            <li>REST APIs</li><li>CSV &amp; Excel</li><li>OAuth2, API keys, JWT</li><li>Nested JSON objects</li><li>8 languages</li>
+          </ul>
+        </div>
+        <figure class="lp-shot lp-shot-hero">
+          <img src="{% static 'landing/studio-mapping.webp' %}" width="1440" height="900" alt="The Ante Studio: a customer object mapped field by field onto a CRM contact">
+        </figure>
+      </div>
+    </section>
+
+    <!-- At a glance -->
+    <section class="lp-glance">
+      <div class="lp-wrap lp-glance-grid">
+        <div><i class="bi-diagram-3"></i><h3>Map</h3><p>Drag a field onto another to connect them — transforms included.</p></div>
+        <div><i class="bi-eye"></i><h3>Preview</h3><p>See the exact data that would be sent, before anything is written.</p></div>
+        <div><i class="bi-play-circle"></i><h3>Run</h3><p>Start now, schedule it, or chain it into a plan of many steps.</p></div>
+        <div><i class="bi-activity"></i><h3>Watch</h3><p>Live progress, run history, alerts — and a Kill button.</p></div>
+      </div>
+    </section>
+
+    <!-- Features -->
+    <section id="features" class="lp-section">
+      <div class="lp-wrap">
+        <header class="lp-section-head">
+          <p class="lp-eyebrow">Features</p>
+          <h2>Everything a data flow needs, in one workspace</h2>
+          <p>From the first field you connect to the last notification you receive.</p>
+        </header>
+
+        <article class="lp-feature">
+          <div class="lp-feature-copy">
+            <span class="lp-tag"><i class="bi-window-desktop"></i> Studio</span>
+            <h3>One workspace for mappings, chains, plans and runs</h3>
+            <p>Open everything you build in tabs, side by side with its run history and live log. Drag fields, steps and blocks around a canvas instead of editing configuration files.</p>
+            <ul class="lp-points">
+              <li>Explorer, tabs and a results panel that follows what you have open</li>
+              <li>Zoom, pan and fit-to-screen controls, with a built-in cheat sheet</li>
+              <li>Every system shows its own logo, so flows read at a glance</li>
+            </ul>
+          </div>
+          <figure class="lp-shot"><img src="{% static 'landing/studio-plan.webp' %}" width="1440" height="900" loading="lazy" alt="A plan in the Studio: two mappings, a pause and a chain run in order"></figure>
+        </article>
+
+        <article class="lp-feature lp-feature-flip">
+          <div class="lp-feature-copy">
+            <span class="lp-tag"><i class="bi-braces"></i> Nested data</span>
+            <h3>See — and map — the entire object</h3>
+            <p>Real APIs return objects inside objects. Ante unfolds them completely, so you connect exactly the field you mean: an address, a coordinate, the first item of an order.</p>
+            <ul class="lp-points">
+              <li>Every level of an object is listed and can be wired on its own</li>
+              <li>Objects discovered flat unfold themselves when you place them on the canvas</li>
+              <li>Destination payloads are built with the same nested shape your API expects</li>
+            </ul>
+          </div>
+          <figure class="lp-shot"><img src="{% static 'landing/studio-nested.webp' %}" width="1400" height="940" loading="lazy" alt="Nested fields such as address, geo and orders drawn as an indented tree with wires to the destination"></figure>
+        </article>
+
+        <article class="lp-feature">
+          <div class="lp-feature-copy">
+            <span class="lp-tag"><i class="bi-eye"></i> Data preview</span>
+            <h3>Preview every payload before you send it</h3>
+            <p>A dry run reads a real sample from the source and applies your transforms — then shows the input and the exact output side by side. Nothing is written until you press Run.</p>
+            <ul class="lp-points">
+              <li>Transformed cells are flagged, unmapped columns are dimmed</li>
+              <li>Switch between a table and the raw JSON that will be posted</li>
+              <li>Trim, upper and lower case, value maps and fallbacks — no code needed</li>
+            </ul>
+          </div>
+          <figure class="lp-shot"><img src="{% static 'landing/studio-preview.webp' %}" width="1440" height="900" loading="lazy" alt="Data preview showing source rows next to the payloads that would be written"></figure>
+        </article>
+
+        <article class="lp-feature lp-feature-flip">
+          <div class="lp-feature-copy">
+            <span class="lp-tag"><i class="bi-link-45deg"></i> Chains</span>
+            <h3>Script multi-step API workflows</h3>
+            <p>When a copy is not enough, chain calls together: create a record, use its new id in the next request, wait for a long job to finish, page through results and search what came back.</p>
+            <ul class="lp-points">
+              <li>Async jobs that poll until done, next-page loops and find-in-list steps</li>
+              <li>Headers, query parameters and captured values on every request</li>
+              <li>Each step shows its request, response and what it captured</li>
+            </ul>
+          </div>
+          <figure class="lp-shot"><img src="{% static 'landing/studio-chain.webp' %}" width="1440" height="900" loading="lazy" alt="A chain of five steps with a tick on each and the step results underneath"></figure>
+        </article>
+
+        <article class="lp-feature">
+          <div class="lp-feature-copy">
+            <span class="lp-tag"><i class="bi-list-ol"></i> Plans &amp; custom runs</span>
+            <h3>Build a run by drag and drop</h3>
+            <p>Drop mappings, single entity pairs, chains and pauses onto a canvas and run them in order — now or on a schedule. Function blocks share data, so one step can use what an earlier one returned.</p>
+            <ul class="lp-points">
+              <li>Schedule a run, cap its request rate, or feed it input files</li>
+              <li>Run only some entity pairs of a mapping</li>
+              <li>Stop everything with one Kill button — written records stay written</li>
+            </ul>
+          </div>
+          <figure class="lp-shot"><img src="{% static 'landing/studio-runs.webp' %}" width="1440" height="900" loading="lazy" alt="Run health dashboard with a column per run, success rate and records written"></figure>
+        </article>
+
+        <article class="lp-feature lp-feature-flip">
+          <div class="lp-feature-copy">
+            <span class="lp-tag"><i class="bi-bell"></i> Live runs &amp; notifications</span>
+            <h3>Know the moment something finishes</h3>
+            <p>Every run, chain, plan and scheduled job tells you how it ended: succeeded, failed, cancelled before it started, or killed while running — with the numbers and a link to the details.</p>
+            <ul class="lp-points">
+              <li>A bell with an unread count, and a full history you can filter</li>
+              <li>Per-run health: records read, written and failed, and how long it took</li>
+              <li>A live requests-per-second counter while a migration is running</li>
+            </ul>
+          </div>
+          <figure class="lp-shot"><img src="{% static 'landing/notifications.webp' %}" width="1440" height="560" loading="lazy" alt="The notification bell open, listing succeeded, cancelled and killed runs"></figure>
+        </article>
+
+        <article class="lp-feature">
+          <div class="lp-feature-copy">
+            <span class="lp-tag"><i class="bi-magic"></i> Templates</span>
+            <h3>Start from a recipe, not a blank page</h3>
+            <p>Copy matching fields, import a spreadsheet, fan one source out to several systems, create-then-link, or start a job and wait for it. Every template creates an ordinary mapping, chain or plan you can change freely.</p>
+            <ul class="lp-points">
+              <li>Fields with the same name are wired for you</li>
+              <li>Chains come with captures and polling already filled in</li>
+              <li>Or begin with a single run of an existing mapping</li>
+            </ul>
+          </div>
+          <figure class="lp-shot"><img src="{% static 'landing/templates.webp' %}" width="1440" height="900" loading="lazy" alt="The template gallery grouped into migrations, chains, plans and runs"></figure>
+        </article>
+
+        <article class="lp-feature lp-feature-flip">
+          <div class="lp-feature-copy">
+            <span class="lp-tag"><i class="bi-shield-lock"></i> Teams &amp; permissions</span>
+            <h3>Give each person exactly what they need</h3>
+            <p>Organise people into departments and groups, then switch every module on or off — for a group, or for one person. Anyone without access sees a clear message instead of a broken page.</p>
+            <ul class="lp-points">
+              <li>Modules: connections, mappings, runs, plans, chains, Studio, reports and more</li>
+              <li>Inherit from groups, or override per person — Off always wins</li>
+              <li>Accounts are created by your administrator: only people you add can sign in</li>
+            </ul>
+          </div>
+          <figure class="lp-shot lp-shot-narrow"><img src="{% static 'landing/permissions.webp' %}" width="800" height="844" loading="lazy" alt="Editing a user: every module can inherit from groups or be switched on or off"></figure>
+        </article>
+
+        <article class="lp-feature">
+          <div class="lp-feature-copy">
+            <span class="lp-tag"><i class="bi-journal-text"></i> Logs &amp; monitoring</span>
+            <h3>Every API call, searchable</h3>
+            <p>Each request Ante makes is recorded — method, URL, status, timing, headers and body. Filter it with a one-line query, follow an incident to the calls behind it, and track outages with SLAs and post-mortems.</p>
+            <ul class="lp-points">
+              <li>Queries such as status:&gt;=400 connection:storefront since:1h</li>
+              <li>Automation rules that open incidents when error rates climb</li>
+              <li>Tickets and incidents live next to the data flows they affect</li>
+            </ul>
+          </div>
+          <figure class="lp-shot"><img src="{% static 'landing/logs.webp' %}" width="1440" height="900" loading="lazy" alt="The API call log with quick filters and a query box"></figure>
+        </article>
+
+        <article class="lp-feature lp-feature-flip">
+          <div class="lp-feature-copy">
+            <span class="lp-tag"><i class="bi-phone"></i> Everywhere</span>
+            <h3>Mobile-first, and in your language</h3>
+            <p>Dashboards, runs, tickets and notifications work on a phone. The whole product — every page, dialog and message — speaks English, Portuguese, Spanish, French, German, Italian, Japanese and Chinese.</p>
+            <ul class="lp-points">
+              <li>Watch runs and read notifications from anywhere</li>
+              <li>Switch language any time; dates and numbers follow</li>
+              <li>The visual Studio asks for a desktop, where it works best</li>
+            </ul>
+          </div>
+          <figure class="lp-phone"><img src="{% static 'landing/mobile.webp' %}" width="780" height="1688" loading="lazy" alt="The Ante dashboard on a phone"></figure>
+        </article>
+      </div>
+    </section>
+
+    <!-- How it works -->
+    <section id="how" class="lp-section lp-section-tint">
+      <div class="lp-wrap">
+        <header class="lp-section-head">
+          <p class="lp-eyebrow">How it works</p>
+          <h2>From two systems to a running migration</h2>
+        </header>
+        <ol class="lp-steps">
+          <li><span>1</span><h3>Connect</h3><p>Install a ready-made connector or add your own, with OAuth2, an API key, basic auth or a signed token. Or just upload a CSV or Excel file.</p></li>
+          <li><span>2</span><h3>Discover</h3><p>Ante reads an OpenAPI document, a live sample or your file and lists every entity and field — objects unfolded.</p></li>
+          <li><span>3</span><h3>Map and preview</h3><p>Wire fields on the canvas, add transforms, and check the exact payloads in the data preview.</p></li>
+          <li><span>4</span><h3>Run and watch</h3><p>Start it, schedule it or add it to a plan. Follow it live, get notified, and retry only what failed.</p></li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- Security & control -->
+    <section id="control" class="lp-section">
+      <div class="lp-wrap">
+        <header class="lp-section-head">
+          <p class="lp-eyebrow">Security &amp; control</p>
+          <h2>Built so you stay in charge</h2>
+        </header>
+        <div class="lp-cards">
+          <div class="lp-card"><i class="bi-key"></i><h3>Credentials stay secret</h3><p>Tokens, API keys and passwords are encrypted at rest and never sent back to the browser. OAuth2 tokens refresh themselves.</p></div>
+          <div class="lp-card"><i class="bi-person-check"></i><h3>Accounts by invitation</h3><p>There is no public sign-up. Your administrator creates each account, and only those accounts can sign in.</p></div>
+          <div class="lp-card"><i class="bi-toggles"></i><h3>Granular permissions</h3><p>Switch modules on or off per group or per person, with a clear message wherever access is missing.</p></div>
+          <div class="lp-card"><i class="bi-stop-circle"></i><h3>A real stop button</h3><p>Kill a migration, chain or plan at any time. It stops at the next safe point, and what was written stays written.</p></div>
+          <div class="lp-card"><i class="bi-clock-history"></i><h3>A complete record</h3><p>Every outbound call is logged and searchable, and every run keeps its history, its counts and its per-record errors.</p></div>
+          <div class="lp-card"><i class="bi-speedometer2"></i><h3>Gentle on your APIs</h3><p>Cap the request rate per connection, per plan or per step, so a big migration never trips a rate limit.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Closing call to action -->
+    <section class="lp-final">
+      <div class="lp-wrap">
+        <h2>Ready to move your data?</h2>
+        <p>Sign in with the account your administrator created for you.</p>
+        <a class="lp-btn lp-btn-amber lp-btn-lg" href="{% url 'accounts:login' %}">Sign in to Ante</a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="lp-footer">
+    <div class="lp-wrap lp-footer-in">
+      <a href="{% url 'landing' %}" class="lp-brand lp-brand-sm"><img src="{% static 'img/logo.svg' %}" alt=""><span>Ante</span></a>
+      <p>Data migration, made visual.</p>
+      <a href="{% url 'accounts:login' %}">Sign in</a>
+    </div>
+  </footer>
+
+  <script src="{% static 'js/i18n.js' %}"></script>
+</body>
+</html>

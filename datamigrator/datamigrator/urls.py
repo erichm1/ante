@@ -2,7 +2,6 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import path, include
-from django.views.generic import RedirectView
 from rest_framework import routers
 
 from connections import views as connection_views
@@ -15,6 +14,8 @@ from reports import views as report_views
 from incidents import views as incident_views
 from tickets import views as ticket_views
 from attachments import views as attachment_views
+from home import views as home_views
+from notifications import api as notification_api
 from accounts import api as account_api
 
 router = routers.DefaultRouter()
@@ -37,6 +38,7 @@ router.register(r"incident-notes", incident_views.IncidentNoteViewSet, basename=
 router.register(r"tickets", ticket_views.TicketViewSet, basename="ticket")
 router.register(r"ticket-notes", ticket_views.TicketNoteViewSet, basename="ticket-note")
 router.register(r"attachments", attachment_views.AttachmentViewSet, basename="attachment")
+router.register(r"notifications", notification_api.NotificationViewSet, basename="notification")
 router.register(r"admin-users", account_api.UserAdminViewSet, basename="admin-user")
 router.register(r"admin-groups", account_api.AccessGroupViewSet, basename="admin-group")
 router.register(r"admin-departments", account_api.DepartmentViewSet, basename="admin-department")
@@ -45,7 +47,7 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/admin-modules/", account_api.ModuleListView.as_view(), name="admin-modules"),
     path("api/", include(router.urls)),
-    path("", RedirectView.as_view(url="/home/", permanent=False)),
+    path("", home_views.landing, name="landing"),
     path("accounts/", include("accounts.urls")),
     path("home/", include("home.urls")),
     path("connections/", include("connections.urls")),

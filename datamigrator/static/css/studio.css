@@ -425,6 +425,29 @@
   background: var(--signal); color: #fff; font-size: 11px; font-style: italic; font-family: var(--font-mono); cursor: help;
 }
 
+/* Auto-mapping drafts: suggested wires are dashed amber until someone accepts them */
+.st-surface.kind-mapping .jtk-connector.st-wire-draft path { stroke: var(--signal); stroke-width: 2; stroke-dasharray: 8 3; }
+.st-surface.kind-mapping .jtk-connector.st-wire-draft:hover path { stroke: var(--trace); }
+.st-surface .jtk-overlay.st-draft-tag {
+  padding: 0 6px; border-radius: 9px; background: var(--paper); color: var(--signal); border: 1px solid var(--signal);
+  font-size: 0.66rem; font-family: var(--font-mono); line-height: 15px; cursor: help; white-space: nowrap;
+}
+.st-mini.st-mini-accent { border-color: var(--signal); color: var(--signal); font-weight: 500; }
+.st-mini.st-mini-accent:hover { background: var(--signal); border-color: var(--signal); color: #1b1408; }
+.st-mini:disabled { opacity: 0.5; cursor: not-allowed; }
+.st-review-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px 12px; border-bottom: 1px solid var(--st-line); }
+.st-review-bar .spacer { flex: 1; min-width: 12px; }
+.st-review-bar .text-dim { font-size: 0.74rem; }
+.st-table .ftype { font-family: var(--font-mono); font-size: 0.68rem; color: var(--text-dim); }
+.st-conf { display: inline-block; padding: 1px 9px; border-radius: 999px; font-size: 0.72rem; font-weight: 500; white-space: nowrap; border: 1px solid transparent; cursor: help; }
+.st-conf.high { background: var(--trace-soft); color: var(--trace); border-color: var(--trace); }
+.st-conf.mid { background: var(--chip-warn-bg); color: var(--signal); border-color: var(--chip-warn-bd); }
+.st-conf.low { background: var(--chip-err-bg); color: var(--danger); border-color: var(--chip-err-bd); }
+.st-review-notes { padding: 10px 12px 14px; border-top: 1px solid var(--st-line); font-size: 0.78rem; }
+.st-review-notes-title { font-weight: 600; margin-bottom: 6px; }
+.st-review-unmatched { margin-bottom: 10px; }
+.st-review-unmatched > div { margin-top: 3px; display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+
 /* Mapping canvas — entity boxes with field endpoints */
 .st-entity { width: 240px; }
 .st-entity-head {
@@ -442,6 +465,11 @@
 .st-field .ftype { font-family: var(--font-mono); font-size: 0.68rem; color: var(--text-dim); }
 .st-field .fname { font-family: var(--font-mono); }
 .st-field .req { color: var(--danger); }
+.st-field .st-flabel { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.st-field.is-parent .fname { font-weight: 600; }
+.st-field.is-nested { background-image: linear-gradient(to right, var(--st-line) 1px, transparent 1px); background-size: 14px 100%; background-repeat: repeat-x; background-position: 4px 0; }
+.st-row-disc { border: none; background: none; padding: 0 3px; margin-left: 4px; color: var(--trace); cursor: pointer; font-size: 0.8rem; }
+.st-row-disc:hover { color: var(--text); }
 .st-dotp { width: 11px; height: 11px; border-radius: 50%; flex-shrink: 0; background: var(--trace); border: 2px solid var(--panel); box-shadow: 0 0 0 1px var(--trace); cursor: crosshair; }
 .st-dotp.target { background: var(--signal); box-shadow: 0 0 0 1px var(--signal); }
 

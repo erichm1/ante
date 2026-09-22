@@ -1,0 +1,16 @@
+{% comment %}
+Extra request headers and query parameters for a step, shared by the Add-step row and the Edit-step
+modal — keyed by `prefix` ("as" / "es"). Values may use {{placeholders}} from earlier steps.
+{% endcomment %}
+<div class="row g-3 mt-1">
+  <div class="col-lg-6">
+    <label class="form-label small mb-1 text-dim">Headers <span class="fw-normal">— extra headers sent with this request (they override the connection's headers of the same name).</span></label>
+    <div id="{{ prefix }}_headers_list"></div>
+    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="addPairRow('{{ prefix }}', 'headers')">+ Add header</button>
+  </div>
+  <div class="col-lg-6">
+    <label class="form-label small mb-1 text-dim">Query parameters <span class="fw-normal">— sent as ?name=value, e.g. a filter like situacao = A or limit = 50.</span></label>
+    <div id="{{ prefix }}_query_params_list"></div>
+    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="addPairRow('{{ prefix }}', 'query_params')">+ Add parameter</button>
+  </div>
+</div>

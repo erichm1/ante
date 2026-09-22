@@ -1,13 +1,15 @@
 {% load static %}
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{ LANGUAGE_CODE|default:'en' }}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Ante{% endblock %}</title>
+  <link rel="icon" type="image/svg+xml" href="{% static 'img/logo.svg' %}">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <link href="{% static 'css/app.css' %}" rel="stylesheet">
+  <link href="{% static 'css/landing.css' %}" rel="stylesheet">
   <script>
   (function(){
     var t=localStorage.getItem('ante_theme'),h=document.documentElement;
@@ -18,12 +20,15 @@
   </script>
 </head>
 <body class="auth-body">
+  {# The same header as every other page: the Ante logo (back to the front page) and the language picker. #}
+  <header class="lp-header">
+    <div class="lp-wrap lp-header-in">
+      <a href="{% url 'landing' %}" class="lp-brand"><img src="{% static 'img/logo.svg' %}" alt=""><span>Ante</span></a>
+      <div class="lp-header-end" data-lang-host></div>
+    </div>
+  </header>
   <div class="auth-shell">
     <div class="panel auth-card">
-      <div class="auth-brand mb-4">
-        <img src="{% static 'img/logo.svg' %}" alt="" class="auth-logo">
-        <span>Ante</span>
-      </div>
       {% if messages %}
         {% for message in messages %}
           <div class="alert {% if message.tags == 'error' %}alert-danger{% else %}alert-{{ message.tags|default:'info' }}{% endif %}" role="alert">{{ message }}</div>
@@ -32,5 +37,6 @@
       {% block auth_content %}{% endblock %}
     </div>
   </div>
+  <script src="{% static 'js/i18n.js' %}"></script>
 </body>
 </html>

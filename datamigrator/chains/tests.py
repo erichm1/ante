@@ -631,3 +631,37 @@ class HeadersAndParamsTests(ChainTestBase):
         self.assertEqual((patched.json()["headers"], patched.json()["query_params"]), ([{"name": "X-B", "value": "2"}], [{"name": "q", "value": "1"}]))
         cleared = self.client.patch(url, {"headers": []}, content_type="application/json")
         self.assertEqual((cleared.json()["headers"], cleared.json()["query_params"]), ([], [{"name": "q", "value": "1"}]))     # only what was sent changes
+
+
+class ClassicPageStepExtrasTests(ChainTestBase):
+    """The classic chain page can add / edit headers and query parameters on each step, not just the Studio."""
+
+    def test_the_page_offers_the_editors_and_the_edit_dialog_carries_the_saved_values(self):
+        self.step("list", headers=[{"name": "X-Tenant", "value": "acme"}], query_params=[{"name": "situacao", "value": "A"}, {"name": "limit", "value": "50"}])
+        page = self.client.get(f"/chains/{self.chain.pk}/").content.decode()
+        for prefix in ("as", "es"):                                        # the add-step row and the edit dialog
+            self.assertIn(f'id="{prefix}_headers_list"', page)
+            self.assertIn(f'id="{prefix}_query_params_list"', page)
+        self.assertIn("1 header(s)", page)                                 # the steps table says what each step sends
+        self.assertIn("?2 param(s)", page)
+        self.assertIn("X-Tenant", page)                                    # in the step data the edit dialog reads
+        self.assertIn("value or {{placeholder}}", page)                    # the hint survives the template engine
+
+    def test_saving_from_the_page_stores_them_and_drops_blank_rows(self):
+        step = self.step("list")
+        body = {"name": "list", "method": "GET", "path": "/list",
+                "headers": [{"name": "X-Tenant", "value": "acme"}, {"name": "", "value": ""}],
+                "query_params": [{"name": "situacao", "value": "A"}, {"name": "  ", "value": ""}, {"name": "limit", "value": "{{page_size}}"}]}
+        resp = self.client.patch(f"/api/chain-steps/{step.pk}/", body, content_type="application/json")
+        self.assertEqual(resp.status_code, 200, resp.content)
+        step.refresh_from_db()
+        self.assertEqual(step.headers, [{"name": "X-Tenant", "value": "acme"}])
+        self.assertEqual([q["name"] for q in step.query_params], ["situacao", "limit"])
+        nameless = self.client.patch(f"/api/chain-steps/{step.pk}/", {**body, "headers": [{"name": "", "value": "oops"}]}, content_type="application/json")
+        self.assertEqual((nameless.status_code, nameless.json()["error"]), (400, "A header has a value but no name."))
+        # and what was saved is what goes on the wire ({{page_size}} needs an earlier step, so run without it)
+        CallChainStep.objects.filter(pk=step.pk).update(query_params=[{"name": "situacao", "value": "A"}])
+        FakeClient.routes = {"/list": FakeResponse({})}
+        self.assertEqual(self.run_chain().status, "success")
+        kw = FakeClient.calls[-1][2]
+        self.assertEqual((kw["params"], kw["headers"]), ({"situacao": "A"}, {"X-Tenant": "acme"}))

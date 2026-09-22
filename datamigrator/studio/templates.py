@@ -19,6 +19,7 @@ from connections.models import Connection
 from mappings.models import EntityMapping, FieldMapping, Mapping
 from plans.models import MigrationPlan, PlanStep
 from schemas.models import Entity, Field
+from schemas.paths import leaf_fields
 
 
 class TemplateError(ValueError):
@@ -148,11 +149,12 @@ def auto_map(pair, preset="none"):
     """Wire every target field to the source field with the same (normalised) name —
     ignoring case, underscores and dashes, and falling back to the last segment of a
     dotted target name (precos.preco → preco). Returns (matched, unmatched target names)."""
+    # Only the leaves: an object and its own members would otherwise be wired twice (the object whole, then piece by piece).
     source_by_name = {}
-    for f in pair.source_entity.fields.all():
+    for f in leaf_fields(list(pair.source_entity.fields.all())):
         source_by_name.setdefault(_norm(f.name), f)
     matched, unmatched = 0, []
-    for target in pair.target_entity.fields.all():
+    for target in leaf_fields(list(pair.target_entity.fields.all())):
         source = source_by_name.get(_norm(target.name)) or source_by_name.get(_norm(target.name.split(".")[-1]))
         if not source:
             unmatched.append(target.name)

@@ -1,5 +1,23 @@
 from django.conf import settings
 from django.db import models
+from django.utils import timezone
+
+
+class NotificationQuerySet(models.QuerySet):
+    def for_user(self, user):
+        return self.filter(recipient=user)
+
+    def unread(self):
+        return self.filter(read_at__isnull=True)
+
+    def mark_all_read(self):
+        """Mark every unread notification in this queryset as read; returns how many were changed.
+        (`Notification.objects.for_user(user).mark_all_read()` is "mark all of this person's notifications read".)"""
+        return self.unread().update(read_at=timezone.now())
+
+    def mark_read(self, ids):
+        """Mark just these notifications read (ids the queryset doesn't contain are ignored)."""
+        return self.filter(pk__in=list(ids)).unread().update(read_at=timezone.now())
 
 
 class Notification(models.Model):
@@ -27,6 +45,8 @@ class Notification(models.Model):
     source_id = models.PositiveIntegerField(null=True, blank=True, help_text="Id of the run / chain run / plan it is about.")
     created_at = models.DateTimeField(auto_now_add=True)
     read_at = models.DateTimeField(null=True, blank=True)
+
+    objects = NotificationQuerySet.as_manager()
 
     class Meta:
         ordering = ["-created_at", "-id"]

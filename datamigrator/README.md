@@ -1,5 +1,7 @@
 # Data Migrator
 
+> **Using the system?** See the [User Guide](docs/USER_GUIDE.md) — from a first migration to chains, plans, permissions and troubleshooting.
+
 A platform for connecting one or more external systems and migrating records
 between them, with a drag-and-drop, UML-style entity/field mapper.
 
@@ -113,6 +115,13 @@ Visit `http://localhost:8000/connections/` to get started.
      merged over the connection's own auth headers, secrets are masked in the recorded request, and a block on the
      canvas shows how many it sends. (`headers` / `query_params`: `[{name, value}, …]` on chain steps and on a plan's
      `function`.)
+   - **Nested objects.** A discovered object is listed whole *and* member by member — `address`, `address.city`,
+     `address.geo.lat`, and a list of objects through `orders.0.sku` — drawn on the canvas as an indented tree, so any
+     level can be wired on its own. A source path is read through the record (`schemas/paths.py`), and a destination path
+     builds the nested body (`{"location": {"city": …}}`, numeric segments make lists). Entities discovered flat
+     unfold themselves when a mapping opens or an entity pair is placed (`POST /api/entities/<id>/discover-nested/`
+     re-samples the endpoint), and there is a button next to any object that still has nothing inside. OpenAPI
+     `$ref`s and `allOf` are followed too. *Copy matching fields* wires leaves only, so an object isn't mapped twice.
    - **Kill.** The toolbar's red **Kill** button stops whatever the open document is running — a mapping's
      migration, a chain, or a whole plan (or cancels a scheduled plan) — and per-run *Kill/Cancel* buttons sit in a
      mapping's Runs table. Stopping is cooperative: a migration stops between records, a chain between steps
@@ -181,6 +190,42 @@ Visit `http://localhost:8000/connections/` to get started.
    Studio's *Detail* / *Pipeline* links open); a mixed plan's old detail page
    redirects into the Studio. `/api/runs/?slim=1` lists runs without their logs.
 
+## Auto-mapping (draft wires)
+
+Auto-mapping matches fields by name and saves the matches as **drafts** to be reviewed before a run. `FieldMapping` has a `status`
+(`confirmed`, the default, or `draft`), a `match_score` (0–100) and a `match_reason`. **Drafts never run**: `jobs/engine.py` reads only
+`confirmed` wires, logs "N draft field mapping(s) are not included" for a pair that has some, and fails a pair that has *only* drafts
+with "Only draft field mappings — accept them first". The preview (`GET /api/mappings/<id>/preview/`) also leaves them out unless
+`?drafts=1` is passed (each pair reports `draft_count` and `drafts_included`). Mappings and pairs carry a `draft_count`.
+
+- `POST /api/mappings/<id>/auto-map/` (every entity pair; `→ {"created": n, "pairs": [...]}`) and
+  `POST /api/entity-mappings/<id>/auto-map/` (one pair). Body, all optional: `min_score` (30–100, default 60), `only_unmapped`
+  (leave target fields that already have a wire alone), `replace_drafts` (drop the earlier drafts first) and `dry_run` (return the
+  suggestions without saving them). Each pair result lists `suggestions` (`source`, `target`, `score`, `reason`), `unmatched_targets`
+  and `unmatched_sources`.
+- `POST /api/mappings/<id>/confirm-drafts/` and `.../discard-drafts/` (and the same on `/api/entity-mappings/<id>/`), optionally with
+  `{"ids": [field mapping ids]}`; or `PATCH /api/field-mappings/<id>/ {"status": "confirmed"}` for one wire. Confirmed wires are never
+  touched by discarding.
+- The matcher is `mappings/automap.py`: per destination *leaf* field it picks the best source *leaf* (objects that have members are
+  skipped, so an object isn't mapped twice) using exact / case-insensitive / same-name-in-another-object / known-equivalent (English and
+  Portuguese groups) / shared-key-word / fuzzy scoring, and subtracts a penalty when the types don't fit (a source field can feed several targets, as on the
+  canvas). `mappings/services.py` applies it and does the accept / discard.
+- In the UI: the Studio's **Auto-map fields** dialog, dashed amber draft wires with their score, the **Review drafts** results tab and
+  the run / preview guards; on the classic mapping page an **Auto-map** button, a draft banner, dashed wires that open an accept /
+  reject dialog, and status chips in the *Raw* tab (`static/js/mapping_drafts.js`).
+
+## Managing mappings (full CRUD)
+
+`/api/mappings/` is a complete resource — `GET` (list, `?q=` search, `?source_connection=`, `?destination=`), `POST`, `GET/PATCH/DELETE
+/<id>/`, plus `POST /<id>/duplicate/` (copies the origin, destinations, every entity pair and every field wire with its transforms;
+runs and plan steps aren't copied). Each mapping reports `entity_pairs_count`, `runs_count` and `destinations_in_use`.
+The rules keep a mapping consistent: a name is required; a system can't be both origin and destination; **the origin is locked once
+the mapping has entity pairs** (change it while empty, or duplicate); a destination a pair writes to can't be removed; and a
+mapping with a migration running or queued can't be deleted (Kill it first) — deleting takes its pairs, wires, runs and plan steps
+with it. The same operations are in the UI: **Mappings** and **Canvas** list pages (search, counts, ✎ edit, ⧉ duplicate, 🗑 delete,
+create with description), the mapping page's ⋯ menu, and the Studio (right-click a mapping → Duplicate; Properties lets you change the
+origin while nothing is wired).
+
 ## Users, groups, departments and permissions
 
 The app is split into **modules** — Status, App Store & connections, Mappings, Jobs (runs), Plans, Chains,
@@ -220,12 +265,47 @@ counts (or the step that broke) and links to the run.
 - Recipients: every active user who has the relevant module (Jobs / Chains / Plans) — runs have no owner, so the
   audience is whoever may see them. A run or chain run that belongs to a plan is *not* announced separately (the
   plan's notification covers it), and a plan's hidden function-block chain is silent.
+- **Marking read:** `notifications.services.mark_all_read(user)` (also `Notification.objects.for_user(u).mark_all_read()` and
+  `.mark_read(ids)`) — used by the bell's and the page's *Mark all read* buttons and by the API:
+  `POST /api/notifications/mark-all-read/`, `GET /api/notifications/unread-count/`, `POST /api/notifications/<id>/read|unread/`,
+  `DELETE /api/notifications/<id>/`, and `GET /api/notifications/?unread=1&outcome=…&kind=…`. Everything is scoped to the caller.
 - The **bell** in the navbar shows the unread count and the latest few (polled every 30 s while the tab is
   visible; on a phone it links straight to the list); `/notifications/` has the full history with filters
   (outcome, type, unread only). Opening one marks it read; *Mark all read* clears the badge.
 - Creating notifications is best-effort (`notifications/services.py`): a failure there is logged and never breaks
   or delays the run it reports on. Hooks live where runs end (`jobs/engine.py`, `chains/executor.py`,
   `plans/executor.py`) and in the cancel/kill endpoints.
+
+## Front page and signing in
+
+- **`/` is a public product page** (`templates/landing/index.html`, `static/css/landing.css`, screenshots in
+  `static/landing/`): what Ante does, its main features with pictures, how it works, and security. Visitors who aren't
+  signed in see it; signed-in users are sent to `/home/`. Logging out lands here too. Every other URL still needs a login.
+  The screenshots are of a fictional demo workspace (Northwind Labs, Storefront / Pulse CRM / Ledger ERP) — nothing in
+  them is real data.
+- **Only existing accounts can sign in.** There is no public sign-up: an administrator creates each account
+  (*Profile → Administration → Users*, or `createsuperuser` for the first one). Unknown and deactivated users get the
+  same generic error, so it doesn't reveal which usernames exist. To bring the open sign-up page back set
+  `ALLOW_SELF_REGISTRATION=True` in `.env`.
+- The Ante logo and favicon are in the header of every kind of page: the landing page, the sign-in page (which links
+  back to the front page) and the app's navbar.
+
+## Languages
+
+Everything visible is translated into **English, Portuguese (Brazil), Spanish, French, German, Italian, Japanese and
+Chinese** — templates, the Studio's JavaScript, the landing page, server messages and Django's own strings.
+
+- `static/js/i18n.js` translates the page in the browser: it walks text nodes and the attributes people read
+  (placeholder, title, aria-label, alt) and keeps watching, so anything the Studio draws later is covered without
+  tagging it. Text it doesn't know — names people typed, API data — is left alone. Phrases with `{1}`, `{2}` are
+  patterns (`Page {1} of {2}`) and the translation may reorder them.
+- The phrases live in `i18n/sources/*.txt` — one line per phrase, `English || pt-BR || es || fr || de || it || ja || zh`.
+  After editing run **`python i18n/build.py`** to regenerate `static/js/i18n/<language>.js` (only the language in use
+  is downloaded). Tests fail if a source row is incomplete, a `{n}` token goes missing, or the generated files are stale.
+- The chosen language is kept in the browser and mirrored to Django's `django_language` cookie (via
+  `LocaleMiddleware`), so dates, numbers, form widgets and password-validator messages follow it too.
+- To find text that still needs a translation, open the page in a browser with a language selected and look for
+  English; new English text in a template/JS only needs a row in a source file.
 
 ## Field transforms
 

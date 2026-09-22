@@ -105,8 +105,35 @@
     return false;
   };
 
-  S.fmtTime = iso => iso ? new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '—';
-  S.fmtDateTime = iso => iso ? new Date(iso).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '—';
+  // ── Nested fields ────────────────────────────────────────────────────────
+  // A discovered object is listed whole AND member by member ("address", "address.city", "address.geo.lat"; a list of
+  // objects through "orders.0.sku"). This orders an entity's fields so members sit right under their object and says
+  // how deep each one is, so the canvas can draw the whole object as a tree and every level can be wired.
+  const pathKey = name => name.split('.').map(p => (/^\d+$/.test(p) ? p.padStart(6, '0') : p));
+  const cmpPath = (a, b) => {
+    const x = pathKey(a.name), y = pathKey(b.name);
+    for (let i = 0; i < Math.min(x.length, y.length); i++) if (x[i] !== y[i]) return x[i] < y[i] ? -1 : 1;
+    return x.length - y.length;
+  };
+  S.fieldTree = fields => {
+    const sorted = [...fields].sort(cmpPath);
+    const names = sorted.map(f => f.name);
+    return sorted.map(f => {
+      const ancestors = names.filter(n => f.name.startsWith(n + '.'));
+      const nearest = ancestors.reduce((a, b) => (b.length > a.length ? b : a), '');
+      const rel = nearest ? f.name.slice(nearest.length + 1) : f.name;
+      return {
+        field: f, depth: ancestors.length, hasChildren: names.some(n => n.startsWith(f.name + '.')),
+        label: rel.replace(/(^|\.)(\d+)(?=\.|$)/g, (_, dot, n) => `${dot}[${n}]`).replace(/^\./, ''),
+      };
+    });
+  };
+  // An object (or a list of objects) whose members haven't been discovered yet.
+  S.canUnfold = (f, fields) => !fields.some(o => o.name.startsWith(f.name + '.'))
+    && (f.field_type === 'object' || (f.field_type === 'array' && /^\s*\[\s*\{/.test(f.sample_value || '')));
+
+  S.fmtTime = iso => iso ? new Date(iso).toLocaleTimeString((window.anteI18n ? window.anteI18n.locale() : []), { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '—';
+  S.fmtDateTime = iso => iso ? new Date(iso).toLocaleString((window.anteI18n ? window.anteI18n.locale() : []), { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '—';
   S.duration = (a, b) => {
     if (!a) return '—';
     const sec = Math.max(0, Math.round(((b ? new Date(b) : new Date()) - new Date(a)) / 1000));
@@ -114,10 +141,14 @@
   };
   S.ago = iso => {
     const sec = Math.round((Date.now() - new Date(iso)) / 1000);
-    if (sec < 45) return 'now';
-    if (sec < 3600) return `${Math.round(sec / 60)}m`;
-    if (sec < 86400) return `${Math.round(sec / 3600)}h`;
-    return `${Math.round(sec / 86400)}d`;
+    const [n, unit] = sec < 3600 ? [Math.round(sec / 60), 'minute'] : sec < 86400 ? [Math.round(sec / 3600), 'hour'] : [Math.round(sec / 86400), 'day'];
+    const locale = window.anteI18n ? window.anteI18n.locale() : 'en-US';
+    if (/^en/.test(locale)) return sec < 45 ? 'now' : `${n}${unit[0] === 'm' ? 'm' : unit[0]}`;         // English keeps the compact "5m" / "2h" / "3d"
+    // Every other language gets its own words from the browser's Intl (e.g. "há 5 min", "5分前").
+    try {
+      const rtf = new Intl.RelativeTimeFormat(locale, { numeric: 'auto', style: 'narrow' });
+      return sec < 45 ? rtf.format(0, 'second') : rtf.format(-n, unit);
+    } catch (e) { return sec < 45 ? 'now' : `${n}${unit[0]}`; }
   };
 
   const CHIP = { success: 'ok', completed: 'ok', ok: 'ok', failed: 'err', error: 'err' };
@@ -217,6 +248,8 @@
         pages.forEach(p => { btns[p.id].classList.toggle('active', p.id === id); els[p.id].classList.toggle('active', p.id === id); });
       },
       setNote(t) { note.textContent = t || ''; },
+      setLabel(id, t) { btns[id].textContent = t; },
+      setVisible(id, on) { btns[id].classList.toggle('d-none', !on); if (!on && api.current === id) api.select(pages[0].id); },
     };
     api.select(pages[0].id);
     return api;
@@ -282,6 +315,16 @@
     return true;
   };
 
+  // A copy of a mapping with all its entity pairs and field wires (POST /api/mappings/<id>/duplicate/).
+  S.duplicateMapping = async function (id) {
+    try {
+      const copy = await S.api(`/api/mappings/${id}/duplicate/`, { method: 'POST', body: {} });
+      await S.refreshTree();
+      S.toast(`Duplicated as “${copy.name}”.`, 'ok');
+      S.openDoc('mapping', copy.id);
+    } catch (e) { S.fail(e); }
+  };
+
   // The actions every document row / tab offers.
   S.docMenu = function (e, kind, id) {
     e.preventDefault();
@@ -291,6 +334,7 @@
       { head: item ? item.name : `${S.kindLabel[kind]} #${id}` },
       { label: 'Open', icon: 'bi-box-arrow-in-right', onClick: () => S.openDoc(kind, id) },
       { label: `Edit ${kind}…`, icon: 'bi-pencil', onClick: () => S.editDoc(kind, id) },
+      ...(kind === 'mapping' ? [{ label: 'Duplicate mapping', icon: 'bi-copy', onClick: () => S.duplicateMapping(id) }] : []),
       { label: `Delete ${kind}…`, icon: 'bi-trash', danger: true, onClick: () => S.deleteDoc(kind, id) },
     ]);
   };
@@ -606,7 +650,7 @@
     root.replaceChildren(
       templatesSection,
       section('mappings', 'Mappings',
-        T.mappings.filter(m => match(m.name)).map(m => docItem('mapping', m, `${m.pairs}`, `${m.source} → ${m.destinations.join(', ') || 'no destinations'}`)),
+        T.mappings.filter(m => match(m.name)).map(m => docItem('mapping', m, m.drafts ? `${m.pairs} · ${m.drafts} draft(s)` : `${m.pairs}`, `${m.source} → ${m.destinations.join(', ') || 'no destinations'}${m.drafts ? ` — ${m.drafts} suggested field mapping(s) to review` : ''}`)),
         () => S.newDoc('mapping'), 'mappings'),
       section('chains', 'Chains',
         T.chains.filter(c => match(c.name)).map(c => docItem('chain', c, `${c.steps}`, `on ${c.connection}`)),
@@ -656,6 +700,7 @@
         title: 'New mapping',
         body: h('div', {},
           h('div', { class: 'mb-3' }, h('label', { class: 'form-label', text: 'Name' }), h('input', { class: 'form-control', id: 'nm_name', placeholder: 'e.g. CRM to ERP sync' })),
+          h('div', { class: 'mb-3' }, h('label', { class: 'form-label', text: 'Description' }), h('textarea', { class: 'form-control', id: 'nm_desc', rows: '2' }), h('div', { class: 'form-text', text: 'Optional.' })),
           h('div', { class: 'mb-3' }, h('label', { class: 'form-label', text: 'Integration origin' }), h('select', { class: 'form-select', id: 'nm_source', html: optionsHtml })),
           h('div', {}, h('label', { class: 'form-label', text: 'Integration destinations' }),
             h('div', { class: 'st-checklist', html: conns.map(c => `<label class="d-flex gap-2 align-items-center"><input type="checkbox" class="form-check-input mt-0" value="${c.id}"> ${S.esc(c.name)}</label>`).join('') }),
@@ -666,7 +711,7 @@
             if (!name) { d.error('Name is required.'); return false; }
             const created = await S.api('/api/mappings/', {
               method: 'POST', body: {
-                name, source_connection: d.$('#nm_source').value,
+                name, description: d.$('#nm_desc').value, source_connection: d.$('#nm_source').value,
                 destination_connections: [...d.el.querySelectorAll('.st-checklist input:checked')].map(i => Number(i.value)),
               },
             });
@@ -774,7 +819,7 @@
   // then Execute. (Being a plan, it can be saved, edited and run again.)
   S.newCustomRun = async function () {
     if (!S.need('plans')) return;
-    const stamp = new Date().toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    const stamp = new Date().toLocaleString((window.anteI18n ? window.anteI18n.locale() : []), { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
     try {
       const plan = await S.api('/api/plans/', { method: 'POST', body: { name: `Custom run · ${stamp}`, execution_mode: 'mixed' } });
       await S.refreshTree();

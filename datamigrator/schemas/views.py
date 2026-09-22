@@ -31,6 +31,22 @@ class EntityViewSet(viewsets.ModelViewSet):
             return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
         return Response(EntitySerializer(entity).data, status=status.HTTP_201_CREATED)
 
+    @action(detail=True, methods=["post"], url_path="discover-nested")
+    def discover_nested(self, request, pk=None):
+        """Unfold the objects of an entity discovered flat: adds "address.city"-style fields for every level of
+        each object (see schemas/discovery.py::discover_nested_fields). The canvas calls this when you place an
+        entity whose object fields have no inner fields yet, or from the button next to an object field."""
+        entity = self.get_object()
+        client = ConnectionClient(entity.connection) if entity.endpoint_path and not entity.source_file else None
+        try:
+            added = discovery.discover_nested_fields(entity, client)
+        except ValueError as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as exc:
+            return Response({"error": f"Could not sample {entity.endpoint_path}: {exc}"}, status=status.HTTP_400_BAD_REQUEST)
+        entity = Entity.objects.prefetch_related("fields").get(pk=entity.pk)
+        return Response({"added": added, "entity": EntitySerializer(entity).data})
+
     @action(detail=False, methods=["post"], url_path="discover/openapi")
     def discover_openapi(self, request):
         connection = get_object_or_404(Connection, pk=request.data["connection_id"])

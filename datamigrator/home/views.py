@@ -3,7 +3,7 @@ from urllib.parse import urlsplit
 
 from django.db.models import Count, F, Q
 from django.http import JsonResponse
-from django.shortcuts import render
+from django.shortcuts import redirect, render
 from django.utils import timezone
 
 from connections.models import ApiCallLog, Connection
@@ -18,6 +18,14 @@ import plans.scheduler as plans_scheduler
 ACTIVE_STATUSES = (MigrationRun.STATUS_PENDING, MigrationRun.STATUS_RUNNING)
 RECENT_RUNS_WINDOW = 50    # how many of the most recent runs feed the failure-rate signal
 RECENT_ERRORS_HOURS = 1    # API-error-rate window
+
+
+def landing(request):
+    """The public front page for anyone who isn't signed in (a product page for Ante). Signed-in users go straight
+    to their dashboard."""
+    if request.user.is_authenticated:
+        return redirect("home:index")
+    return render(request, "landing/index.html")
 
 
 def index(request):

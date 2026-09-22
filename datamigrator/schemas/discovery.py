@@ -12,11 +12,13 @@
 """
 import csv
 import io
+import json
 import re
 
 import openpyxl
 
 from .models import Entity, Field
+from .paths import MAX_DEPTH, MAX_NAME
 
 OPENAPI_TYPE_MAP = {
     "string": Field.TYPE_STRING,
@@ -98,6 +100,47 @@ def _first_record(payload):
     return {}
 
 
+def _sample_text(value) -> str:
+    if isinstance(value, (dict, list)):
+        try:
+            return json.dumps(value, ensure_ascii=False, default=str)[:255]
+        except (TypeError, ValueError):
+            pass
+    return str(value)[:255]
+
+
+def flatten_record(record, prefix="", depth=0):
+    """Every field of one JSON record, unfolding nested objects: yields (name, field_type, sample).
+
+    An object is listed itself *and* member by member ("address", "address.city", "address.geo.lat"), so a mapping
+    can wire either the whole object or exactly the piece it needs. A list of objects is unfolded through its first
+    element ("items", "items.0.sku") — a list's other elements share that shape."""
+    if not isinstance(record, dict):
+        return
+    for key, value in record.items():
+        name = f"{prefix}{key}"
+        if len(name) > MAX_NAME:
+            continue
+        yield name, infer_type(value), _sample_text(value)
+        if depth + 1 >= MAX_DEPTH:
+            continue
+        if isinstance(value, dict):
+            yield from flatten_record(value, f"{name}.", depth + 1)
+        elif isinstance(value, list) and value and isinstance(value[0], dict):
+            yield from flatten_record(value[0], f"{name}.0.", depth + 1)
+
+
+def save_record_fields(entity, record) -> int:
+    """Create/refresh a Field per flattened path of `record`; returns how many did not exist before."""
+    added = 0
+    for name, field_type, sample in flatten_record(record):
+        _, created = Field.objects.update_or_create(
+            entity=entity, name=name, defaults={"field_type": field_type, "sample_value": sample},
+        )
+        added += created
+    return added
+
+
 def discover_from_sample(connection, entity_name: str, endpoint_path: str, client) -> Entity:
     response = client.get(endpoint_path)
     response.raise_for_status()
@@ -107,12 +150,78 @@ def discover_from_sample(connection, entity_name: str, endpoint_path: str, clien
         connection=connection, name=entity_name,
         defaults={"endpoint_path": endpoint_path, "source": Entity.SOURCE_SAMPLED},
     )
-    for key, value in record.items():
-        Field.objects.update_or_create(
-            entity=entity, name=key,
-            defaults={"field_type": infer_type(value), "sample_value": str(value)[:255]},
-        )
+    save_record_fields(entity, record)
     return entity
+
+
+def discover_nested_fields(entity, client=None) -> int:
+    """Unfold the objects of an entity that was discovered flat: sample its endpoint again (when there is one and
+    a client to reach it) and add the missing member fields. Falls back to the JSON kept in each object field's
+    sample value. Returns the number of fields added; raises ValueError with a user-facing message when there is
+    nothing to unfold from."""
+    record = None
+    if client is not None and entity.endpoint_path and not entity.source_file:
+        response = client.get(entity.endpoint_path)
+        response.raise_for_status()
+        record = _first_record(response.json())
+    if not isinstance(record, dict) or not record:
+        record = {}
+        for f in entity.fields.filter(field_type__in=[Field.TYPE_OBJECT, Field.TYPE_ARRAY]):
+            if "." in f.name:
+                continue
+            try:
+                record[f.name] = json.loads(f.sample_value)
+            except (TypeError, ValueError):
+                continue
+    if not record:
+        raise ValueError("Nothing to unfold: this entity has no endpoint to sample and no stored example of its objects. "
+                         "Re-discover it from a live sample, or add the inner fields by hand.")
+    return save_record_fields(entity, record)
+
+
+def _schema_of(prop, schemas, seen):
+    """Resolve $ref / allOf into one schema dict; `seen` guards against a schema that contains itself."""
+    if not isinstance(prop, dict):
+        return {}
+    ref = prop.get("$ref")
+    if ref:
+        name = ref.rsplit("/", 1)[-1]
+        if name in seen:
+            return {}
+        return _schema_of(schemas.get(name, {}), schemas, seen | {name})
+    if prop.get("allOf"):
+        merged = {}
+        for part in prop["allOf"]:
+            resolved = _schema_of(part, schemas, seen)
+            merged.update({k: v for k, v in resolved.items() if k != "properties"})
+            merged.setdefault("properties", {}).update(resolved.get("properties") or {})
+            merged.setdefault("required", [])
+            merged["required"] = list(merged["required"]) + list(resolved.get("required") or [])
+        return merged
+    return prop
+
+
+def flatten_schema(schema, schemas, prefix="", depth=0, seen=frozenset()):
+    """OpenAPI counterpart of flatten_record: yields (name, field_type, required) for every property, unfolding
+    nested object schemas (inline or by $ref) and arrays of objects (through "name.0")."""
+    schema = _schema_of(schema, schemas, seen)
+    required = set(schema.get("required") or [])
+    for prop_name, raw_prop in (schema.get("properties") or {}).items():
+        name = f"{prefix}{prop_name}"
+        if len(name) > MAX_NAME:
+            continue
+        prop = _schema_of(raw_prop, schemas, seen)
+        kind = prop.get("type") or ("object" if prop.get("properties") else None)
+        yield name, OPENAPI_TYPE_MAP.get(kind, Field.TYPE_STRING), prop_name in required
+        if depth + 1 >= MAX_DEPTH:
+            continue
+        ref_seen = seen | ({raw_prop["$ref"].rsplit("/", 1)[-1]} if isinstance(raw_prop, dict) and raw_prop.get("$ref") else set())
+        if prop.get("properties"):
+            yield from flatten_schema(prop, schemas, f"{name}.", depth + 1, ref_seen)
+        elif kind == "array":
+            items = _schema_of(prop.get("items"), schemas, ref_seen)
+            if items.get("properties"):
+                yield from flatten_schema(items, schemas, f"{name}.0.", depth + 1, ref_seen)
 
 
 def discover_from_csv(connection, entity_name: str, endpoint_path: str, file_obj) -> Entity:
@@ -273,12 +382,9 @@ def discover_from_openapi(connection, spec: dict, schema_names=None, endpoint_pa
                 "endpoint_path": endpoint_paths.get(schema_name, ""),
             },
         )
-        required = set(schema.get("required", []))
-        for prop_name, prop in (schema.get("properties") or {}).items():
-            field_type = OPENAPI_TYPE_MAP.get(prop.get("type"), Field.TYPE_STRING)
+        for name, field_type, is_required in flatten_schema(schema, schemas, seen=frozenset({schema_name})):
             Field.objects.update_or_create(
-                entity=entity, name=prop_name,
-                defaults={"field_type": field_type, "required": prop_name in required},
+                entity=entity, name=name, defaults={"field_type": field_type, "required": is_required},
             )
         created.append(entity)
         created_by_schema_name[schema_name] = entity

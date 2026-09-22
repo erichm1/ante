@@ -70,7 +70,15 @@ class EntityMapping(models.Model):
 
 
 class FieldMapping(models.Model):
-    """One field-to-field connection drawn on the canvas."""
+    """One field-to-field connection drawn on the canvas.
+
+    `status`: a wire somebody drew (or accepted) is CONFIRMED and runs. One suggested by auto-mapping
+    (mappings/automap.py) starts as a DRAFT — visible on the canvas, ignored by runs and the preview until it is
+    reviewed and accepted."""
+
+    STATUS_CONFIRMED = "confirmed"
+    STATUS_DRAFT = "draft"
+    STATUS_CHOICES = [(STATUS_CONFIRMED, "Confirmed"), (STATUS_DRAFT, "Draft")]
 
     entity_mapping = models.ForeignKey(EntityMapping, on_delete=models.CASCADE, related_name="field_mappings")
     source_field = models.ForeignKey("schemas.Field", on_delete=models.CASCADE, related_name="+")
@@ -87,6 +95,9 @@ class FieldMapping(models.Model):
         help_text="Advanced/optional: a Python expression applied to `value` after transform_rules, "
                    "e.g. value.upper() or value[:10] — for anything the no-code rules above can't express.",
     )
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=STATUS_CONFIRMED)
+    match_score = models.PositiveSmallIntegerField(null=True, blank=True, help_text="Auto-mapping's confidence, 0-100.")
+    match_reason = models.CharField(max_length=200, blank=True, help_text="Why auto-mapping suggested this wire.")
 
     class Meta:
         unique_together = ("entity_mapping", "source_field", "target_field")

@@ -14,7 +14,7 @@ from django.shortcuts import render
 from chains.models import CallChain, CallChainRun
 from connections.models import Connection
 from jobs.models import MigrationRun
-from mappings.models import Mapping
+from mappings.models import FieldMapping, Mapping
 from plans.models import MigrationPlan, PlanStep
 
 from accounts import permissions
@@ -93,6 +93,9 @@ def tree(request):
     # How many plan steps point at each mapping/chain — deleting one silently deletes those steps.
     used_by_mapping = dict(PlanStep.objects.filter(mapping__isnull=False).values_list("mapping_id").annotate(n=Count("id")))
     used_by_chain = dict(PlanStep.objects.filter(chain__isnull=False).values_list("chain_id").annotate(n=Count("id")))
+    # Suggested (auto-mapped) field wires still waiting for review, per mapping.
+    drafts_by_mapping = dict(FieldMapping.objects.filter(status=FieldMapping.STATUS_DRAFT)
+                             .values_list("entity_mapping__mapping_id").annotate(n=Count("id")))
 
     logos_by_doc = {}
     mapping_rows = []
@@ -102,7 +105,8 @@ def tree(request):
         mapping_rows.append({
             "id": m.pk, "name": m.name, "source": m.source_connection.name,
             "destinations": [d.name for d in m.destination_connections.all()],
-            "pairs": len(m.entity_mappings.all()), "plan_steps": used_by_mapping.get(m.pk, 0), **logos,
+            "pairs": len(m.entity_mappings.all()), "plan_steps": used_by_mapping.get(m.pk, 0),
+            "drafts": drafts_by_mapping.get(m.pk, 0), **logos,
             # Each entity pair, so a plan can be told to run just some of them.
             "pair_list": [{"id": em.pk, "source": em.source_entity.name, "target": em.target_entity.name} for em in m.entity_mappings.all()],
         })

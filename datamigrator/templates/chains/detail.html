@@ -27,7 +27,10 @@
             <td class="mono">{{ step.order }}</td>
             <td class="mono">{{ step.name }}</td>
             <td>{% if step.kind == "http" %}<span class="verb-badge verb-{{ step.method|lower }}">{{ step.method }}</span>{% else %}<span class="status-chip">{{ step.get_kind_display }}</span>{% endif %}</td>
-            <td class="mono small">{{ step.path|default:"—" }}</td>
+            <td class="mono small">{{ step.path|default:"—" }}
+              {% if step.headers %}<div><span class="status-chip" title="{% for h in step.headers %}{{ h.name }}{% if not forloop.last %}&#10;{% endif %}{% endfor %}">{{ step.headers|length }} header(s)</span></div>{% endif %}
+              {% if step.query_params %}<div><span class="status-chip" title="{% for q in step.query_params %}{{ q.name }}={{ q.value }}{% if not forloop.last %}&#10;{% endif %}{% endfor %}">?{{ step.query_params|length }} param(s)</span></div>{% endif %}
+            </td>
             <td class="mono small text-dim" style="max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ step.body|default:"—" }}</td>
             <td class="small">
               {% if step.is_async %}
@@ -87,6 +90,8 @@
         <div id="as_captures_list"></div>
         <button type="button" class="btn btn-sm btn-outline-secondary" onclick="addCaptureRow('as')">+ Add capture</button>
       </div>
+
+      {% include "chains/_request_extras.html" with prefix="as" %}
 
       {% include "chains/_async_step_fields.html" with prefix="as" %}
     </div>
@@ -223,6 +228,8 @@
             <button type="button" class="btn btn-sm btn-outline-secondary" onclick="addCaptureRow('es')">+ Add capture</button>
           </div>
 
+          {% include "chains/_request_extras.html" with prefix="es" %}
+
           {% include "chains/_async_step_fields.html" with prefix="es" %}
         </div>
         <div class="modal-footer">
@@ -317,6 +324,8 @@ async function deleteChain() {
 // ---- Captures mini-builder — shared by the Add-step row and the Edit-step
 // modal, keyed by a prefix ('as' or 'es') so both can coexist on the page.
 const captureState = { as: [], es: [] };
+// Headers and query parameters: [{name, value}, …] per form, same idea.
+const pairState = { as: { headers: [], query_params: [] }, es: { headers: [], query_params: [] } };
 
 function escapeAttr(s) {
   return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -346,6 +355,39 @@ function removeCaptureRow(prefix, idx) {
 
 function updateCaptureRow(prefix, idx, key, value) {
   captureState[prefix][idx][key] = value;
+}
+
+function renderPairRows(prefix, kind) {
+  const box = document.getElementById(`${prefix}_${kind}_list`);
+  const rows = pairState[prefix][kind];
+  const isHeader = kind === 'headers';
+  box.innerHTML = rows.length ? rows.map((r, i) => `
+    <div class="d-flex gap-2 align-items-center mb-1">
+      <input type="text" class="form-control form-control-sm mono" style="max-width: 190px;" placeholder="${isHeader ? 'Header-Name' : 'name'}" value="${escapeAttr(r.name)}" oninput="updatePairRow('${prefix}', '${kind}', ${i}, 'name', this.value)">
+      <span class="text-dim">${isHeader ? ':' : '='}</span>
+      <input type="text" class="form-control form-control-sm mono" placeholder="value or {% templatetag openvariable %}placeholder{% templatetag closevariable %}" value="${escapeAttr(r.value)}" oninput="updatePairRow('${prefix}', '${kind}', ${i}, 'value', this.value)">
+      <button type="button" class="btn btn-sm btn-outline-danger" onclick="removePairRow('${prefix}', '${kind}', ${i})">&times;</button>
+    </div>`).join('') : `<p class="text-dim small mb-1">${isHeader ? 'No extra headers.' : 'No query parameters.'}</p>`;
+}
+
+function addPairRow(prefix, kind) {
+  pairState[prefix][kind].push({ name: '', value: '' });
+  renderPairRows(prefix, kind);
+}
+
+function removePairRow(prefix, kind, idx) {
+  pairState[prefix][kind].splice(idx, 1);
+  renderPairRows(prefix, kind);
+}
+
+function updatePairRow(prefix, kind, idx, key, value) {
+  pairState[prefix][kind][idx][key] = value;
+}
+
+// Fully blank rows are dropped; a value with no name is sent as is, so the server's error shows in the dialog.
+function readPairs(prefix) {
+  const keep = list => list.filter(r => r.name.trim() || r.value.trim()).map(r => ({ name: r.name.trim(), value: r.value }));
+  return { headers: keep(pairState[prefix].headers), query_params: keep(pairState[prefix].query_params) };
 }
 
 function toggleAsyncSection(checkbox, sectionId) {
@@ -396,6 +438,7 @@ function addStep() {
       path: document.getElementById('as_path').value.trim(),
       body: bodyRaw,
       captures: captureState.as.filter(c => c.name.trim()),
+      ...readPairs('as'),
       ...readAsyncFields('as'),
     }),
   }).then(async resp => {
@@ -413,6 +456,10 @@ function openEditStepModal(stepId) {
   document.getElementById('es_body').value = step.body || '';
   captureState.es = (step.captures || []).map(c => ({ ...c }));
   renderCaptureRows('es');
+  pairState.es.headers = (step.headers || []).map(r => ({ ...r }));
+  pairState.es.query_params = (step.query_params || []).map(r => ({ ...r }));
+  renderPairRows('es', 'headers');
+  renderPairRows('es', 'query_params');
   writeAsyncFields('es', step);
   window.EDITING_STEP_ID = stepId;
   new bootstrap.Modal(document.getElementById('editStepModal')).show();
@@ -434,6 +481,7 @@ function saveStepEdit() {
       path: document.getElementById('es_path').value.trim(),
       body: bodyRaw,
       captures: captureState.es.filter(c => c.name.trim()),
+      ...readPairs('es'),
       ...readAsyncFields('es'),
     }),
   }).then(async resp => {
@@ -545,5 +593,7 @@ function runChain() {
 }
 
 renderCaptureRows('as');
+renderPairRows('as', 'headers');
+renderPairRows('as', 'query_params');
 </script>
 {% endblock %}

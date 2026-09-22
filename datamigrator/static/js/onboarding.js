@@ -213,10 +213,13 @@
       ? '<button class="onb-skip" id="onbSkip">Skip tour</button>'
       : '';
 
+    /* Bodies contain markup (<strong>…</strong>), so they are translated as whole sentences, tags included —
+       translating the text nodes one by one would cut the sentence at every tag. */
+    var T = (window.anteI18n && window.anteI18n.t) || function (x) { return x; };
     card.className = centered ? 'onb-centered' : '';
     card.innerHTML =
-      '<div class="onb-title">' + s.title + '</div>' +
-      '<div class="onb-body">'  + s.body  + '</div>' +
+      '<div class="onb-title">' + T(s.title) + '</div>' +
+      '<div class="onb-body" data-no-t>'  + T(s.body)  + '</div>' +
       '<div class="onb-foot">'  + skipHtml +
         '<div class="onb-nav">' + backHtml + nextHtml + '</div>' +
       '</div>' +
@@ -312,10 +315,13 @@
   }
 
   /* ---------- boot ------------------------------------------------------- */
+  /* Start once the language file is in, so the very first card is already translated. */
+  function start() { setTimeout(init, 120); }
+  function boot() { if (window.anteI18n && window.anteI18n.whenReady) window.anteI18n.whenReady(start); else start(); }
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', function () { setTimeout(init, 120); });
+    document.addEventListener('DOMContentLoaded', boot);
   } else {
-    setTimeout(init, 120);
+    boot();
   }
 
 }());

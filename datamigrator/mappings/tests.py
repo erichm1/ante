@@ -261,3 +261,158 @@ class KillMigrationTests(PreviewTestBase):
         with mock.patch.object(engine, "run_migration") as migrate:
             engine.run_batch_in_background([first.pk, second.pk])
         self.assertEqual([c.args[0].pk for c in migrate.call_args_list], [first.pk])
+
+
+# ═══ Full CRUD for mappings ══════════════════════════════════════════════════════════════════════════════════
+import json as _json
+
+from plans.models import MigrationPlan, PlanStep
+
+
+class MappingCrudTests(PreviewTestBase):
+    """PreviewTestBase gives one mapping (Src → Dst) with a pair and three wires."""
+
+    def call(self, method, url, body=None):
+        return getattr(self.client, method)(url, _json.dumps(body) if body is not None else None, content_type="application/json")
+
+    def other_connection(self, name="Other"):
+        return Connection.objects.create(name=name, base_url=f"https://{name.lower()}.example.com", auth_type=Connection.AUTH_NONE)
+
+    # -- create / read
+    def test_create_with_description_and_destinations(self):
+        dst2 = self.other_connection()
+        resp = self.call("post", "/api/mappings/", {
+            "name": "  New one ", "description": "Because", "source_connection": self.mapping.source_connection_id,
+            "destination_connections": [self.mapping.destination_connections.first().pk, dst2.pk]})
+        self.assertEqual(resp.status_code, 201, resp.content)
+        body = resp.json()
+        self.assertEqual((body["name"], body["description"], body["entity_pairs_count"], body["runs_count"]), ("New one", "Because", 0, 0))
+        self.assertEqual(len(body["destination_connections"]), 2)
+
+    def test_a_blank_name_is_refused(self):
+        resp = self.call("post", "/api/mappings/", {"name": "   ", "source_connection": self.mapping.source_connection_id})
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("name", resp.json())
+
+    def test_a_system_cannot_be_both_origin_and_destination(self):
+        src = self.mapping.source_connection_id
+        resp = self.call("post", "/api/mappings/", {"name": "Loop", "source_connection": src, "destination_connections": [src]})
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("destination_connections", resp.json())
+
+    def test_read_shows_counts_and_the_destinations_locked_by_pairs(self):
+        MigrationRun.objects.create(mapping=self.mapping, status=MigrationRun.STATUS_SUCCESS)
+        body = self.client.get(f"/api/mappings/{self.mapping.pk}/").json()
+        self.assertEqual((body["entity_pairs_count"], body["runs_count"]), (1, 1))
+        self.assertEqual(body["destinations_in_use"], [self.target.connection_id])
+
+    def test_list_searches_name_and_description(self):
+        Mapping.objects.create(name="Billing sync", description="invoices to ERP", source_connection=self.mapping.source_connection)
+        names = lambda q: [m["name"] for m in self.client.get(f"/api/mappings/?q={q}").json()["results"]]
+        self.assertEqual(names("billing"), ["Billing sync"])
+        self.assertEqual(names("invoices"), ["Billing sync"])
+        self.assertEqual(names("zzz"), [])
+        self.assertEqual(len(self.client.get("/api/mappings/").json()["results"]), 2)
+
+    # -- update
+    def test_rename_and_describe(self):
+        resp = self.call("patch", f"/api/mappings/{self.mapping.pk}/", {"name": "Renamed", "description": "New text"})
+        self.assertEqual(resp.status_code, 200)
+        self.mapping.refresh_from_db()
+        self.assertEqual((self.mapping.name, self.mapping.description), ("Renamed", "New text"))
+
+    def test_destinations_can_be_added_and_unused_ones_removed(self):
+        extra = self.other_connection()
+        dst = self.target.connection_id
+        self.assertEqual(self.call("patch", f"/api/mappings/{self.mapping.pk}/", {"destination_connections": [dst, extra.pk]}).status_code, 200)
+        self.assertEqual(self.call("patch", f"/api/mappings/{self.mapping.pk}/", {"destination_connections": [dst]}).status_code, 200)
+        self.assertEqual(self.mapping.destination_connections.count(), 1)
+
+    def test_a_destination_a_pair_writes_to_cannot_be_removed(self):
+        resp = self.call("patch", f"/api/mappings/{self.mapping.pk}/", {"destination_connections": []})
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("Dst", resp.json()["destination_connections"][0])
+        self.assertEqual(self.mapping.destination_connections.count(), 1)
+
+    def test_the_origin_is_locked_once_there_are_pairs(self):
+        resp = self.call("patch", f"/api/mappings/{self.mapping.pk}/", {"source_connection": self.other_connection().pk})
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("source_connection", resp.json())
+
+    def test_the_origin_can_change_while_the_mapping_is_still_empty(self):
+        empty = Mapping.objects.create(name="Empty", source_connection=self.mapping.source_connection)
+        new_origin = self.other_connection()
+        resp = self.call("patch", f"/api/mappings/{empty.pk}/", {"source_connection": new_origin.pk})
+        self.assertEqual(resp.status_code, 200)
+        empty.refresh_from_db()
+        self.assertEqual(empty.source_connection_id, new_origin.pk)
+
+    def test_sending_the_same_origin_back_is_fine(self):
+        resp = self.call("patch", f"/api/mappings/{self.mapping.pk}/", {"name": "Same", "source_connection": self.mapping.source_connection_id})
+        self.assertEqual(resp.status_code, 200)
+
+    # -- delete
+    def test_delete_removes_pairs_wires_runs_and_plan_steps(self):
+        run = MigrationRun.objects.create(mapping=self.mapping, status=MigrationRun.STATUS_SUCCESS)
+        plan = MigrationPlan.objects.create(name="P", execution_mode=MigrationPlan.MODE_MIXED)
+        PlanStep.objects.create(plan=plan, mapping=self.mapping, order=1)
+        self.assertEqual(self.call("delete", f"/api/mappings/{self.mapping.pk}/").status_code, 204)
+        self.assertFalse(Mapping.objects.filter(pk=self.mapping.pk).exists())
+        self.assertEqual((EntityMapping.objects.count(), FieldMapping.objects.count(), MigrationRun.objects.filter(pk=run.pk).count(), plan.steps.count()), (0, 0, 0, 0))
+        self.assertTrue(Entity.objects.filter(pk=self.source.pk).exists())                 # the entities themselves stay
+
+    def test_a_mapping_with_a_running_migration_cannot_be_deleted(self):
+        MigrationRun.objects.create(mapping=self.mapping, status=MigrationRun.STATUS_RUNNING)
+        resp = self.call("delete", f"/api/mappings/{self.mapping.pk}/")
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("Kill", resp.json()["error"])
+        self.assertTrue(Mapping.objects.filter(pk=self.mapping.pk).exists())
+
+    def test_a_scheduled_run_does_not_block_deleting(self):
+        from django.utils import timezone
+        MigrationRun.objects.create(mapping=self.mapping, status=MigrationRun.STATUS_PENDING, scheduled_at=timezone.now() + timezone.timedelta(days=1))
+        self.assertEqual(self.call("delete", f"/api/mappings/{self.mapping.pk}/").status_code, 204)
+
+    # -- duplicate
+    def test_duplicate_copies_pairs_wires_and_transforms_but_not_runs(self):
+        MigrationRun.objects.create(mapping=self.mapping, status=MigrationRun.STATUS_SUCCESS)
+        resp = self.call("post", f"/api/mappings/{self.mapping.pk}/duplicate/", {})
+        self.assertEqual(resp.status_code, 201)
+        copy = Mapping.objects.get(pk=resp.json()["id"])
+        self.assertEqual(copy.name, "M (copy)")
+        self.assertEqual(copy.source_connection_id, self.mapping.source_connection_id)
+        self.assertEqual(list(copy.destination_connections.all()), list(self.mapping.destination_connections.all()))
+        pair = copy.entity_mappings.get()
+        self.assertEqual(pair.field_mappings.count(), 3)
+        self.assertEqual(pair.field_mappings.get(target_field=self.t["code"]).transform_rules, [{"op": "uppercase"}])
+        self.assertEqual(copy.runs.count(), 0)
+        self.assertEqual(resp.json()["entity_pairs_count"], 1)
+        self.assertEqual(Mapping.objects.count(), 2)                                          # the original is untouched
+        self.assertEqual(self.mapping.entity_mappings.get().field_mappings.count(), 3)
+
+    def test_duplicate_takes_a_name(self):
+        resp = self.call("post", f"/api/mappings/{self.mapping.pk}/duplicate/", {"name": "Second"})
+        self.assertEqual(resp.json()["name"], "Second")
+
+    def test_a_duplicate_runs_like_the_original(self):
+        copy = Mapping.objects.get(pk=self.call("post", f"/api/mappings/{self.mapping.pk}/duplicate/", {}).json()["id"])
+        original, cloned = (
+            self.client.get(f"/api/mappings/{m.pk}/preview/").json() for m in (self.mapping, copy))
+        with mock.patch("mappings.preview.discovery.read_all_records", return_value=RECORDS):
+            a = self.client.get(f"/api/mappings/{self.mapping.pk}/preview/").json()["pairs"][0]["payloads"]
+            b = self.client.get(f"/api/mappings/{copy.pk}/preview/").json()["pairs"][0]["payloads"]
+        self.assertEqual(a, b)
+
+    # -- the pages
+    def test_the_list_pages_show_search_counts_and_row_actions(self):
+        for path in ("/mappings/", "/mappings/canvas/"):
+            html = self.client.get(path).content.decode()
+            for needle in ('id="newMappingBtn"', "data-mapping-edit", "data-mapping-duplicate", "data-mapping-delete", 'id="mappingModal"', "mappings_crud.js"):
+                self.assertIn(needle, html, f"{path}: {needle}")
+        html = self.client.get("/mappings/?q=zzz").content.decode()
+        self.assertIn("No mappings match this search.", html)
+
+    def test_the_mapping_page_has_edit_duplicate_delete(self):
+        html = self.client.get(f"/mappings/{self.mapping.pk}/?tab=raw").content.decode()
+        for needle in (f'data-mapping-edit="{self.mapping.pk}"', f'data-mapping-duplicate="{self.mapping.pk}"', f'data-mapping-delete="{self.mapping.pk}"', 'id="mappingModal"'):
+            self.assertIn(needle, html)
