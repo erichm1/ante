@@ -447,6 +447,27 @@
         </div>`;
     } else if (op === 'default_if_empty') {
       paramsHtml = `<div class="mt-2"><input type="text" class="form-control form-control-sm" placeholder="Value to use when empty" value="${escapeAttr(rule.value)}" oninput="updateRule(${idx}, 'value', this.value)"></div>`;
+    } else if (op === 'truncate') {
+      paramsHtml = `<div class="mt-2"><input type="number" min="1" class="form-control form-control-sm" placeholder="Max length" value="${escapeAttr(rule.length)}" oninput="updateRule(${idx}, 'length', this.value)"></div>`;
+    } else if (op === 'pad_left') {
+      paramsHtml = `
+        <div class="mt-2 d-flex gap-2">
+          <input type="number" min="1" class="form-control form-control-sm" placeholder="Length" value="${escapeAttr(rule.length)}" oninput="updateRule(${idx}, 'length', this.value)">
+          <input type="text" maxlength="1" class="form-control form-control-sm" placeholder="Pad character (e.g. 0)" value="${escapeAttr(rule.char)}" oninput="updateRule(${idx}, 'char', this.value)">
+        </div>`;
+    } else if (op === 'prefix' || op === 'suffix') {
+      paramsHtml = `<div class="mt-2"><input type="text" class="form-control form-control-sm" placeholder="${op === 'prefix' ? 'Text to add before' : 'Text to add after'}" value="${escapeAttr(rule.value)}" oninput="updateRule(${idx}, 'value', this.value)"></div>`;
+    } else if (op === 'replace_text') {
+      paramsHtml = `
+        <div class="mt-2 d-flex gap-2 align-items-center">
+          <input type="text" class="form-control form-control-sm" placeholder="Replace (e.g. -)" value="${escapeAttr(rule.from)}" oninput="updateRule(${idx}, 'from', this.value)">
+          <span class="text-dim">→</span>
+          <input type="text" class="form-control form-control-sm" placeholder="With (e.g. empty)" value="${escapeAttr(rule.to)}" oninput="updateRule(${idx}, 'to', this.value)">
+        </div>`;
+    } else if (op === 'round_number') {
+      paramsHtml = `<div class="mt-2"><input type="number" min="0" class="form-control form-control-sm" placeholder="Decimal places" value="${escapeAttr(rule.decimals)}" oninput="updateRule(${idx}, 'decimals', this.value)"></div>`;
+    } else if (op === 'constant') {
+      paramsHtml = `<div class="mt-2"><input type="text" class="form-control form-control-sm" placeholder="Always use this value" value="${escapeAttr(rule.value)}" oninput="updateRule(${idx}, 'value', this.value)"></div>`;
     }
 
     return `
@@ -456,6 +477,16 @@
             <option value="uppercase" ${op === 'uppercase' ? 'selected' : ''}>Uppercase</option>
             <option value="lowercase" ${op === 'lowercase' ? 'selected' : ''}>Lowercase</option>
             <option value="trim" ${op === 'trim' ? 'selected' : ''}>Trim whitespace</option>
+            <option value="capitalize" ${op === 'capitalize' ? 'selected' : ''}>Capitalize each word</option>
+            <option value="digits_only" ${op === 'digits_only' ? 'selected' : ''}>Keep digits only</option>
+            <option value="truncate" ${op === 'truncate' ? 'selected' : ''}>Truncate to length</option>
+            <option value="pad_left" ${op === 'pad_left' ? 'selected' : ''}>Pad to length</option>
+            <option value="prefix" ${op === 'prefix' ? 'selected' : ''}>Add prefix</option>
+            <option value="suffix" ${op === 'suffix' ? 'selected' : ''}>Add suffix</option>
+            <option value="replace_text" ${op === 'replace_text' ? 'selected' : ''}>Replace text</option>
+            <option value="round_number" ${op === 'round_number' ? 'selected' : ''}>Round number</option>
+            <option value="constant" ${op === 'constant' ? 'selected' : ''}>Fixed value</option>
+            <option value="slugify" ${op === 'slugify' ? 'selected' : ''}>Slugify</option>
             <option value="map" ${op === 'map' ? 'selected' : ''}>Map specific values</option>
             <option value="default_if_empty" ${op === 'default_if_empty' ? 'selected' : ''}>Default if empty</option>
           </select>

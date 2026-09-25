@@ -102,7 +102,7 @@ Ten minutes, start to finish. You'll copy customers from one system into another
 
 | Method | You provide | Notes |
 |---|---|---|
-| **OAuth2 (authorization code)** | Nothing up front — you're sent to the provider to approve access, then returned to Ante. | Tokens are refreshed automatically before they expire. |
+| **OAuth2 (authorization code)** | Nothing up front — you're sent to the provider to approve access, then returned to Ante. | Tokens are refreshed automatically before they expire, and once more if the provider answers a request with *401*. Providers with special token rules (e.g. Bling: credentials as an HTTP Basic header, and an `enable-jwt: 1` header on every token and API call to get JWT tokens) are set with `client_auth` and `extra_headers` in the connection's auth config — or the matching fields of an App Store integration in the admin. |
 | **Bearer token / API key** | The token. | Sent with every request. |
 | **Basic auth** | Username and password. | |
 | **JWT (self-signed)** | The signing configuration (**Save JWT config**). | |
@@ -429,9 +429,10 @@ Example: `connection:shop status:>=400 since:1h` — everything the Shop connect
 | **Ante API** / **Console** | Ante's own API endpoints and pages, called in-process and timed. Without credentials a *401 / 403 / redirect* is the correct answer, so it counts as healthy; a server error is *Down*. |
 | **Activity** | Recent migration runs (the last 50) and outbound API calls (the last hour). 20% failed is *Degraded*, 50% is *Down*. |
 | **Connections** | Every active connection: *Degraded* if it still needs setup or a fifth of its calls failed in the last 24h, *Down* at half. Click a name to open it. |
-| **Outbound endpoints** | The eight busiest endpoints Ante has called in the last 24h, with the same error thresholds. |
 
-The history and uptime of the **Platform**, **Ante API** and **Console** checks are built from stored results: the page stores one at most every five minutes while it is being opened, and `python manage.py run_status_checks` (schedule it every 1–5 minutes with cron) stores them regularly. Until a check has two stored results it shows no history. **Activity**, **Connections** and **Outbound endpoints** draw theirs from the run and API-call history, so they are available at once. Programs can read the same checks as JSON at `GET /home/status/data/` (signed-in users with the Status module).
+The history and uptime of the **Platform**, **Ante API** and **Console** checks are built from stored results: the page stores one at most every five minutes while it is being opened, and `python manage.py run_status_checks` (schedule it every 1–5 minutes with cron) stores them regularly. Until a check has two stored results it shows no history. **Activity** and **Connections** draw theirs from the run and API-call history, so they are available at once.
+
+Unlike the rest of Ante, the status page needs no sign-in — it's linked from the login page, and a status page that only worked for people already logged in would be useless exactly when it matters most. Programs can read the same checks as JSON at `GET /home/status/data/`, which still needs a signed-in user with the Status module.
 
 ---
 

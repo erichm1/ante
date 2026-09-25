@@ -5,6 +5,7 @@ from django.core.validators import FileExtensionValidator
 from django.db import models
 
 from connections.models import Connection
+from connections.oauth import CLIENT_AUTH_BODY, CLIENT_AUTH_CHOICES
 
 ICON_IMAGE_EXTENSIONS = ["png", "jpg", "jpeg", "gif", "webp", "svg"]
 ICON_IMAGE_MAX_SIZE_MB = 1
@@ -85,6 +86,16 @@ class Integration(models.Model):
     oauth_client_id = models.CharField(max_length=255, blank=True)
     oauth_client_secret = models.CharField(max_length=255, blank=True)
     oauth_scope = models.CharField(max_length=255, blank=True)
+    oauth_client_auth = models.CharField(
+        max_length=10, choices=CLIENT_AUTH_CHOICES, default=CLIENT_AUTH_BODY,
+        help_text="How the token endpoint wants the client credentials: as form fields, or as an HTTP Basic header "
+                   "(Bling and many others). See connections/oauth.py.",
+    )
+    oauth_extra_headers = models.JSONField(
+        default=dict, blank=True,
+        help_text='{"header": "value"} sent on every token call and on every API request made with the token — '
+                   'e.g. {"enable-jwt": "1"} for Bling, which only issues JWT access tokens with it.',
+    )
 
     setup_url = models.URLField(blank=True, help_text="External docs/setup link shown on the install form, if any.")
     is_featured = models.BooleanField(default=False)
@@ -100,6 +111,18 @@ class Integration(models.Model):
     @property
     def uses_oauth_redirect(self) -> bool:
         return self.auth_type == Connection.AUTH_OAUTH2
+
+    def oauth_auth_config(self) -> dict:
+        """The `auth_config` an installed Connection of this integration gets (and the token exchange reads)."""
+        config = {
+            "client_id": self.oauth_client_id, "client_secret": self.oauth_client_secret,
+            "authorize_url": self.oauth_authorize_url, "token_url": self.oauth_token_url, "scope": self.oauth_scope,
+        }
+        if self.oauth_client_auth != CLIENT_AUTH_BODY:
+            config["client_auth"] = self.oauth_client_auth
+        if self.oauth_extra_headers:
+            config["extra_headers"] = self.oauth_extra_headers
+        return config
 
 
 class OAuthPendingConnection(models.Model):

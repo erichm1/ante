@@ -40,6 +40,9 @@ _TRANSFORM = _p("transform", "Clean up text fields", "select", default="none", o
     {"value": "trim", "label": "Trim whitespace"},
     {"value": "uppercase", "label": "UPPERCASE"},
     {"value": "lowercase", "label": "lowercase"},
+    {"value": "capitalize", "label": "Capitalize Each Word"},
+    {"value": "digits_only", "label": "Keep digits only"},
+    {"value": "slugify", "label": "Slugify"},
 ], help="Added as a transform on every text field that is copied to a text field. Editable per wire afterwards.")
 _CONNECTION = _p("connection", "Connection", "connection", required=True, help="Every step calls this connection's API.")
 _CHAIN_NAME = _p("name", "Name", required=True, placeholder="e.g. Create customer + order")
@@ -162,7 +165,7 @@ def auto_map(pair, preset="none"):
         text_to_text = source.field_type == Field.TYPE_STRING and target.field_type == Field.TYPE_STRING
         FieldMapping.objects.create(
             entity_mapping=pair, source_field=source, target_field=target,
-            transform_rules=[{"op": preset}] if preset in ("trim", "uppercase", "lowercase") and text_to_text else [],
+            transform_rules=[{"op": preset}] if preset in ("trim", "uppercase", "lowercase", "capitalize", "digits_only", "slugify") and text_to_text else [],
         )
         matched += 1
     return matched, unmatched

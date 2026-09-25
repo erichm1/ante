@@ -23,4 +23,5 @@
   {% else %}
     <p class="auth-footer">Accounts are created by an administrator. Ask yours for access.</p>
   {% endif %}
+  <p class="auth-footer"><a href="{% url 'home:status' %}"><i class="bi-activity" aria-hidden="true"></i> System status</a></p>
 {% endblock %}

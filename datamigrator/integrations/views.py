@@ -9,6 +9,7 @@ from django.urls import reverse
 from django.views.decorators.http import require_POST
 
 from connections.models import Connection
+from connections.oauth import token_request
 
 from .models import Integration, InstalledIntegration, OAuthPendingConnection
 
@@ -205,17 +206,11 @@ def oauth_callback(request):
         pending.delete()
         return retry_target
 
-    token_resp = requests.post(
-        integration.oauth_token_url,
-        data={
-            "grant_type": "authorization_code",
-            "code": code,
-            "redirect_uri": _oauth_redirect_uri(request),
-            "client_id": integration.oauth_client_id,
-            "client_secret": integration.oauth_client_secret,
-        },
-        timeout=30,
-    )
+    oauth_config = integration.oauth_auth_config()
+    data, headers = token_request(oauth_config, {
+        "grant_type": "authorization_code", "code": code, "redirect_uri": _oauth_redirect_uri(request),
+    })
+    token_resp = requests.post(integration.oauth_token_url, data=data, headers=headers, timeout=30)
     if token_resp.status_code != 200:
         messages.error(request, f"Token exchange failed ({token_resp.status_code}): {token_resp.text[:200]}")
         pending.delete()
@@ -240,13 +235,7 @@ def oauth_callback(request):
         name=_unique_connection_name(pending.connection_name),
         base_url=integration.default_base_url,
         auth_type=Connection.AUTH_OAUTH2,
-        auth_config={
-            "client_id": integration.oauth_client_id,
-            "client_secret": integration.oauth_client_secret,
-            "authorize_url": integration.oauth_authorize_url,
-            "token_url": integration.oauth_token_url,
-            "scope": integration.oauth_scope,
-        },
+        auth_config=oauth_config,
     )
     connection.secrets = new_secrets
     connection.save()

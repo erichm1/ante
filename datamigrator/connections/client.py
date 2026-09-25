@@ -8,6 +8,7 @@ import requests
 from requests.auth import HTTPBasicAuth
 
 from .models import ApiCallLog, Connection, redact_headers, truncate_body
+from .oauth import extra_headers, token_request
 
 
 def _b64url(raw: bytes) -> str:
@@ -78,6 +79,7 @@ class ConnectionClient:
     def _apply_oauth2(self):
         secrets = self.refresh_oauth2_token()
         self.session.headers["Authorization"] = f"Bearer {secrets.get('access_token', '')}"
+        self.session.headers.update(extra_headers(self.connection.auth_config))     # e.g. Bling's enable-jwt: 1
 
     @staticmethod
     def _token_expired(secrets: dict) -> bool:
@@ -116,16 +118,8 @@ class ConnectionClient:
         # self.request would call _prepare(), which for an OAuth2 connection
         # calls _apply_oauth2() -> refresh_oauth2_token() -> back here,
         # infinitely; _send() skips that and just makes + logs the call.
-        resp = self._send(
-            "POST",
-            token_url,
-            data={
-                "grant_type": "refresh_token",
-                "refresh_token": refresh_token,
-                "client_id": config.get("client_id", ""),
-                "client_secret": config.get("client_secret", ""),
-            },
-        )
+        data, headers = token_request(config, {"grant_type": "refresh_token", "refresh_token": refresh_token})
+        resp = self._send("POST", token_url, data=data, headers=headers)
         resp.raise_for_status()
         payload = resp.json()
         secrets = {
@@ -209,7 +203,28 @@ class ConnectionClient:
             # Merged under whatever the caller already passed — a call-site
             # param with the same name wins over the connection-wide default.
             kwargs["params"] = {**self.connection.custom_params, **(kwargs.get("params") or {})}
-        return self._send(method, self._build_url(path), **kwargs)
+        url = self._build_url(path)
+        response = self._send(method, url, **kwargs)
+        if response.status_code == 401 and self._renew_after_401(kwargs):
+            response = self._send(method, url, **kwargs)
+        return response
+
+    def _renew_after_401(self, kwargs) -> bool:
+        """A 401 on an OAuth2 connection means the provider no longer accepts the access token (expired sooner
+        than `expires_in` said, or revoked). Renew it with the refresh token — same call as a scheduled refresh —
+        and tell request() to retry once with the new one. False (so the 401 is returned as-is) when there is
+        nothing to renew with, the request carries files that a retry couldn't resend, or the renewal itself fails."""
+        if self.connection.auth_type != Connection.AUTH_OAUTH2 or kwargs.get("files"):
+            return False
+        secrets = self.connection.secrets
+        if not secrets.get("refresh_token") or not (self.connection.auth_config or {}).get("token_url"):
+            return False
+        try:
+            self._refresh_oauth2(secrets)
+        except (requests.RequestException, ValueError):
+            return False
+        self._prepare()
+        return True
 
     def get(self, path: str, **kwargs):
         return self.request("GET", path, **kwargs)

@@ -33,6 +33,16 @@
       return `Map values: ${cases || '(none set)'}${rule.default_mode === 'value' ? `, else "${rule.default_value}"` : ', else keep original'}`;
     }
     if (op === 'default_if_empty') return `Default to "${rule.value}" if empty`;
+    if (op === 'capitalize') return 'Capitalize each word';
+    if (op === 'digits_only') return 'Keep digits only';
+    if (op === 'truncate') return `Truncate to ${rule.length || '?'} characters`;
+    if (op === 'pad_left') return `Pad to ${rule.length || '?'} with "${rule.char || '0'}"`;
+    if (op === 'prefix') return `Add prefix "${rule.value || ''}"`;
+    if (op === 'suffix') return `Add suffix "${rule.value || ''}"`;
+    if (op === 'replace_text') return `Replace "${rule.from || ''}" with "${rule.to || ''}"`;
+    if (op === 'round_number') return `Round to ${rule.decimals ?? 0} decimal(s)`;
+    if (op === 'constant') return `Always use "${rule.value || ''}"`;
+    if (op === 'slugify') return 'Slugify';
     return op || 'Unknown rule';
   }
   const hasTransform = fm => !!((fm.transform_rules && fm.transform_rules.length) || fm.transform);
@@ -550,8 +560,30 @@
               rule.default_mode === 'value' ? h('input', { class: 'form-control form-control-sm', style: 'width:auto', placeholder: 'Fallback value', value: rule.default_value || '', oninput: e => { rule.default_value = e.target.value; } }) : null));
         } else if (op === 'default_if_empty') {
           params.append(h('input', { class: 'form-control form-control-sm', placeholder: 'Value to use when empty', value: rule.value || '', oninput: e => { rule.value = e.target.value; } }));
+        } else if (op === 'truncate') {
+          params.append(h('input', { class: 'form-control form-control-sm', type: 'number', min: '1', placeholder: 'Max length', value: rule.length || '', oninput: e => { rule.length = e.target.value; } }));
+        } else if (op === 'pad_left') {
+          params.append(h('div', { class: 'st-dlg-row' },
+            h('input', { class: 'form-control form-control-sm', type: 'number', min: '1', placeholder: 'Length', value: rule.length || '', oninput: e => { rule.length = e.target.value; } }),
+            h('input', { class: 'form-control form-control-sm', placeholder: 'Pad character (e.g. 0)', value: rule.char || '', maxlength: '1', oninput: e => { rule.char = e.target.value; } })));
+        } else if (op === 'prefix' || op === 'suffix') {
+          params.append(h('input', { class: 'form-control form-control-sm', placeholder: op === 'prefix' ? 'Text to add before' : 'Text to add after', value: rule.value || '', oninput: e => { rule.value = e.target.value; } }));
+        } else if (op === 'replace_text') {
+          params.append(h('div', { class: 'st-dlg-row' },
+            h('input', { class: 'form-control form-control-sm', placeholder: 'Replace (e.g. -)', value: rule.from || '', oninput: e => { rule.from = e.target.value; } }),
+            h('span', { class: 'text-dim', text: '→' }),
+            h('input', { class: 'form-control form-control-sm', placeholder: 'With (e.g. empty)', value: rule.to || '', oninput: e => { rule.to = e.target.value; } })));
+        } else if (op === 'round_number') {
+          params.append(h('input', { class: 'form-control form-control-sm', type: 'number', min: '0', placeholder: 'Decimal places', value: rule.decimals ?? '', oninput: e => { rule.decimals = e.target.value; } }));
+        } else if (op === 'constant') {
+          params.append(h('input', { class: 'form-control form-control-sm', placeholder: 'Always use this value', value: rule.value || '', oninput: e => { rule.value = e.target.value; } }));
         }
-        const labels = { uppercase: 'Uppercase', lowercase: 'Lowercase', trim: 'Trim whitespace', map: 'Map specific values', default_if_empty: 'Default if empty' };
+        const labels = {
+          uppercase: 'Uppercase', lowercase: 'Lowercase', trim: 'Trim whitespace', capitalize: 'Capitalize each word',
+          digits_only: 'Keep digits only', truncate: 'Truncate to length', pad_left: 'Pad to length', prefix: 'Add prefix',
+          suffix: 'Add suffix', replace_text: 'Replace text', round_number: 'Round number', constant: 'Fixed value',
+          slugify: 'Slugify', map: 'Map specific values', default_if_empty: 'Default if empty',
+        };
         return h('div', { class: 'border rounded p-2 mb-2' },
           h('div', { class: 'd-flex align-items-center gap-2' },
             h('select', {

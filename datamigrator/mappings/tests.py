@@ -2,7 +2,7 @@ import itertools
 from unittest import mock
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import SimpleTestCase, TestCase
 
 from connections.models import Connection
 from jobs import engine
@@ -416,3 +416,42 @@ class MappingCrudTests(PreviewTestBase):
         html = self.client.get(f"/mappings/{self.mapping.pk}/?tab=raw").content.decode()
         for needle in (f'data-mapping-edit="{self.mapping.pk}"', f'data-mapping-duplicate="{self.mapping.pk}"', f'data-mapping-delete="{self.mapping.pk}"', 'id="mappingModal"'):
             self.assertIn(needle, html)
+
+
+class TransformRuleOpsTests(SimpleTestCase):
+    """The no-code rule vocabulary jobs/engine.py::_apply_rules interprets, one rule at a time — the same ops
+    offered by the Studio canvas's transform editor and the classic mapping detail page's rule builder."""
+
+    def apply(self, value, rule):
+        return engine._apply_rules(value, [rule])
+
+    def test_capitalize_titlecases_each_word(self):
+        self.assertEqual(self.apply("joão da silva", {"op": "capitalize"}), "João Da Silva")
+
+    def test_digits_only_strips_everything_but_digits(self):
+        self.assertEqual(self.apply("+55 (11) 98888-7777", {"op": "digits_only"}), "5511988887777")
+
+    def test_truncate_cuts_to_the_given_length(self):
+        self.assertEqual(self.apply("abcdefgh", {"op": "truncate", "length": 3}), "abc")
+
+    def test_pad_left_pads_with_the_given_character(self):
+        self.assertEqual(self.apply("42", {"op": "pad_left", "length": 5, "char": "0"}), "00042")
+
+    def test_prefix_and_suffix_wrap_the_value(self):
+        self.assertEqual(self.apply("100", {"op": "prefix", "value": "R$ "}), "R$ 100")
+        self.assertEqual(self.apply("100", {"op": "suffix", "value": " kg"}), "100 kg")
+
+    def test_replace_text_swaps_every_occurrence(self):
+        self.assertEqual(self.apply("2024-01-31", {"op": "replace_text", "from": "-", "to": "/"}), "2024/01/31")
+
+    def test_round_number_rounds_to_the_given_decimals(self):
+        self.assertEqual(self.apply("3.14159", {"op": "round_number", "decimals": 2}), 3.14)
+
+    def test_constant_ignores_the_source_value(self):
+        self.assertEqual(self.apply("anything", {"op": "constant", "value": "BR"}), "BR")
+
+    def test_slugify_lowercases_and_dashes(self):
+        self.assertEqual(self.apply("São Paulo / SP!!", {"op": "slugify"}), "s-o-paulo-sp")
+
+    def test_a_rule_that_cannot_apply_leaves_the_value_unchanged(self):
+        self.assertEqual(self.apply("abc", {"op": "round_number"}), "abc")     # float("abc") fails

@@ -74,6 +74,16 @@ function describeRule(rule) {
     return `Map values: ${cases || '(none set)'}${fallback}`;
   }
   if (op === 'default_if_empty') return `Default to "${rule.value}" if empty`;
+  if (op === 'capitalize') return 'Capitalize each word';
+  if (op === 'digits_only') return 'Keep digits only';
+  if (op === 'truncate') return `Truncate to ${rule.length || '?'} characters`;
+  if (op === 'pad_left') return `Pad to ${rule.length || '?'} with "${rule.char || '0'}"`;
+  if (op === 'prefix') return `Add prefix "${rule.value || ''}"`;
+  if (op === 'suffix') return `Add suffix "${rule.value || ''}"`;
+  if (op === 'replace_text') return `Replace "${rule.from || ''}" with "${rule.to || ''}"`;
+  if (op === 'round_number') return `Round to ${rule.decimals ?? 0} decimal(s)`;
+  if (op === 'constant') return `Always use "${rule.value || ''}"`;
+  if (op === 'slugify') return 'Slugify';
   return op || 'Unknown rule';
 }
 

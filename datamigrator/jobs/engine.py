@@ -12,6 +12,7 @@ this for a real task queue (Celery) — the per-record logic doesn't change,
 only who calls it and how progress gets reported.
 """
 
+import re
 import time
 
 from simpleeval import simple_eval
@@ -105,6 +106,33 @@ def _apply_rules(value, rules: list):
             elif op == "default_if_empty":
                 if value is None or value == "":
                     value = rule.get("value")
+            elif op == "capitalize":
+                value = value.title() if isinstance(value, str) else value
+            elif op == "digits_only":
+                value = re.sub(r"\D", "", value) if isinstance(value, str) else value
+            elif op == "truncate":
+                length = int(rule.get("length") or 0)
+                value = value[:length] if isinstance(value, str) and length > 0 else value
+            elif op == "pad_left":
+                length = int(rule.get("length") or 0)
+                pad_char = (rule.get("char") or "0")[:1] or "0"
+                if length > 0:
+                    value = str(value).rjust(length, pad_char)
+            elif op == "prefix":
+                if value is not None:
+                    value = f"{rule.get('value', '')}{value}"
+            elif op == "suffix":
+                if value is not None:
+                    value = f"{value}{rule.get('value', '')}"
+            elif op == "replace_text":
+                value = value.replace(rule.get("from", ""), rule.get("to", "")) if isinstance(value, str) else value
+            elif op == "round_number":
+                value = round(float(value), int(rule.get("decimals") or 0))
+            elif op == "constant":
+                value = rule.get("value")
+            elif op == "slugify":
+                if isinstance(value, str):
+                    value = re.sub(r"-+", "-", re.sub(r"[^a-z0-9]+", "-", value.lower())).strip("-")
         except Exception:
             pass  # a bad rule shouldn't take down the whole run — leave value as-is
     return value

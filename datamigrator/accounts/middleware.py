@@ -6,6 +6,10 @@ from django.shortcuts import redirect, resolve_url
 from . import permissions
 
 OPEN_PATH_PREFIXES = ("/accounts/", "/admin/", "/static/")
+# Exact paths (not prefixes) open to everybody, on top of "/" itself — a status page is only useful to someone
+# who can't sign in, so it can't sit behind the same login wall as the rest of the app. Its own JSON feed
+# (/home/status/data/) stays behind login: it isn't a prefix match here, so it's unaffected.
+OPEN_PATHS = ("/", "/home/status/")
 
 
 class LoginRequiredMiddleware:
@@ -16,13 +20,14 @@ class LoginRequiredMiddleware:
     (a redirect would hand a fetch() caller an HTML login page where it
     expects JSON) and gets a plain 401 instead — in normal use this never
     fires, since every page that calls the API already required login to
-    reach. The one page open to everybody is "/" — the public landing page."""
+    reach. The pages open to everybody are "/" (the public landing page) and
+    "/home/status/" (the status page — see OPEN_PATHS)."""
 
     def __init__(self, get_response):
         self.get_response = get_response
 
     def __call__(self, request):
-        if not request.user.is_authenticated and request.path != "/" and not request.path.startswith(OPEN_PATH_PREFIXES):
+        if not request.user.is_authenticated and request.path not in OPEN_PATHS and not request.path.startswith(OPEN_PATH_PREFIXES):
             if request.path.startswith("/api/"):
                 return JsonResponse({"detail": "Authentication required."}, status=401)
             return redirect(f"{resolve_url(settings.LOGIN_URL)}?next={request.path}")

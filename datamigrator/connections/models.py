@@ -52,7 +52,9 @@ class Connection(models.Model):
         default=dict,
         blank=True,
         help_text=(
-            "OAuth2: client_id, client_secret, authorize_url, token_url, scope. "
+            "OAuth2: client_id, client_secret, authorize_url, token_url, scope, plus optionally client_auth "
+            "('basic' to send the credentials as an HTTP Basic header) and extra_headers "
+            "({\"enable-jwt\": \"1\"}, sent on token calls and API requests — see connections/oauth.py). "
             "Bearer: header_name (default Authorization), prefix (default Bearer). "
             "JWT: claims (dict, 'exp' filled in automatically), ttl_seconds (default 3600), "
             "algorithm (default HS256). Basic: no config needed."

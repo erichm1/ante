@@ -268,6 +268,26 @@ def _compute_status_data():
     }
 
 
+NAV_GREEN, NAV_YELLOW, NAV_RED = "green", "yellow", "red"
+
+
+def nav_status_level():
+    """The three-way signal behind the navbar's Status dot (see templates/base.html and
+    static/js/home_nav_status.js) — cheap enough to compute on every page load, unlike the full status page's
+    run_checks (which makes real, timed calls to Ante's own endpoints). Red beats everything else: an incident
+    still open or being worked always shows red, whatever the checks below say. Short of that, yellow means
+    something in `_compute_status_data`'s reasons — a stalled worker, a run or API-error-rate spike in roughly
+    the last hour, or a connection needing setup — and green means none of that."""
+    if Incident.objects.exclude(status=Incident.STATUS_RESOLVED).exists():
+        return NAV_RED
+    return NAV_YELLOW if _compute_status_data()["reasons"] else NAV_GREEN
+
+
+def nav_status(request):
+    """Polled by the navbar (every page, every signed-in user) to keep the Status dot live without a reload."""
+    return JsonResponse({"level": nav_status_level()})
+
+
 def _checks(request):
     """Run every check, store the results now and then (so history builds up), and add each one's history / uptime."""
     results = status_engine.run_checks(request.get_host())

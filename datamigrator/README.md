@@ -202,9 +202,11 @@ Visit `http://localhost:8000/connections/` to get started.
   `custom.css`), an overall banner and grouped checks with a dot, history, 24h uptime, latency and badge, refreshing every 60s. The engine is
   `home/status.py`: the database, the background workers, Ante's own pages and API called in-process with Django's test `Client`
   (`ENDPOINT_REGISTRY`; a 401/403/redirect counts as healthy, a 5xx or exception is down), and rows derived from migration runs, the outbound
-  call log, every connection and the busiest outbound endpoints (20% failures → degraded, 50% → down). Results of the database / worker / API
+  call log and every connection (20% failures → degraded, 50% → down). Results of the database / worker / API
   checks are stored in `home.StatusCheckResult` — by `python manage.py run_status_checks` (schedule it) and by the page itself at most every
-  5 minutes — and pruned after 7 days. `GET /home/status/data/` returns the same checks as JSON. Both need a signed-in user with the Status module.
+  5 minutes — and pruned after 7 days. The page itself is public — no sign-in needed, the same as any status page needs to be reachable when
+  people can't log in — and linked from the login page; `GET /home/status/data/` returns the same checks as JSON and still needs a signed-in
+  user with the Status module.
 
 ## Auto-mapping (draft wires)
 

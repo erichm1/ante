@@ -423,7 +423,7 @@ class SignInPolicyTests(TestCase):
 
 
 class NavbarAdminSectionTests(AccessTestBase):
-    """Reports, Incidents and Logs live in the navbar's Admin section; the section keeps the per-module locks."""
+    """Reports, Incidents, Logs and Status live in the navbar's Admin section; the section keeps the per-module locks."""
 
     def navbar(self, user):
         self.login(user)
@@ -433,17 +433,18 @@ class NavbarAdminSectionTests(AccessTestBase):
         start = head.index('id="navAdmin"')
         return main, head[start:head.index('<div class="nav-end"', start)]
 
-    def test_the_three_links_moved_from_the_main_bar_into_the_admin_section(self):
-        main, admin = self.navbar(self.make("plain", groups=[self.group("g", ["reports", "incidents", "logs", "tickets"])]))
-        for href in ("/reports/", "/incidents/", "/connections/logs/"):
+    def test_the_four_links_moved_from_the_main_bar_into_the_admin_section(self):
+        main, admin = self.navbar(self.make("plain", groups=[self.group("g", ["reports", "incidents", "logs", "status", "tickets"])]))
+        for href in ("/reports/", "/incidents/", "/connections/logs/", "/home/status/"):
             self.assertNotIn(f'href="{href}"', main)
             self.assertIn(f'href="{href}"', admin)
         self.assertIn('href="/tickets/"', main)                              # tickets stay where they were
         self.assertIn('aria-haspopup="true"', admin)
+        self.assertIn("nav-status-dot", admin)                               # the coloured dot travels with it
 
     def test_locks_still_show_inside_the_section(self):
         _, admin = self.navbar(self.make("limited", groups=[self.group("g", ["reports"])]))
-        self.assertEqual(admin.count("nav-lock"), 2)                         # incidents and logs are locked
+        self.assertEqual(admin.count("nav-lock"), 3)                         # incidents, logs and status are locked
         self.assertNotIn('href="/reports/"\n               class="locked', admin)
 
     def test_only_administrators_get_the_administration_links(self):

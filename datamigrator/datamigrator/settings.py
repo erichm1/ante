@@ -71,6 +71,7 @@ TEMPLATES = [
                 "django.contrib.messages.context_processors.messages",
                 "accounts.context_processors.profile",
                 "accounts.context_processors.access",
+                "home.context_processors.nav_status",
             ],
         },
     },

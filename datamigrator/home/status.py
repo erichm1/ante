@@ -4,9 +4,9 @@ Degraded / Down, grouped, and shown with a 24h uptime and a small history. A 401
 endpoint is the *correct* answer without credentials, so it counts as operational; a 5xx or an exception is down.
 
 On top of that Ante checks what only it has: the database, its background workers, how recent migration runs and
-outbound API calls have gone, and every connection and the outbound endpoints it talks to. Those "activity" rows carry
-their own history (from the runs / call log), so they need no stored results; the rest are stored by
-`manage.py run_status_checks` (or by the page itself, at most every few minutes) in StatusCheckResult.
+outbound API calls have gone, and every connection it talks to. Those "activity" rows carry their own history (from
+the runs / call log), so they need no stored results; the rest are stored by `manage.py run_status_checks` (or by the
+page itself, at most every few minutes) in StatusCheckResult.
 """
 from __future__ import annotations
 
@@ -33,7 +33,6 @@ RECENT_CALLS_HOURS = 1      # window of the "outbound API calls" check
 UPTIME_HOURS = 24           # window of every uptime %
 HISTORY_POINTS = 20         # bars in a sparkline
 DEGRADED_RATE, DOWN_RATE = 0.2, 0.5
-ENDPOINT_ROWS = 8           # outbound endpoints listed (busiest first)
 CALL_ROWS_LIMIT = 20000     # most recent calls read for the activity rows
 RECORD_EVERY = timedelta(minutes=5)
 KEEP_RESULTS_FOR = timedelta(days=7)
@@ -56,7 +55,7 @@ ENDPOINT_REGISTRY = [
     ("Console", "Studio", "GET", "/studio/", _OK),
 ]
 
-GROUP_ORDER = ["Platform", "Ante API", "Console", "Activity", "Connections", "Outbound endpoints"]
+GROUP_ORDER = ["Platform", "Ante API", "Console", "Activity", "Connections"]
 
 
 def _row(group, name, state, *, method="-", path="", http_status=None, latency_ms=None, detail="", persist=False, **extra):
@@ -155,9 +154,9 @@ def check_endpoints(host):
     return [check_endpoint(client, *entry) for entry in ENDPOINT_REGISTRY]
 
 
-# ── activity: runs, outbound API calls, connections, endpoints ──────────────────
+# ── activity: runs, outbound API calls, connections ──────────────────────────────
 class _Calls:
-    """Calls of one connection / endpoint: how many, how many errored, average duration, and the latest few outcomes."""
+    """Calls of one connection: how many, how many errored, average duration, and the latest few outcomes."""
 
     def __init__(self):
         self.total = self.errors = self.timed = 0
@@ -194,20 +193,17 @@ def _read_calls():
     since = timezone.now() - timedelta(hours=UPTIME_HOURS)
     hour_ago = timezone.now() - timedelta(hours=RECENT_CALLS_HOURS)
     overall, last_hour = _Calls(), _Calls()
-    by_connection, by_endpoint = defaultdict(_Calls), defaultdict(_Calls)
+    by_connection = defaultdict(_Calls)
     rows = ApiCallLog.objects.filter(created_at__gte=since).order_by("-created_at").values_list(
-        "connection_id", "method", "url", "status_code", "error", "duration_ms", "created_at")[:CALL_ROWS_LIMIT]
-    for connection_id, method, url, status_code, error, duration_ms, at in rows:
+        "connection_id", "status_code", "error", "duration_ms", "created_at")[:CALL_ROWS_LIMIT]
+    for connection_id, status_code, error, duration_ms, at in rows:
         errored = bool(error) or (status_code is not None and status_code >= 400)
-        parts = urlsplit(url)
-        endpoint = (method, parts.netloc, parts.path.rstrip("/") or "/")
         overall.add(errored, duration_ms, at)
         if at >= hour_ago:
             last_hour.add(errored, duration_ms, at)
-        by_endpoint[endpoint].add(errored, duration_ms, at)
         if connection_id:
             by_connection[connection_id].add(errored, duration_ms, at)
-    return overall, last_hour, by_connection, by_endpoint
+    return overall, last_hour, by_connection
 
 
 def check_runs():
@@ -252,17 +248,6 @@ def check_connections(by_connection):
     return rows
 
 
-def check_outbound_endpoints(by_endpoint):
-    busiest = sorted(by_endpoint.items(), key=lambda item: item[1].total, reverse=True)[:ENDPOINT_ROWS]
-    rows = []
-    for (method, netloc, path), calls in busiest:
-        state = _rate_state(calls.rate)
-        rows.append(_row("Outbound endpoints", path, state, method=method, path=netloc, latency_ms=calls.avg_ms,
-                         detail="" if state == State.OPERATIONAL else _call_detail(calls, UPTIME_HOURS),
-                         history=calls.history, uptime_pct=calls.uptime_pct))
-    return rows
-
-
 # ── putting it together ─────────────────────────────────────────────────────────
 def default_host():
     hosts = [h for h in settings.ALLOWED_HOSTS if h and h != "*" and not h.startswith(".")]
@@ -271,10 +256,9 @@ def default_host():
 
 def run_checks(host=None):
     """Every check, in page order. `host` is the Host header the in-process calls carry (the current request's)."""
-    overall, last_hour, by_connection, by_endpoint = _read_calls()
+    overall, last_hour, by_connection = _read_calls()
     results = [check_database(), *check_workers(), *check_endpoints(host or default_host()),
-               check_runs(), check_api_calls(last_hour, overall), *check_connections(by_connection),
-               *check_outbound_endpoints(by_endpoint)]
+               check_runs(), check_api_calls(last_hour, overall), *check_connections(by_connection)]
     order = {g: i for i, g in enumerate(GROUP_ORDER)}
     return sorted(results, key=lambda r: order.get(r["group"], len(order)))      # stable: keeps the order inside a group
 

@@ -34,9 +34,6 @@
           <a href="{% url 'home:index' %}"
              class="{% if request.resolver_match.app_name == 'home' and request.resolver_match.url_name != 'status' %}active{% endif %}"
              data-t-tip="tip.home" data-sb-tip="Dashboard — runs at a glance, recent activity, quick stats."><span data-t="nav.home">Home</span></a>
-          <a href="{% url 'home:status' %}"
-             class="{% if request.resolver_match.url_name == 'status' %}active{% endif %}{% if 'status' not in user_modules %} locked{% endif %}"
-             data-t-tip="tip.status" data-sb-tip="Platform status — connection health, API call volumes, top endpoints."><span data-t="nav.status">Status</span>{% if 'status' not in user_modules %}<i class="bi-lock-fill nav-lock" aria-hidden="true"></i>{% endif %}</a>
           <a href="{% url 'integrations:list' %}"
              class="{% if request.resolver_match.app_name == 'integrations' or request.resolver_match.app_name == 'connections' and request.resolver_match.url_name != 'logs' %}active{% endif %}{% if 'appstore' not in user_modules %} locked{% endif %}"
              data-t-tip="tip.appstore" data-sb-tip="App Store — install connectors for REST APIs, CSV files, and spreadsheets. Then create Connections from each integration."><span data-t="nav.appstore">App Store</span>{% if 'appstore' not in user_modules %}<i class="bi-lock-fill nav-lock" aria-hidden="true"></i>{% endif %}</a>
@@ -62,10 +59,17 @@
 
         {# Admin section: the modules an administrator works in, grouped so the main bar stays short. Same locks as before. #}
         <div class="nav-group" id="navAdmin">
-          <button type="button" class="nav-group-toggle{% if request.resolver_match.app_name == 'reports' or request.resolver_match.app_name == 'incidents' or request.resolver_match.url_name == 'logs' %} active{% endif %}" id="navAdminToggle"
+          <button type="button" class="nav-group-toggle{% if request.resolver_match.app_name == 'reports' or request.resolver_match.app_name == 'incidents' or request.resolver_match.url_name == 'logs' or request.resolver_match.url_name == 'status' %} active{% endif %}" id="navAdminToggle"
                   aria-expanded="false" aria-haspopup="true" aria-controls="navAdminMenu" aria-label="Admin"
                   data-sb-tip="Admin — reports, incidents and logs, plus user administration for administrators."><span class="nav-admin-face"><i class="bi-gear-fill nav-admin-icon" aria-hidden="true"></i><span class="nav-admin-label">Admin</span></span><i class="bi-chevron-down nav-caret" aria-hidden="true"></i></button>
           <div class="nav-group-menu" id="navAdminMenu">
+            <a href="{% url 'home:status' %}"
+               class="{% if request.resolver_match.url_name == 'status' %}active{% endif %}{% if 'status' not in user_modules %} locked{% endif %}"
+               data-t-tip="tip.status" data-sb-tip="Platform status — connection health and API call volumes.">
+              <span class="nav-status-dot {{ nav_status_level|default:'green' }}" id="navStatusDot"
+                    title="{% if nav_status_level == 'red' %}An incident is open{% elif nav_status_level == 'yellow' %}Some issues in the last hour{% else %}All systems operational{% endif %}"></span>
+              <span data-t="nav.status">Status</span>{% if 'status' not in user_modules %}<i class="bi-lock-fill nav-lock" aria-hidden="true"></i>{% endif %}
+            </a>
             <a href="{% url 'reports:list' %}"
                class="{% if request.resolver_match.app_name == 'reports' %}active{% endif %}{% if 'reports' not in user_modules %} locked{% endif %}"
                data-t-tip="tip.reports" data-sb-tip="Reports — combine data from multiple entities into a single drag-and-drop CSV export, with on-screen preview."><i class="bi-file-earmark-bar-graph nav-menu-icon" aria-hidden="true"></i><span data-t="nav.reports">Reports</span>{% if 'reports' not in user_modules %}<i class="bi-lock-fill nav-lock" aria-hidden="true"></i>{% endif %}</a>
@@ -189,6 +193,7 @@
   <script>window.ANTE_USER = "{{ user.username|escapejs }}";</script>
   <script src="{% static 'js/onboarding.js' %}"></script>
   <script src="{% static 'js/notifications.js' %}"></script>
+  <script src="{% static 'js/nav_status.js' %}"></script>
   {% endif %}
   <script>
   /* Theme toggle */

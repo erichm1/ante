@@ -18,6 +18,7 @@ from . import scheduler
 from .client import ConnectionClient
 from .log_query import filter_logs
 from .models import ApiCallLog, Connection, TokenRefreshJob
+from .oauth import token_request
 from .serializers import ConnectionSecretsSerializer, ConnectionSerializer, TokenRefreshJobSerializer
 
 
@@ -205,17 +206,12 @@ def oauth_callback(request, pk):
         messages.error(request, f"Authorization failed: {request.GET.get('error', 'no code returned')}")
         return redirect("connections:detail", pk=pk)
 
-    token_resp = requests.post(
-        config.get("token_url", ""),
-        data={
-            "grant_type": "authorization_code",
-            "code": code,
-            "redirect_uri": request.build_absolute_uri(reverse("connections:oauth_callback", args=[pk])),
-            "client_id": config.get("client_id", ""),
-            "client_secret": config.get("client_secret", ""),
-        },
-        timeout=30,
-    )
+    data, headers = token_request(config, {
+        "grant_type": "authorization_code",
+        "code": code,
+        "redirect_uri": request.build_absolute_uri(reverse("connections:oauth_callback", args=[pk])),
+    })
+    token_resp = requests.post(config.get("token_url", ""), data=data, headers=headers, timeout=30)
     if token_resp.status_code != 200:
         messages.error(request, f"Token exchange failed ({token_resp.status_code}): {token_resp.text[:200]}")
         return redirect("connections:detail", pk=pk)

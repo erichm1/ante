@@ -17,6 +17,7 @@ class IntegrationAdmin(admin.ModelAdmin):
             "fields": (
                 "oauth_redirect_url_display", "oauth_authorize_url", "oauth_token_url",
                 "oauth_client_id", "oauth_client_secret", "oauth_scope",
+                "oauth_client_auth", "oauth_extra_headers",
             ),
         }),
         ("Catalog listing", {"fields": ("setup_url", "is_featured", "is_active")}),

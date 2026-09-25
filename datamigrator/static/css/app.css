@@ -142,6 +142,14 @@ code, .mono, .field-type, .endpoint-path, .schema-name {
 .nav-links a.locked:hover { color: #b9c4c1; }
 .nav-lock { font-size: 0.68rem; margin-left: 6px; opacity: 0.85; }
 
+/* The Status link (in the Admin menu) carries a dot instead of a plain icon: green (no events), yellow (some in
+   the last hour), red (an incident is open or ongoing) — see home.context_processors.nav_status and
+   static/js/nav_status.js. */
+.nav-status-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; vertical-align: middle; flex-shrink: 0; }
+.nav-status-dot.green { background: var(--trace); box-shadow: 0 0 0 2px var(--trace-soft); }
+.nav-status-dot.yellow { background: var(--signal); box-shadow: 0 0 0 2px var(--chip-warn-bg); }
+.nav-status-dot.red { background: var(--danger); box-shadow: 0 0 0 2px var(--chip-err-bg); }
+
 /* Admin section — in the mobile drawer it is an expandable block; on desktop (below) a dropdown. */
 .nav-group-toggle {
   display: flex; align-items: center; justify-content: space-between; gap: 6px; width: 100%;
